@@ -1,0 +1,45 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-docker-compose
+{
+	"name": "Existing Docker Compose (Extend)",
+
+	// Update the 'dockerComposeFile' list if you have more compose files or use different names.
+	// The .devcontainer/docker-compose.yml file contains any overrides you need/want to make.
+	"dockerComposeFile": ["../docker-compose.yaml", "docker-compose.yml"],
+
+	// The 'service' property is the name of the service for the container that VS Code should
+	// use. Update this value and .devcontainer/docker-compose.yml to the real service name.
+	"service": "tomostocks-app",
+
+	// The optional 'workspaceFolder' property is the path VS Code should open by default when
+	// connected. This is typically a file mount in .devcontainer/docker-compose.yml
+	"workspaceFolder": "/src",
+	// Configure tool-specific properties.
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.linting.enabled": true,
+				"python.linting.lintOnSave": true,
+				// Pylance
+				"python.languageServer": "Pylance",
+				"python.analysis.completeFunctionParens": true,
+				// Linter(flake8)
+				"python.linting.flake8Path": "/usr/local/bin/flake8",
+				"python.linting.pylintEnabled": false,
+				"python.linting.flake8Enabled": true,
+				// Formatter(black)
+				"python.formatting.blackPath": "/usr/local/bin/black",
+				"python.formatting.provider": "black",
+				"python.formatting.blackArgs": ["--line-length=119"],
+				"[python]": {
+					"editor.formatOnSave": true,
+					"editor.codeActionsOnSave": {
+						"source.organizeImports": "explicit"
+					}
+				},
+				"isort.args": ["--profile", "black"]
+			},
+			"extensions": ["ms-python.python", "ms-python.vscode-pylance", "ms-python.isort", "MS-CEINTL.vscode-language-pack-ja", "ms-python.black-formatter", "mosapride.zenkaku"]
+		}
+	}
+}
