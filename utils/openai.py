@@ -7,6 +7,8 @@ from langchain_openai import ChatOpenAI
 from langsmith import Client
 
 from utils.common import read_markdown_file
+from utils.config import logger
+from utils.cosmos import fetch_recent_chat_messages, save_chat_message
 
 load_dotenv()
 
@@ -17,25 +19,28 @@ client = Client()
 
 
 def generate_chat_response(user_prompt):
+    logger.info("チャットレスポンス生成を開始します。")
 
     parser = StrOutputParser()
-
     # プロンプトを設定
     system_prompt = read_markdown_file("prompts/system_prompt.md")
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "{user_input}"),
-        ],
-    )
-
+    # system_prompt,過去の会話履歴,user_promptを組み合わせてプロンプト作成
+    messages_list = fetch_recent_chat_messages()
+    messages_list = [("system", system_prompt)] + messages_list + [("user", user_prompt)]
+    prompt = ChatPromptTemplate.from_messages(messages_list)
     # chatモデルを設定
     chat = ChatOpenAI(model_name="gpt-4-turbo", temperature=1, max_tokens=512)
-
     # chainを設定
     chain = prompt | chat | parser
-    result = chain.invoke({"user_input": user_prompt})
+    try:
+        result = chain.invoke({"user_input": user_prompt})
+        logger.info("チャットレスポンスが生成されました。")
+    except Exception as e:
+        logger.error(f"チャットレスポンスの生成に失敗しました: {e}")
+        result = "エラーが発生しました。"
+    # チャットレスポンスをデータベースに保存
+    save_chat_message("human", user_prompt)
+    save_chat_message("ai", result)
 
     return result
 

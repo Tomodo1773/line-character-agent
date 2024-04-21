@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -9,15 +10,17 @@ from linebot.v3.messaging import (
     Configuration,
     MessagingApi,
     ReplyMessageRequest,
-    TextMessage,
     ShowLoadingAnimationRequest,
+    TextMessage,
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
+
+from utils.config import logger
 from utils.openai import generate_chat_response
 
 load_dotenv()
 
-
+# アプリの設定
 configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 chatId = os.environ.get("LINE_USER_ID")
@@ -35,14 +38,16 @@ async def callback(
     x_line_signature=Header(None),
 ):
     body = await request.body()
+    logger.info(f"受信したリクエストボディ: {body.decode('utf-8')}")  # loggerを使用してログ出力
 
     try:
-        background_tasks.add_task(
-            handler.handle, body.decode("utf-8"), x_line_signature
-        )
+        background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
+        logger.info("バックグラウンドタスクにハンドラを追加しました。")  # loggerを使用してログ出力
     except InvalidSignatureError:
+        logger.error("無効な署名が検出されました。")  # loggerを使用してログ出力
         raise HTTPException(status_code=400, detail="Invalid signature")
 
+    logger.info("リクエスト処理が正常に完了しました。")  # loggerを使用してログ出力
     return "ok"
 
 
@@ -53,14 +58,17 @@ def handle_message(event):
 
         # ローディングアニメーションを表示
         line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=chatId, loadingSeconds=60))
+        logger.info("ローディングアニメーションを表示しました。")
 
         # OpenAIでレスポンスメッセージを作成
         response = generate_chat_response(event.message.text)
+        logger.info(f"生成されたレスポンス: {response}")
 
         # メッセージを返信
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=response)])
         )
+        logger.info("メッセージをユーザーに返信しました。")
 
 
 @app.get("/hello")

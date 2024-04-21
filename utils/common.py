@@ -1,3 +1,6 @@
+from utils.config import logger
+
+
 def read_markdown_file(file_path):
     """
     指定されたパスのMarkdownファイルを読み込み、その内容を返します。
