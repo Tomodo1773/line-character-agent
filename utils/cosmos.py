@@ -28,7 +28,7 @@ def initialize_cosmos_db():
     try:
         database = client.create_database_if_not_exists(id=config["database_name"])
         container = database.create_container_if_not_exists(
-            id=config["container_name"], partition_key=PartitionKey(path="/link")
+            id=config["container_name"], partition_key=PartitionKey(path="/id")
         )
         logger.info("データベースとコンテナの初期化が成功しました。")
         return container
