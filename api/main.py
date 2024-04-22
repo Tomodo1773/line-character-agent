@@ -16,7 +16,7 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 from utils.config import logger
-from utils.openai import generate_chat_response
+from utils.chat import generate_chat_response
 
 load_dotenv()
 
