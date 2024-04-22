@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 from azure.cosmos import CosmosClient, PartitionKey, exceptions
@@ -63,8 +63,12 @@ def fetch_recent_chat_messages(limit=10):
                 query=query, parameters=[{"name": "@limit", "value": limit}], enable_cross_partition_query=True
             )
         )
+        # 現在の日時を取得
+        now = datetime.now(pytz.timezone("Asia/Tokyo"))
+        # 取得したitemの中で最新のものが日本時間の現在時刻と比べて1時間以内かを確認
+        recent_items = [item for item in items if datetime.fromisoformat(item["date"]) > now - timedelta(hours=1)]
         # ユーザー名とメッセージのタプルのリストに整形
-        formatted_items = [(item["user"], item["message"]) for item in reversed(items)]
+        formatted_items = [(item["user"], item["message"]) for item in reversed(recent_items)]
         logger.info("最新のチャットメッセージが正常に取得されました。")
         return formatted_items
     except exceptions.CosmosHttpResponseError as e:
