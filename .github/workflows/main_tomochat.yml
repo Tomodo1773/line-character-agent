@@ -22,12 +22,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies with Poetry
+      - name: Create and start virtual environment
         run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-          poetry config virtualenvs.in-project true
-          poetry install
+          python -m venv venv
+          source venv/bin/activate
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
@@ -65,4 +66,4 @@ jobs:
         with:
           app-name: 'TomoChat'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D792E3D7C9CC4BC39A6770CF49369384 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_3C1B7F9C958540AFA26EB2F5B1FB9CD9 }}
