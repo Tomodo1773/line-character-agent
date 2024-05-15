@@ -27,9 +27,10 @@ def generate_chat_response(user_prompt):
     system_prompt = read_markdown_file("prompts/system_prompt.txt")
     # system_prompt,過去の会話履歴,user_promptを組み合わせてプロンプト作成
     messages_list = fetch_recent_chat_messages()
-    messages_list = [("system", system_prompt)] + messages_list + [("user", user_prompt)]
-    prompt = ChatPromptTemplate.from_messages(messages_list)
+    messages_list = [("system", system_prompt)] + messages_list + [("user", "{user_input}")]
 
+    prompt = ChatPromptTemplate.from_messages(messages_list)
+    print(prompt)
     # chatモデルを設定
     # chat = ChatOpenAI(model_name="gpt-4-turbo", temperature=1, max_tokens=256)
     # chat = ChatAnthropic(model="claude-3-haiku-20240307", max_tokens=256, temperature=0.7)
