@@ -1,8 +1,7 @@
-import logging
 import os
-
+import json
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -15,8 +14,8 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-from utils.config import logger
 from utils.chat import generate_chat_response
+from utils.config import logger
 
 load_dotenv()
 
@@ -74,6 +73,28 @@ def handle_message(event):
 @app.get("/hello")
 async def hello():
     return {"message": "hello world!"}
+
+
+# @app.websocket("/ws")
+# async def websocket_endpoint(websocket: WebSocket):
+#     await websocket.accept()
+#     while True:
+#         data = await websocket.receive_text()
+#         logger.info(f"[Websocket]メッセージを受信しました: {data}")
+
+#         # 受信したデータをJSONとしてパース
+#         data_dict = json.loads(data)
+#         logger.info(f"[Websocket]user_prompt: {data_dict['content']}")
+#         # 'content'の値をgenerate_chat_responseに渡す
+#         response = generate_chat_response(data_dict["content"])
+#         logger.info(f"[Websocket]生成されたレスポンス: {response}")
+#         response_json = {
+#             "text": response,
+#             "role": "assistant",
+#             "emotion": "neutral"
+#         }
+#         await websocket.send_json(response_json)
+#         logger.info(f"[Websocket]メッセージを送信しました")
 
 
 if __name__ == "__main__":
