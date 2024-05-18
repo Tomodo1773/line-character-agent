@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langsmith import Client
 
@@ -34,7 +35,12 @@ def generate_chat_response(user_prompt):
     # chatモデルを設定
     # chat = ChatOpenAI(model_name="gpt-4-turbo", temperature=1, max_tokens=256)
     # chat = ChatAnthropic(model="claude-3-haiku-20240307", max_tokens=256, temperature=0.7)
-    chat = ChatAnthropic(model="claude-3-opus-20240229", max_tokens=256, temperature=0.7)
+    chat = ChatGoogleGenerativeAI(
+        model="gemini-1.5-pro-latest",
+        max_tokens=256,
+        temperature=0.7,
+    )
+    # chat = ChatAnthropic(model="claude-3-opus-20240229", max_tokens=256, temperature=0.7)
 
     # chainを設定
     chain = prompt | chat | parser
