@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
 from linebot.v3 import WebhookHandler
@@ -16,6 +17,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 from utils.chat import generate_chat_response
 from utils.config import logger
+from utils.cosmos import fetch_recent_chat_messages, save_chat_message
 
 load_dotenv()
 
@@ -59,15 +61,32 @@ def handle_message(event):
         line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=chatId, loadingSeconds=60))
         logger.info("ローディングアニメーションを表示しました。")
 
-        # OpenAIでレスポンスメッセージを作成
-        response = generate_chat_response(event.message.text)
-        logger.info(f"生成されたレスポンス: {response}")
+        # CosmosDBから直近の会話履歴を取得
+        history = fetch_recent_chat_messages()
+        logger.info("直近の会話履歴を取得しました。")
 
-        # メッセージを返信
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=response)])
-        )
-        logger.info("メッセージをユーザーに返信しました。")
+        try:
+            # LLMでレスポンスメッセージを作成
+            response = generate_chat_response(user_prompt=event.message.text,history=history)
+            logger.info(f"レスポンスを生成しました。: {response}")
+
+            # メッセージを返信
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=response)])
+            )
+            logger.info("メッセージをユーザーに返信しました。")
+
+            # 会話履歴をCosmosDBに保存
+            save_chat_message("human", event.message.text)
+            save_chat_message("ai", response)
+            logger.info("会話履歴を保存しました。")
+
+        except Exception as e:
+            # メッセージを返信
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=e)])
+            )
+            logger.error(f"エラーメッセージをユーザーに返信しました。{e}")
 
 
 @app.get("/hello")

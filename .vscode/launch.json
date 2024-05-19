@@ -6,12 +6,16 @@
 			"type": "python",
 			"request": "launch",
 			"module": "uvicorn",
-			"args": [
-				"api.main:app",
-				"--reload"
-			],
+			"args": ["api.main:app", "--reload"],
 			"console": "integratedTerminal",
 			"cwd": "${workspaceFolder}"
+		},
+		{
+			"name": "Python: test_chat",
+			"type": "python",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"module": "tests.utils.test_chat"
 		}
 	]
 }
