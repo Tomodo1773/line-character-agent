@@ -70,7 +70,7 @@ class GenerateChatResponseChain:
         self.llm = llm
         logger.debug(f"History: {history}")
         # promptを設定（system_prompt,過去の会話履歴,user_promptを組み合わせ）
-        messages_list = [("system", _SYSTEM_PROMPT)] + history + [("user", "{user_input}")]
+        messages_list = [("human", _SYSTEM_PROMPT)] + history + [("user", "{user_input}")]
         self.prompt = ChatPromptTemplate.from_messages(messages_list)
 
     def invoke(
