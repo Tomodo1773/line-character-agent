@@ -13,7 +13,6 @@ from langsmith import Client
 
 # from utils.common import read_markdown_file
 from utils.config import logger
-from utils.cosmos import fetch_recent_chat_messages, save_chat_message
 
 load_dotenv()
 
@@ -65,38 +64,35 @@ _SYSTEM_PROMPT = """
 
 
 class GenerateChatResponseChain:
-    def __init__(self, llm: BaseChatModel) -> None:
+
+    def __init__(self, llm: BaseChatModel, history: list) -> None:
+        # llmを設定
         self.llm = llm
-
-    def invoke(self, user_prompt: str, history: list) -> str:
-        logger.info("チャットレスポンス生成を開始します。")
-
-        # system_prompt,過去の会話履歴,user_promptを組み合わせてプロンプト作成
+        logger.debug(f"History: {history}")
+        # promptを設定（system_prompt,過去の会話履歴,user_promptを組み合わせ）
         messages_list = [("system", _SYSTEM_PROMPT)] + history + [("user", "{user_input}")]
-        prompt = ChatPromptTemplate.from_messages(messages_list)
+        self.prompt = ChatPromptTemplate.from_messages(messages_list)
 
-        chain: Runnable[Any, str] = {"user_input": RunnablePassthrough()} | prompt | self.llm | StrOutputParser()
-
+    def invoke(
+        self,
+        user_prompt: str,
+    ) -> str:
+        chain: Runnable[Any, str] = {"user_input": RunnablePassthrough()} | self.prompt | self.llm | StrOutputParser()
         return chain.invoke(user_prompt)
 
 
-def generate_chat_response(user_prompt: str) -> str:
+def generate_chat_response(user_prompt: str, history: list) -> str:
     try:
         llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-pro-latest",
             max_tokens=256,
             temperature=0.7,
         )
-        history = fetch_recent_chat_messages()
-        chain = GenerateChatResponseChain(llm=llm,history=history)
-        result = chain.invoke("こんにちは")
-        logger.info("チャットレスポンスが生成されました。")
-        # チャットレスポンスをデータベースに保存
-        save_chat_message("human", user_prompt)
-        save_chat_message("ai", result)
+        chain = GenerateChatResponseChain(llm=llm, history=history)
+        result = chain.invoke(user_prompt)
+        logger.info(f"チャットレスポンスが生成されました。")
     except Exception as e:
         logger.error(f"チャットレスポンスの生成に失敗しました: {e}")
-        result = "エラーが発生しました。"
     return result
 
 
