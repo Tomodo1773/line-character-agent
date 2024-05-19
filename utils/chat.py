@@ -47,12 +47,12 @@ def generate_chat_response(user_prompt):
     try:
         result = chain.invoke({"user_input": user_prompt})
         logger.info("チャットレスポンスが生成されました。")
+        # チャットレスポンスをデータベースに保存
+        save_chat_message("human", user_prompt)
+        save_chat_message("ai", result)
     except Exception as e:
         logger.error(f"チャットレスポンスの生成に失敗しました: {e}")
         result = "エラーが発生しました。"
-    # チャットレスポンスをデータベースに保存
-    save_chat_message("human", user_prompt)
-    save_chat_message("ai", result)
 
     return result
 
