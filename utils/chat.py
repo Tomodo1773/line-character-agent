@@ -68,12 +68,11 @@ class GenerateChatResponseChain:
     def __init__(self, llm: BaseChatModel) -> None:
         self.llm = llm
 
-    def invoke(self, user_prompt: str) -> str:
+    def invoke(self, user_prompt: str, history: list) -> str:
         logger.info("チャットレスポンス生成を開始します。")
 
         # system_prompt,過去の会話履歴,user_promptを組み合わせてプロンプト作成
-        messages_list = fetch_recent_chat_messages()
-        messages_list = [("system", _SYSTEM_PROMPT)] + messages_list + [("user", "{user_input}")]
+        messages_list = [("system", _SYSTEM_PROMPT)] + history + [("user", "{user_input}")]
         prompt = ChatPromptTemplate.from_messages(messages_list)
 
         chain: Runnable[Any, str] = {"user_input": RunnablePassthrough()} | prompt | self.llm | StrOutputParser()
@@ -88,7 +87,8 @@ def generate_chat_response(user_prompt: str) -> str:
             max_tokens=256,
             temperature=0.7,
         )
-        chain = GenerateChatResponseChain(llm=llm)
+        history = fetch_recent_chat_messages()
+        chain = GenerateChatResponseChain(llm=llm,history=history)
         result = chain.invoke("こんにちは")
         logger.info("チャットレスポンスが生成されました。")
         # チャットレスポンスをデータベースに保存
