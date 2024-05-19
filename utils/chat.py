@@ -63,6 +63,16 @@ _SYSTEM_PROMPT = """
 """
 
 
+def remove_trailing_newline(text: str) -> str:
+    """
+    入力されたテキストの最後の改行を削除する関数
+
+    :param text: 入力テキスト
+    :return: 最後の改行が削除されたテキスト
+    """
+    return text.rstrip("\n")
+
+
 class GenerateChatResponseChain:
 
     def __init__(self, llm: BaseChatModel, history: list) -> None:
@@ -77,7 +87,13 @@ class GenerateChatResponseChain:
         self,
         user_prompt: str,
     ) -> str:
-        chain: Runnable[Any, str] = {"user_input": RunnablePassthrough()} | self.prompt | self.llm | StrOutputParser()
+        chain: Runnable[Any, str] = (
+            {"user_input": RunnablePassthrough()}
+            | self.prompt
+            | self.llm
+            | StrOutputParser()
+            | remove_trailing_newline
+        )
         return chain.invoke(user_prompt)
 
 
