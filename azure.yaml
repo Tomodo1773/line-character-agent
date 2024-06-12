@@ -1,0 +1,13 @@
+name: demo-app
+infra:
+  provider: bicep
+services:
+  api:
+    project: ./api
+    language: python
+    host: appservice
+    # hooks:
+    #   prerestore:
+    #     shell: sh
+    #     run: ./deploy_webapp.sh
+    #     interactive: true
