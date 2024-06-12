@@ -65,6 +65,11 @@ line-ai-agent/
 2. AIアシスタントにメッセージを送信
 3. AIアシスタントから応答が返ってくる
 
+## リファレンス
+
+- [bicepリファレンス](https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms?pivots=deployment-language-bicep#appserviceplanproperties)
+-[Azure Developer CLI リファレンス](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/reference#azd-hooks)
+
 ## ライセンス
 
 このプロジェクトはMITライセンスの下で公開されています。

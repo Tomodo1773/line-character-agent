@@ -6,15 +6,15 @@
 			"type": "python",
 			"request": "launch",
 			"module": "uvicorn",
-			"args": ["api.main:app", "--reload"],
+			"args": ["main:app", "--reload"], // 'api.main:app' から 'main:app' へ変更
 			"console": "integratedTerminal",
-			"cwd": "${workspaceFolder}"
+			"cwd": "${workspaceFolder}/api" // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
 		},
 		{
 			"name": "Python: test_chat",
 			"type": "python",
 			"request": "launch",
-			"cwd": "${workspaceFolder}",
+			"cwd": "${workspaceFolder}/api", // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
 			"module": "tests.utils.test_chat"
 		}
 	]
