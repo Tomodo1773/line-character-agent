@@ -1,0 +1,8 @@
+name: demo-app
+infra:
+  provider: bicep
+services:
+  api:
+    project: ./api
+    language: python
+    host: appservice
