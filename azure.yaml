@@ -6,8 +6,3 @@ services:
     project: ./api
     language: python
     host: appservice
-    # hooks:
-    #   prerestore:
-    #     shell: sh
-    #     run: ./deploy_webapp.sh
-    #     interactive: true
