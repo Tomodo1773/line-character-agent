@@ -34,4 +34,4 @@ resource AppServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
-output name string = AppServicePlan.name
+output id string = AppServicePlan.id

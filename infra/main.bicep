@@ -11,7 +11,7 @@ param location string
 
 param resourceGroupName string = ''
 
-param env object
+param appSettings object
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -28,7 +28,7 @@ module CosmosDB 'core/cosmos.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
-    location: 'Japan West'
+    location: location
     tags: {
       defaultExperience: 'Core (SQL)'
       'hidden-cosmos-mmspecial': ''
@@ -55,27 +55,6 @@ module AppServicePlan 'core/appserviceplan.bicep' = {
   }
 }
 
-// module AppService 'core/appservice.bicep' = {
-//   name: 'AppService'
-//   scope: rg
-//   params: {
-//     name: '${abbrs.webSitesAppService}${resourceToken}'
-//     location: location
-//     tags: { 
-//       'azd-env-name': environmentName
-//       'azd-service-name': 'api'
-//     }
-//     AppServicePlanName: AppServicePlan.outputs.name
-//     linuxFxVersion: 'PYTHON|3.11'
-//     cosmosDbAccountName: CosmosDB.outputs.name
-//     env: env
-//   }
-//   dependsOn:[
-//     AppServicePlan
-//     CosmosDB
-//   ]
-// }
-
 // The application backend
 module AppService './app/api.bicep' = {
   name: 'AppService'
@@ -84,17 +63,14 @@ module AppService './app/api.bicep' = {
     name: '${abbrs.webSitesAppService}${resourceToken}'
     location: location
     tags: tags
-    // applicationInsightsName: monitoring.outputs.applicationInsightsName
-    appServicePlanId: AppServicePlan.outputs.name
+    appServicePlanId: AppServicePlan.outputs.id
     cosmosDbAccountName: CosmosDB.outputs.name
-    // keyVaultName: keyVault.outputs.name
-    // allowedOrigins: [ web.outputs.SERVICE_WEB_URI ]
     appSettings: {
-      LANGCHAIN_API_KEY: env.LANGCHAIN_API_KEY
-      LINE_USER_ID: env.LINE_USER_ID
-      LINE_CHANNEL_ACCESS_TOKEN: env.LINE_CHANNEL_ACCESS_TOKEN
-      LINE_CHANNEL_SECRET: env.LINE_CHANNEL_SECRET
-      GOOGLE_API_KEY: env.GOOGLE_API_KEY
+      LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
+      LINE_USER_ID: appSettings.LINE_USER_ID
+      LINE_CHANNEL_ACCESS_TOKEN: appSettings.LINE_CHANNEL_ACCESS_TOKEN
+      LINE_CHANNEL_SECRET: appSettings.LINE_CHANNEL_SECRET
+      GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY
     }
   }
   dependsOn:[
