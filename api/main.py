@@ -32,6 +32,10 @@ app = FastAPI(
 )
 
 
+@app.get("/")
+async def root():
+    return {"message": "サーバーは正常に起動しています。"}
+
 @app.post("/callback")
 async def callback(
     request: Request,
@@ -87,11 +91,6 @@ def handle_message(event):
                 ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=e)])
             )
             logger.error(f"エラーメッセージをユーザーに返信しました。{e}")
-
-
-@app.get("/hello")
-async def hello():
-    return {"message": "hello world!"}
 
 
 # @app.websocket("/ws")
