@@ -13,4 +13,4 @@ RUN if [ -f pyproject.toml ]; then poetry install --no-root; fi
 
 COPY ./ /src
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]
