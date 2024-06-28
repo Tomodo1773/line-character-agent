@@ -9,8 +9,8 @@ RUN pip install poetry
 
 COPY pyproject.toml* poetry.lock* /src/
 
-RUN if [ -f pyproject.toml ]; then poetry install --no-root; fi
+RUN if [ -f /src/pyproject.toml ]; then poetry install --no-root; fi
 
-COPY ./ /src
+COPY ./line-ai-bot /src/line-ai-bot
 
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]
+CMD ["poetry", "run", "uvicorn", "line-ai-bot.main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]

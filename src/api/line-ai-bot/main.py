@@ -15,9 +15,9 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-from utils.chat import generate_chat_response
-from utils.config import logger
-from utils.cosmos import fetch_recent_chat_messages, save_chat_message
+from .utils.chat import generate_chat_response
+from .utils.config import logger
+from .utils.cosmos import fetch_recent_chat_messages, save_chat_message
 
 load_dotenv()
 
@@ -35,6 +35,7 @@ app = FastAPI(
 @app.get("/")
 async def root():
     return {"message": "サーバーは正常に起動しています。"}
+
 
 @app.post("/callback")
 async def callback(
@@ -71,7 +72,7 @@ def handle_message(event):
 
         try:
             # LLMでレスポンスメッセージを作成
-            response = generate_chat_response(user_prompt=event.message.text,history=history)
+            response = generate_chat_response(user_prompt=event.message.text, history=history)
             logger.info(f"レスポンスを生成しました。: {response}")
 
             # メッセージを返信

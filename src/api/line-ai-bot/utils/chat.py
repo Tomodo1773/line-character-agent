@@ -11,8 +11,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langsmith import Client
 
-# from utils.common import read_markdown_file
-from utils.config import logger
+# from .utils.common import read_markdown_file
+from .config import logger
 
 load_dotenv()
 
