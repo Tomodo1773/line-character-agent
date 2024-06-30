@@ -3,6 +3,6 @@ infra:
   provider: bicep
 services:
   api:
-    project: ./api
+    project: ./src/api
     language: python
     host: appservice

@@ -1,4 +1,4 @@
-from utils.config import logger
+from .config import logger
 
 
 def read_markdown_file(file_path):
