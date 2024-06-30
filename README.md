@@ -23,7 +23,7 @@
 
 ## フォルダ構成
 
-```
+```:bash
 line-ai-agent/
 ├── .devcontainer/
 ├── .vscode/
@@ -77,7 +77,7 @@ sequenceDiagram
 1. 必要なソフトウェア: Docker, Docker Compose
 2. リポジトリをクローン: `git clone https://github.com/Tomodo1773/line-ai-agent`
 3. プロジェクトディレクトリに移動: `cd line-ai-agent`
-4. 環境変数ファイル(`.env`)を作成し、必要な情報を設定
+4. 環境変数ファイル（`.env`）を作成し、必要な情報を設定
 5. Dockerコンテナをビルドして起動: `docker-compose up -d`
 6. GitHub Actionsを使用してAzure App Serviceにデプロイ
 
@@ -91,6 +91,7 @@ sequenceDiagram
 
 - [bicepリファレンス](https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms?pivots=deployment-language-bicep#appserviceplanproperties)
 -[Azure Developer CLI リファレンス](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/reference#azd-hooks)
+- [Azure Developer CLI デモモード](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/manage-environment-variables#enable-demo-mode)
 
 ## ライセンス
 
