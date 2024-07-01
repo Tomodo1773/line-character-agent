@@ -44,8 +44,9 @@ async def callback(
     x_line_signature=Header(None),
 ):
     body = await request.body()
-    logger.info(f"受信したリクエストボディ: {body.decode('utf-8')}")  # loggerを使用してログ出力
-
+    body_json = json.loads(body.decode("utf-8"))
+    message_text = body_json["events"][0]["message"]["text"]
+    logger.info(f"受信したメッセージ: {message_text}")  # メッセージのテキスト部分のみをログ出力
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
         logger.info("バックグラウンドタスクにハンドラを追加しました。")  # loggerを使用してログ出力
