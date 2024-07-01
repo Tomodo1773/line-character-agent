@@ -34,7 +34,7 @@ module CosmosDB 'core/cosmos.bicep' = {
       'hidden-cosmos-mmspecial': ''
       'azd-env-name': environmentName
     }
-    enableFreeTier: false
+    enableFreeTier: true
     totalThroughputLimit: 1000
   }
 }
