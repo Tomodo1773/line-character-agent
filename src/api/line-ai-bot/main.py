@@ -44,9 +44,7 @@ async def callback(
     x_line_signature=Header(None),
 ):
     body = await request.body()
-    body_json = json.loads(body.decode("utf-8"))
-    message_text = body_json["events"][0]["message"]["text"]
-    logger.info(f"受信したメッセージ: {message_text}")  # メッセージのテキスト部分のみをログ出力
+    logger.info("メッセージを受信しました。")
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
         logger.info("バックグラウンドタスクにハンドラを追加しました。")  # loggerを使用してログ出力
@@ -62,6 +60,8 @@ async def callback(
 def handle_message(event):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
+
+        logger.info(f"受信したメッセージ: {event.message.text}")  # メッセージのテキスト部分のみをログ出力
 
         # ローディングアニメーションを表示
         line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=chatId, loadingSeconds=60))
