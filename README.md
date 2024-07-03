@@ -136,7 +136,7 @@ LINE Developersのチャンネル画面>Messaging API設定>Webhook設定>Webhoo
 ## リファレンス
 
 - [bicepリファレンス](https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms?pivots=deployment-language-bicep#appserviceplanproperties)
--[Azure Developer CLI リファレンス](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/reference#azd-hooks)
+- [Azure Developer CLI リファレンス](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/reference#azd-hooks)
 - [Azure Developer CLI デモモード](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/manage-environment-variables#enable-demo-mode)
 
 ## ライセンス
