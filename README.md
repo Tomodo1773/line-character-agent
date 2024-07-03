@@ -1,25 +1,32 @@
-# LINE AI Agent
+# LINE AI Bot
 
 ## プロジェクト概要
 
-このプロジェクトは、LINE上でユーザーとAIアシスタントがチャットできるシステムを提供します。ユーザーからのメッセージに対して、AIアシスタントが適切な応答を生成し、LINEを通じてユーザーに返信します。
+本プロジェクトはAzureのサービスとLINE Messaging APIを連携させて、ユーザーと自然な会話ができるキャラクターボットを構築するものです。
+Azureの無料枠サービスを最大限に活用し、低コストで実現可能な構成を目指します。
+デプロイにはAzure Developer CLI (azd) を用いてインフラプロビジョニングからアプリをデプロイまでを簡単なコマンドで提供します。
 
 ## 主な機能
 
-- ユーザーからのLINEメッセージを受信し、AIアシスタントが応答を生成
-- ローディングアニメーションの表示
-- チャット履歴の保存と取得
-- プロンプトテンプレートを使用したAIアシスタントの応答生成
+- ユーザーからのLINEメッセージを受信し、Geminiが応答を生成
+- 幼馴染のお姉さん風のキャラクターで対応
+- 直近10件かつ過去1時間のチャット履歴を加味した応答を生成
 
-## 使用技術
+## 構成図
+
+![構成図](./images/architecture.png)
+
+## 技術スタック
 
 - Python 3.11
 - FastAPI
 - LINE Messaging API
 - Langchain
+- Azure AppService
 - Azure Cosmos DB
 - Docker
-- GitHub Actions
+- Azure Developer CLI
+- bicep
 
 ## フォルダ構成
 
@@ -68,24 +75,63 @@ sequenceDiagram
 
 ## 前提条件
 
-- LINE Messaging APIのチャンネルが作成されていること
-- Langsmith, Anthropicでキーが発行されていること
-- Azure App Service, Cosmos DBのリソースが作成されていること
+- LINE Developersでチャンネルが作成されていること
+- Langsmithでキーが発行されていること
+- Azureサブスクリプションが作成されていること
+- Google Ai StudioでGemini　APIキーが発行されていること
 
 ## インストール方法
 
-1. 必要なソフトウェア: Docker, Docker Compose
-2. リポジトリをクローン: `git clone https://github.com/Tomodo1773/line-ai-agent`
-3. プロジェクトディレクトリに移動: `cd line-ai-agent`
-4. 環境変数ファイル（`.env`）を作成し、必要な情報を設定
-5. Dockerコンテナをビルドして起動: `docker-compose up -d`
-6. GitHub Actionsを使用してAzure App Serviceにデプロイ
+GitHubから資材の取得
 
-## 使用方法
+```powershell
+git clone https://github.com/Tomodo1773/line-ai-agent.git
+cd line-ai-agent
+```
 
-1. LINEアプリでAIアシスタントのLINE公式アカウントを友達追加
-2. AIアシスタントにメッセージを送信
-3. AIアシスタントから応答が返ってくる
+Azureログインと環境作成
+
+```powershell
+azd auth login
+azd env new chatbot-demo
+```
+
+サンプルから`.env`のひな型を作成
+
+```powershell
+cp .env.sample .azure/chatbot-demo/.env
+```
+
+`.azure/chatbot-demo/.env`を自分用の設定に書き換える
+
+```env:.env
+LINE_USER_ID="YOUR_LINE_USER_ID"
+LINE_CHANNEL_ACCESS_TOKEN="YOUR_LINE_CHANNEL_ACCESS_TOKEN"
+LINE_CHANNEL_SECRET="YOUR_LINE_CHANNEL_SECRET"
+GOOGLE_API_KEY="YOUR_GOOGLE_API_KEY"
+LANGCHAIN_API_KEY="YOUR_LANGCHAIN_API_KEY"
+COSMOS_DB_DATABASE_NAME="YOUR_COSMOS_DB_DATABASE_NAME"
+```
+
+Azureへのプロビジョニング＆アプリデプロイ
+
+```powershell
+azd up
+```
+
+正常に終了すると構築されたAppServiceのURLが出力される
+
+出力例
+
+![urlの出力](./images/azd_output.png)
+
+LINE Developersのチャンネル画面でwebhook URLを設定する。
+
+LINE Developersのチャンネル画面>Messaging API設定>Webhook設定>Webhook URLで`出力されたURL + /callback`を設定する
+
+設定例
+
+![LINE Dvelopers Webhook url](./images/line_webhook_url.png)
 
 ## リファレンス
 
