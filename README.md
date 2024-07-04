@@ -99,7 +99,7 @@ azd env new chatbot-demo
 サンプルから`.env`のひな型を作成
 
 ```powershell
-cp .env.sample .azure/chatbot-demo/.env
+Get-Content .env.sample | Add-Content .azure/chatbot-demo/.env
 ```
 
 `.azure/chatbot-demo/.env`を自分用の設定に書き換える
