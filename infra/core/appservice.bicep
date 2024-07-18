@@ -31,9 +31,11 @@ param scmDoBuildDuringDeployment bool = false
 param ftpsState string = 'FtpsOnly'
 param healthCheckPath string = ''
 param cosmosDbAccountName string
+param cosmosDbResourceGroupName string
 
 resource CosmosAccounts 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' existing = {
   name: cosmosDbAccountName
+  scope: resourceGroup(cosmosDbResourceGroupName)
 }
 
 resource appService 'Microsoft.Web/sites@2022-03-01' = {

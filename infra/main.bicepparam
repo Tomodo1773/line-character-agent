@@ -11,3 +11,8 @@ param appSettings = {
   LINE_CHANNEL_SECRET: readEnvironmentVariable('LINE_CHANNEL_SECRET', 'default-channel-secret')
   GOOGLE_API_KEY: readEnvironmentVariable('GOOGLE_API_KEY', 'default-google-api-key')
 }
+
+param cosmosDbAccountName = readEnvironmentVariable('AZURE_COSMOSDB_NAME', '')
+param cosmosDbResourceGroupName = readEnvironmentVariable('AZURE_COSMOSDB_RG', '')
+param appServicePlanName = readEnvironmentVariable('AZURE_APPSERVICEPLAN_NAME', '')
+param appServicePlanResourceGroupName  = readEnvironmentVariable('AZURE_APPSERVICEPLAN_RG', '')

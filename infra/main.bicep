@@ -11,7 +11,13 @@ param location string
 
 param resourceGroupName string = ''
 
+param cosmosDbAccountName string = ''
+param cosmosDbResourceGroupName string = ''
+param appServicePlanName string = ''
+param appServicePlanResourceGroupName string = ''
+
 param appSettings object
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -23,7 +29,17 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-module CosmosDB 'core/cosmos.bicep' = {
+
+// ****************************************************************
+// CosmosDB
+// ****************************************************************
+
+resource existingCosmosDB 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' existing = if (!empty(cosmosDbAccountName)) {
+  name: cosmosDbAccountName
+  scope: resourceGroup(cosmosDbResourceGroupName)
+}
+
+module CosmosDB 'core/cosmos.bicep' = if (empty(cosmosDbAccountName)) {
   name: 'CosmosDB'
   scope: rg
   params: {
@@ -39,7 +55,16 @@ module CosmosDB 'core/cosmos.bicep' = {
   }
 }
 
-module AppServicePlan 'core/appserviceplan.bicep' = {
+// ****************************************************************
+// AppServicePlan
+// ****************************************************************
+
+resource existingAppServicePlan 'Microsoft.Web/serverfarms@2021-02-01' existing = {
+  name: appServicePlanName
+  scope: resourceGroup(appServicePlanResourceGroupName)
+}
+
+module AppServicePlan 'core/appserviceplan.bicep' = if (empty(appServicePlanName)) {
   name: 'AppServicePlan'
   scope: rg
   params: {
@@ -55,6 +80,10 @@ module AppServicePlan 'core/appserviceplan.bicep' = {
   }
 }
 
+// ****************************************************************
+// AppService
+// ****************************************************************
+
 // The application backend
 module AppService './app/api.bicep' = {
   name: 'AppService'
@@ -63,8 +92,9 @@ module AppService './app/api.bicep' = {
     name: '${abbrs.webSitesAppService}${resourceToken}'
     location: location
     tags: tags
-    appServicePlanId: AppServicePlan.outputs.id
-    cosmosDbAccountName: CosmosDB.outputs.name
+    appServicePlanId: empty(appServicePlanName) ? AppServicePlan.outputs.id : existingAppServicePlan.id
+    cosmosDbAccountName: empty(cosmosDbAccountName) ? CosmosDB.outputs.name : existingCosmosDB.name
+    cosmosDbResourceGroupName: empty(cosmosDbResourceGroupName) ? rg.name : cosmosDbResourceGroupName
     appSettings: {
       LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
       LINE_USER_ID: appSettings.LINE_USER_ID
