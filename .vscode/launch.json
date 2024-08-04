@@ -6,9 +6,10 @@
 			"type": "python",
 			"request": "launch",
 			"module": "uvicorn",
-			"args": ["main:app", "--reload"], // 'api.main:app' から 'main:app' へ変更
+			"args": ["line-ai-bot.main:app", "--reload"], // 'api.main:app' から 'main:app' へ変更
 			"console": "integratedTerminal",
-			"cwd": "${workspaceFolder}/api" // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
+			"cwd": "${workspaceFolder}/src/api", // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
+			"envFile": "${workspaceFolder}/.env" // 環境変数はworkspaceFolder/.envから取得
 		},
 		{
 			"name": "Python: test_chat",
