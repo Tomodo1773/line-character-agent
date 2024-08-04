@@ -91,7 +91,8 @@ class GenerateChatResponseChain:
 def generate_chat_response(user_prompt: str, history: list) -> str:
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-pro-latest",
+            # model="gemini-1.5-pro-latest",
+            model="gemini-1.5-pro-exp-0801",
             max_tokens=256,
             temperature=0.7,
         )
