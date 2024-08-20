@@ -11,6 +11,7 @@ param serviceName string = 'api'
 param cosmosDbAccountName string
 param cosmosDbResourceGroupName string
 
+param alwaysOn bool
 module api '../core/appservice.bicep' = {
   name: 'api'
   params: {
@@ -25,5 +26,6 @@ module api '../core/appservice.bicep' = {
     runtimeName: 'python'
     runtimeVersion: '3.11'
     scmDoBuildDuringDeployment: true
+    alwaysOn: alwaysOn
   }
 }

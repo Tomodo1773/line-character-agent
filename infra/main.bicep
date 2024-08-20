@@ -95,6 +95,7 @@ module AppService './app/api.bicep' = {
     appServicePlanId: empty(appServicePlanName) ? AppServicePlan.outputs.id : existingAppServicePlan.id
     cosmosDbAccountName: empty(cosmosDbAccountName) ? CosmosDB.outputs.name : existingCosmosDB.name
     cosmosDbResourceGroupName: empty(cosmosDbResourceGroupName) ? rg.name : cosmosDbResourceGroupName
+    alwaysOn: true
     appSettings: {
       LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
       LINE_USER_ID: appSettings.LINE_USER_ID
