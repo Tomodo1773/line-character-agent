@@ -3,17 +3,20 @@
 	"configurations": [
 		{
 			"name": "Python: FastAPI",
-			"type": "python",
+			"type": "debugpy",
 			"request": "launch",
 			"module": "uvicorn",
 			"args": ["line-ai-bot.main:app", "--reload"], // 'api.main:app' から 'main:app' へ変更
 			"console": "integratedTerminal",
 			"cwd": "${workspaceFolder}/src/api", // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
-			"envFile": "${workspaceFolder}/.env" // 環境変数はworkspaceFolder/.envから取得
+			"envFile": "${workspaceFolder}/.env", // 環境変数はworkspaceFolder/.envから取得
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}/src/api/line-ai-bot"
+			}
 		},
 		{
 			"name": "Python: test_chat",
-			"type": "python",
+			"type": "debugpy",
 			"request": "launch",
 			"cwd": "${workspaceFolder}/api", // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
 			"module": "tests.utils.test_chat"
