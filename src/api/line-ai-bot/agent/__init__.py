@@ -28,7 +28,7 @@ _set_if_undefined("TAVILY_API_KEY")
 
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = "LangGraph Tutorial"
+os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
 
 system_prompt = """
 幼馴染のお姉さんをロールプレイしながらユーザとチャットしてください。
