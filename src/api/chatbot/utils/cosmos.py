@@ -30,11 +30,11 @@ def initialize_cosmos_db():
         container = database.create_container_if_not_exists(
             id=config["container_name"], partition_key=PartitionKey(path="/id")
         )
-        logger.info("データベースとコンテナの初期化が成功しました。")
+        logger.info("Successfully initialized the database and container.")
         return container
     except exceptions.CosmosHttpResponseError as e:
-        logger.error(f"データベースまたはコンテナの作成に失敗しました: {e}")
-        raise HTTPException(status_code=500, detail="データベースの操作に失敗しました")
+        logger.error(f"Failed to create the database or container: {e}")
+        raise HTTPException(status_code=500, detail="Failed to perform database operation")
 
 
 def save_chat_message(user, message):
@@ -46,10 +46,10 @@ def save_chat_message(user, message):
         data = {"id": uuid.uuid4().hex, "date": now.isoformat(), "user": user, "message": message}
         # CosmosDBにデータを保存
         container.create_item(data)
-        logger.info("チャットメッセージが正常に保存されました。")
+        logger.info("Chat message has been saved successfully.")
     except exceptions.CosmosHttpResponseError as e:
-        logger.error(f"CosmosDBへのデータ保存に失敗しました: {e}")
-        raise HTTPException(status_code=500, detail="メッセージの保存に失敗しました")
+        logger.error(f"Failed to save data to CosmosDB: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save the message")
 
 
 def fetch_recent_chat_messages(limit=10):
@@ -69,8 +69,8 @@ def fetch_recent_chat_messages(limit=10):
         recent_items = [item for item in items if datetime.fromisoformat(item["date"]) > now - timedelta(hours=1)]
         # ユーザー名とメッセージのタプルのリストに整形
         formatted_items = [(item["user"], item["message"]) for item in reversed(recent_items)]
-        logger.info("最新のチャットメッセージが正常に取得されました。")
+        logger.info("Successfully retrieved the latest chat messages.")
         return formatted_items
     except exceptions.CosmosHttpResponseError as e:
-        logger.error(f"CosmosDBからのデータ取得に失敗しました: {e}")
-        raise HTTPException(status_code=500, detail="チャットメッセージの取得に失敗しました")
+        logger.error(f"Failed to fetch data from CosmosDB: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch chat messages")
