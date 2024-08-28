@@ -11,6 +11,6 @@ COPY pyproject.toml* poetry.lock* /src/
 
 RUN if [ -f /src/pyproject.toml ]; then poetry install --no-root; fi
 
-COPY ./line-ai-bot /src/line-ai-bot
+COPY ./chatbot /src/chatbot
 
-CMD ["poetry", "run", "uvicorn", "line-ai-bot.main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]
+CMD ["poetry", "run", "uvicorn", "chatbot.main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]

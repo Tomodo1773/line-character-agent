@@ -14,9 +14,9 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-from .utils.config import logger
-from .utils.cosmos import fetch_recent_chat_messages, save_chat_message
-from agent import ChatbotAgent
+from chatbot.utils.config import logger
+from chatbot.utils.cosmos import fetch_recent_chat_messages, save_chat_message
+from chatbot.agent import ChatbotAgent
 
 load_dotenv()
 

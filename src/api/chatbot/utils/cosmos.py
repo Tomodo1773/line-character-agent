@@ -7,7 +7,7 @@ from azure.cosmos import CosmosClient, PartitionKey, exceptions
 from dotenv import load_dotenv
 from fastapi import HTTPException
 
-from .config import logger
+from chatbot.utils.config import logger
 
 # .envファイルを読み込む
 load_dotenv()
