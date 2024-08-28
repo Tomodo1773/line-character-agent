@@ -103,9 +103,10 @@ class ChatbotAgent:
         return ToolNode(tools=self.tools)
 
     def invoke(self, user_input: str, history: list):
+        recursion_limit = 5
         messages = history
         messages.append(("user", user_input))
-        return self.graph.invoke({"messages": messages})
+        return self.graph.invoke({"messages": messages}, {"recursion_limit": recursion_limit})
 
     def create_image(self):
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
