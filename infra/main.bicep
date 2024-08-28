@@ -102,6 +102,8 @@ module AppService './app/api.bicep' = {
       LINE_CHANNEL_ACCESS_TOKEN: appSettings.LINE_CHANNEL_ACCESS_TOKEN
       LINE_CHANNEL_SECRET: appSettings.LINE_CHANNEL_SECRET
       GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY
+      TAVILY_API_KEY: appSettings.TAVILY_API_KEY
+      OPENAI_API_KEY: appSettings.OPENAI_API_KEY
     }
   }
   dependsOn:[
