@@ -2,14 +2,16 @@
 
 ## プロジェクト概要
 
-本プロジェクトはAzureのサービスとLINE Messaging APIを連携させて、ユーザーと自然な会話ができるキャラクターボットを構築するものです。
+本プロジェクトはAzureのサービスとLINE Messaging APIを連携させて、ユーザーと自然な会話ができるキャラクターボットを構築するものです。ボットはAIエージェントとなっており、会話内容から検索が必要と判断した際はWeb検索をおこないます。
+
 Azureの無料枠サービスを最大限に活用し、低コストで実現可能な構成を目指します。
 デプロイにはAzure Developer CLI (azd) を用いてインフラプロビジョニングからアプリをデプロイまでを簡単なコマンドで提供します。
 
 ## 主な機能
 
-- ユーザーからのLINEメッセージを受信し、Geminiが応答を生成
+- ユーザーからのLINEメッセージを受信し、LLMが応答を生成
 - 幼馴染のお姉さん風のキャラクターで対応
+- LLMがWeb検索が必要と判断した場合はWeb検索を実施
 - 直近10件かつ過去1時間のチャット履歴を加味した応答を生成
 
 ## 構成図
@@ -22,34 +24,13 @@ Azureの無料枠サービスを最大限に活用し、低コストで実現可
 - FastAPI
 - LINE Messaging API
 - Langchain
+- LangGraph
+- Tavily
 - Azure AppService
 - Azure Cosmos DB
 - Docker
 - Azure Developer CLI
 - bicep
-
-## フォルダ構成
-
-```:bash
-line-ai-agent/
-├── .devcontainer/
-├── .vscode/
-├── api/
-│ ├── main.py
-│ ├── init.py
-│ └── pycache/
-├── docker-compose.yaml
-├── Dockerfile
-├── prompts/
-│ └── system_prompt.txt
-├── startup.txt
-└── utils/
-  ├── chat.py
-  ├── common.py
-  ├── config.py
-  ├── cosmos.py
-  └── init.py
-```
 
 ## シーケンス図
 
@@ -72,6 +53,18 @@ sequenceDiagram
     FastAPI->>User: レスポンス送信
     FastAPI->>CosmosDB: 会話履歴を保存
 ```
+
+## AIエージェントグラフ
+
+![urlの出力](./images/quick_start.png)
+
+リクエストは最初にchatbotで処理されます。
+
+1. Web検索が不要な場合はユーザへのレスポンスを生成し処理を終了します(__end__)
+2. Web検索が必要な場合は`tools`ノードをcallします。
+   1. `tools`にはWeb検索ツールとしてTavilyが設定されています。
+   2. 検索が終了すると`chatbot`が再度callされます。
+   3. `tools`の結果を踏まえて再度検索が必要かどうかを`chatbot`が判断します。
 
 ## 前提条件
 
@@ -105,12 +98,16 @@ Get-Content .env.sample | Add-Content .azure/chatbot-demo/.env
 `.azure/chatbot-demo/.env`を自分用の設定に書き換える
 
 ```env:.env
+~Exsisting Settings~
+
+# 必須項目
 LINE_USER_ID="YOUR_LINE_USER_ID"
 LINE_CHANNEL_ACCESS_TOKEN="YOUR_LINE_CHANNEL_ACCESS_TOKEN"
 LINE_CHANNEL_SECRET="YOUR_LINE_CHANNEL_SECRET"
-GOOGLE_API_KEY="YOUR_GOOGLE_API_KEY"
 LANGCHAIN_API_KEY="YOUR_LANGCHAIN_API_KEY"
 COSMOS_DB_DATABASE_NAME="YOUR_COSMOS_DB_DATABASE_NAME"
+TAVILY_API_KEY="YOUR_TAVILY_API_KEY"
+OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 ```
 
 Azureへのプロビジョニング＆アプリデプロイ
