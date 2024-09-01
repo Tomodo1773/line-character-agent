@@ -98,7 +98,6 @@ module AppService './app/api.bicep' = {
     alwaysOn: true
     appSettings: {
       LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
-      LINE_USER_ID: appSettings.LINE_USER_ID
       LINE_CHANNEL_ACCESS_TOKEN: appSettings.LINE_CHANNEL_ACCESS_TOKEN
       LINE_CHANNEL_SECRET: appSettings.LINE_CHANNEL_SECRET
       GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY

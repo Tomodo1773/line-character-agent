@@ -23,7 +23,6 @@ load_dotenv()
 # アプリの設定
 configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
-chatId = os.environ.get("LINE_USER_ID")
 
 app = FastAPI(
     title="LINEBOT-AI-AGENT",
@@ -58,6 +57,14 @@ async def callback(
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     with ApiClient(configuration) as api_client:
+
+        # user_idを取得
+        try:
+            chatId = event.source.user_id
+        except AttributeError:
+            logger.error("Failed to get user_id.")  # Logging the failure to get user_id
+            raise HTTPException(status_code=400, detail="Failed to get user_id")
+
         line_bot_api = MessagingApi(api_client)
 
         logger.info(f"Received message: {event.message.text}")  # Log only the text part of the message
