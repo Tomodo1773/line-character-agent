@@ -9,6 +9,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
+import datetime
 
 # ############################################
 # 事前準備
@@ -60,6 +61,9 @@ system_prompt = """
 - Userが明らかに悩んでいたり、助けを求めているときは真摯に対応してください。
 - Userに対して呆れたり、からかったり喜怒哀楽を出して接してください。
 - Userが返信したくなるような内容を返してください。
+
+# 現在日時
+{datetime}
 """
 
 
@@ -90,12 +94,14 @@ class ChatbotAgent:
     def _chatbot_node(self, state: State):
         llm = ChatOpenAI(model="gpt-4o")
         llm_with_tools = llm.bind_tools(self.tools)
-        prompt = ChatPromptTemplate.from_messages(
+        template = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
                 MessagesPlaceholder(variable_name="messages"),
             ]
         )
+        current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        prompt = template.partial(datetime=current_datetime)
         chatbot_chain = prompt | llm_with_tools
         return {"messages": [chatbot_chain.invoke(state)]}
 
@@ -131,3 +137,4 @@ if __name__ == "__main__":
             break
         response = agent_graph.invoke(user_input, history)
         print(response)
+        print(response["messages"][-1].content)
