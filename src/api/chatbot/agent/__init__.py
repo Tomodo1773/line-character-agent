@@ -1,3 +1,4 @@
+import datetime
 import getpass
 import os
 from typing import Annotated
@@ -9,7 +10,6 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
-import datetime
 
 # ############################################
 # 事前準備
@@ -114,6 +114,16 @@ class ChatbotAgent:
         messages.append(("user", user_input))
         return self.graph.invoke({"messages": messages}, {"recursion_limit": recursion_limit})
 
+    def stream(self, user_input: str, history: list):
+        recursion_limit = 5
+        messages = history
+        messages.append(("user", user_input))
+        events = self.graph.stream({"messages": messages}, {"recursion_limit": recursion_limit}, stream_mode="values")
+
+        for event in events:
+            if "messages" in event:
+                yield event["messages"][-1].content
+
     def create_image(self):
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
         with open("quick_start.png", "wb") as f:
@@ -128,13 +138,16 @@ if __name__ == "__main__":
 
     agent_graph = ChatbotAgent()
 
-    agent_graph.create_image()
+    # agent_graph.create_image()
 
     while True:
         user_input = input("User: ")
         if user_input.lower() in ["quit", "exit", "q"]:
             print("Goodbye!")
             break
-        response = agent_graph.invoke(user_input, history)
-        print(response)
-        print(response["messages"][-1].content)
+        # response = agent_graph.invoke(user_input, history)
+        # print(response["messages"][-1].content)
+
+        response = agent_graph.stream(user_input, history)
+        for chunk in response:
+            print(chunk)
