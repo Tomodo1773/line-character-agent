@@ -1,5 +1,9 @@
 import os
+import uuid
 
+from chatbot.agent import ChatbotAgent
+from chatbot.utils.config import logger
+from chatbot.utils.cosmos import SaveComosDB
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
 from linebot.v3 import WebhookHandler
@@ -13,10 +17,6 @@ from linebot.v3.messaging import (
     TextMessage,
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-
-from chatbot.utils.config import logger
-from chatbot.utils.cosmos import fetch_recent_chat_messages, save_chat_message
-from chatbot.agent import ChatbotAgent
 
 load_dotenv()
 
@@ -60,7 +60,7 @@ def handle_message(event):
 
         # user_idを取得
         try:
-            chatId = event.source.user_id
+            userid = event.source.user_id
         except AttributeError:
             logger.error("Failed to get user_id.")  # Logging the failure to get user_id
             raise HTTPException(status_code=400, detail="Failed to get user_id")
@@ -70,11 +70,12 @@ def handle_message(event):
         logger.info(f"Received message: {event.message.text}")  # Log only the text part of the message
 
         # ローディングアニメーションを表示
-        line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=chatId, loadingSeconds=60))
+        line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=userid, loadingSeconds=60))
         logger.info("Displayed loading animation.")
 
         # CosmosDBから直近の会話履歴を取得
-        history = fetch_recent_chat_messages()
+        cosmos = SaveComosDB()
+        history = cosmos.fetch_messages()
         logger.info("Fetched recent chat history.")
 
         try:
@@ -91,14 +92,16 @@ def handle_message(event):
             logger.info("Replied message to the user.")
 
             # 会話履歴をCosmosDBに保存
-            save_chat_message("human", event.message.text)
-            save_chat_message("ai", content)
+            sessionid = uuid.uuid4().hex
+            cosmos.save_messages(userid, sessionid, "human", event.message.text)
+            cosmos.save_messages(userid, sessionid, "ai", content)
             logger.info("Saved conversation history.")
 
         except Exception as e:
             # メッセージを返信
+            error_message = f"Error {e.status_code}: {e.detail}"
             line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=e)])
+                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=error_message)])
             )
             logger.error(f"Returned error message to the user: {e}")
 
