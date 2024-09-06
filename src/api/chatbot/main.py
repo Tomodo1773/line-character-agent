@@ -6,6 +6,7 @@ from chatbot.utils.config import logger
 from chatbot.utils.cosmos import SaveComosDB
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -75,7 +76,7 @@ def handle_message(event):
 
         # CosmosDBから直近の会話履歴を取得
         cosmos = SaveComosDB()
-        history = cosmos.fetch_messages()
+        sessionid, history = cosmos.fetch_messages()
         logger.info("Fetched recent chat history.")
 
         try:
@@ -91,10 +92,20 @@ def handle_message(event):
             )
             logger.info("Replied message to the user.")
 
-            # 会話履歴をCosmosDBに保存
-            sessionid = uuid.uuid4().hex
-            cosmos.save_messages(userid, sessionid, "human", event.message.text)
-            cosmos.save_messages(userid, sessionid, "ai", content)
+            # 保存するmessagesを作成
+            save_messages = []
+            for message in response["messages"]:
+                if isinstance(message, HumanMessage):
+                    save_messages.append({"type": "human", "content": message.content})
+                elif isinstance(message, AIMessage):
+                    save_messages.append({"type": "ai", "content": message.content})
+                elif isinstance(message, ToolMessage):
+                    save_messages.append({"type": "tool", "content": message.content})
+
+                else:
+                    pass
+
+            cosmos.save_messages(userid, sessionid, save_messages)
             logger.info("Saved conversation history.")
 
         except Exception as e:

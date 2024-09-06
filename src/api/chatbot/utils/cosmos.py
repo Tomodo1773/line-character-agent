@@ -28,7 +28,7 @@ class SaveComosDB:
         try:
             database = client.create_database_if_not_exists(id=config["database_name"])
             container = database.create_container_if_not_exists(
-                id=config["container_name"], partition_key=PartitionKey(path="/id")
+                id=config["container_name"], partition_key=PartitionKey(path="/sessionid")
             )
             logger.info("Successfully initialized the database and container.")
             return container
@@ -36,27 +36,25 @@ class SaveComosDB:
             logger.error(f"Failed to create the database or container: {e}")
             raise HTTPException(status_code=500, detail="Failed to perform database operation")
 
-    def save_messages(self, userid: str, sessionid: str, user: str, message: str) -> None:
+    def save_messages(self, userid: str, sessionid: str, messages: list[dict]) -> None:
         try:
-            # 現在の日時を取得
-            now = datetime.now(pytz.timezone("Asia/Tokyo"))
             # 保存するデータを作成
+            now = datetime.now(pytz.timezone("Asia/Tokyo"))
             data = {
                 "id": uuid.uuid4().hex,
                 "sessionid": sessionid,
                 "userid": userid,
                 "date": now.isoformat(),
-                "user": user,
-                "message": message,
+                "messages": messages,
             }
             # CosmosDBにデータを保存
-            self.container.create_item(data)
+            self.container.upsert_item(data)
             logger.info("Chat message has been saved successfully.")
         except exceptions.CosmosHttpResponseError as e:
             logger.error(f"Failed to save data to CosmosDB: {e}")
             raise HTTPException(status_code=500, detail="Failed to save the message")
 
-    def fetch_messages(self, limit=10):
+    def fetch_messages(self, limit=1):
         try:
             # CosmosDBから最新のチャットメッセージを取得
             # 最新{limit}件のitemを取得するためにここではDESCを指定
@@ -70,10 +68,20 @@ class SaveComosDB:
             now = datetime.now(pytz.timezone("Asia/Tokyo"))
             # 取得したitemの中で最新のものが日本時間の現在時刻と比べて1時間以内かを確認
             recent_items = [item for item in items if datetime.fromisoformat(item["date"]) > now - timedelta(hours=1)]
-            # ユーザー名とメッセージのタプルのリストに整形
-            formatted_items = [(item["user"], item["message"]) for item in reversed(recent_items)]
+            # recent_itemsが空の場合は全てのitemを取得
+            if not recent_items:
+                sessionid = uuid.uuid4().hex
+            else:
+                sessionid = recent_items[0]["sessionid"]
+
+            # messagesがitemsの中にある場合はそのまま取得. ない場合は空のリストを返す
+            if "messages" not in items[0]:
+                formatted_items = []
+            else:
+                formatted_items = items[0]["messages"]
+
             logger.info("Successfully retrieved the latest chat messages.")
-            return formatted_items
+            return sessionid, formatted_items
         except exceptions.CosmosHttpResponseError as e:
             logger.error(f"Failed to fetch data from CosmosDB: {e}")
             raise HTTPException(status_code=500, detail="Failed to fetch chat messages")
