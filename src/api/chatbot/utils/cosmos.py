@@ -28,7 +28,7 @@ class SaveComosDB:
         try:
             database = client.create_database_if_not_exists(id=config["database_name"])
             container = database.create_container_if_not_exists(
-                id=config["container_name"], partition_key=PartitionKey(path="/sessionid")
+                id=config["container_name"], partition_key=PartitionKey(path="/id")
             )
             logger.info("Successfully initialized the database and container.")
             return container
@@ -41,8 +41,7 @@ class SaveComosDB:
             # 保存するデータを作成
             now = datetime.now(pytz.timezone("Asia/Tokyo"))
             data = {
-                "id": uuid.uuid4().hex,
-                "sessionid": sessionid,
+                "id": sessionid,
                 "userid": userid,
                 "date": now.isoformat(),
                 "messages": messages,
@@ -71,14 +70,10 @@ class SaveComosDB:
             # recent_itemsが空の場合は全てのitemを取得
             if not recent_items:
                 sessionid = uuid.uuid4().hex
-            else:
-                sessionid = recent_items[0]["sessionid"]
-
-            # messagesがitemsの中にある場合はそのまま取得. ない場合は空のリストを返す
-            if "messages" not in items[0]:
                 formatted_items = []
             else:
-                formatted_items = items[0]["messages"]
+                sessionid = recent_items[0]["id"]
+                formatted_items = recent_items[0]["messages"]
 
             logger.info("Successfully retrieved the latest chat messages.")
             return sessionid, formatted_items
