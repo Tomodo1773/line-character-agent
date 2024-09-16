@@ -114,16 +114,12 @@ class ChatbotAgent:
     def _tool_node(self, state: State):
         return ToolNode(tools=self.tools)
 
-    def invoke(self, user_input: str, history: list):
+    def invoke(self, messages: list):
         recursion_limit = 5
-        messages = history
-        messages.append(("user", user_input))
         return self.graph.invoke({"messages": messages}, {"recursion_limit": recursion_limit})
 
-    def stream(self, user_input: str, history: list):
+    def stream(self, messages: list):
         recursion_limit = 5
-        messages = history
-        messages.append(("user", user_input))
         events = self.graph.stream({"messages": messages}, {"recursion_limit": recursion_limit}, stream_mode="values")
 
         for event in events:

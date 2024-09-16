@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 
@@ -6,7 +7,6 @@ from chatbot.utils.config import logger
 from chatbot.utils.cosmos import SaveComosDB
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -76,13 +76,16 @@ def handle_message(event):
 
         # CosmosDBから直近の会話履歴を取得
         cosmos = SaveComosDB()
-        sessionid, history = cosmos.fetch_messages()
+        sessionid, messages = cosmos.fetch_messages()
         logger.info("Fetched recent chat history.")
+
+        messages.append({"type": "user", "content": event.message.text})
 
         try:
             # LLMでレスポンスメッセージを作成
             agent_graph = ChatbotAgent()
-            response = agent_graph.invoke(user_input=event.message.text, history=history)
+            response = agent_graph.invoke(messages=messages)
+            print(response)
             content = response["messages"][-1].content
             logger.info(f"Generated response: {content}")
 
@@ -92,20 +95,7 @@ def handle_message(event):
             )
             logger.info("Replied message to the user.")
 
-            # 保存するmessagesを作成
-            save_messages = []
-            for message in response["messages"]:
-                if isinstance(message, HumanMessage):
-                    save_messages.append({"type": "human", "content": message.content})
-                elif isinstance(message, AIMessage):
-                    save_messages.append({"type": "ai", "content": message.content})
-                elif isinstance(message, ToolMessage):
-                    save_messages.append({"type": "tool", "content": message.content})
-
-                else:
-                    pass
-
-            cosmos.save_messages(userid, sessionid, save_messages)
+            cosmos.save_messages(userid, sessionid, messages, response["messages"][-1])
             logger.info("Saved conversation history.")
 
         except Exception as e:

@@ -7,6 +7,7 @@ from azure.cosmos import ContainerProxy, CosmosClient, PartitionKey, exceptions
 from chatbot.utils.config import logger
 from dotenv import load_dotenv
 from fastapi import HTTPException
+from langchain_core.messages import BaseMessage, message_to_dict
 
 # .envファイルを読み込む
 load_dotenv()
@@ -36,7 +37,9 @@ class SaveComosDB:
             logger.error(f"Failed to create the database or container: {e}")
             raise HTTPException(status_code=500, detail="Failed to perform database operation")
 
-    def save_messages(self, userid: str, sessionid: str, messages: list[dict]) -> None:
+    def save_messages(self, userid: str, sessionid: str, history: list[dict], message: BaseMessage) -> None:
+        message_dict = message_to_dict(message)
+        history.append({"type": message_dict["type"], "content": message_dict["data"]["content"]})
         try:
             # 保存するデータを作成
             now = datetime.now(pytz.timezone("Asia/Tokyo"))
@@ -44,7 +47,7 @@ class SaveComosDB:
                 "id": sessionid,
                 "userid": userid,
                 "date": now.isoformat(),
-                "messages": messages,
+                "messages": history,
             }
             # CosmosDBにデータを保存
             self.container.upsert_item(data)
