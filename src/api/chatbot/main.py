@@ -1,6 +1,4 @@
-import json
 import os
-import uuid
 
 from chatbot.agent import ChatbotAgent
 from chatbot.utils.config import logger
