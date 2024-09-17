@@ -85,7 +85,6 @@ def handle_message(event):
             # LLMでレスポンスメッセージを作成
             agent_graph = ChatbotAgent()
             response = agent_graph.invoke(messages=messages)
-            print(response)
             content = response["messages"][-1].content
             logger.info(f"Generated response: {content}")
 
@@ -95,7 +94,7 @@ def handle_message(event):
             )
             logger.info("Replied message to the user.")
 
-            cosmos.save_messages(userid, sessionid, messages, response["messages"][-1])
+            cosmos.save_messages(userid, sessionid, response["messages"])
             logger.info("Saved conversation history.")
 
         except Exception as e:
