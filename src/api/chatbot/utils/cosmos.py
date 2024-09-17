@@ -78,6 +78,14 @@ class SaveComosDB:
                 sessionid = recent_items[0]["id"]
                 formatted_items = recent_items[0]["messages"]
 
+                # 以下のコードはmessagesの中の最新20件のみにフィルタするコード
+                # フィルタされたmessageをDBに保存するロジックが未実装のためコメントアウト
+                # num_items = 20
+                # formatted_items = recent_items[0]["messages"][-num_items:]
+                # if formatted_items[0]["type"] == "tool":
+                #     num_items += 1
+                #     formatted_items = recent_items[0]["messages"][-num_items:]
+
             logger.info("Successfully retrieved the latest chat messages.")
             return sessionid, formatted_items
         except exceptions.CosmosHttpResponseError as e:
