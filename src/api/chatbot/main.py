@@ -79,7 +79,7 @@ def handle_message(event):
         sessionid, messages = cosmos.fetch_messages()
         logger.info("Fetched recent chat history.")
 
-        messages.append({"type": "user", "content": event.message.text})
+        messages.append({"type": "human", "content": event.message.text})
 
         try:
             # LLMでレスポンスメッセージを作成
