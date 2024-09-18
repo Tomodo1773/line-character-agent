@@ -3,6 +3,7 @@ import getpass
 import os
 from typing import Annotated
 
+from chatbot.agent.tools import firecrawl_search
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
@@ -78,8 +79,8 @@ class ChatbotAgent:
 
     def __init__(self) -> None:
 
-        tool = TavilySearchResults(max_results=2)
-        self.tools = [tool]
+        # tool = TavilySearchResults(max_results=2)
+        self.tools = [TavilySearchResults(max_results=3), firecrawl_search]
         graph_builder = StateGraph(State)
         # graph_builder.add_node("demo", self._demo_node)
         graph_builder.add_node("chatbot", self._chatbot_node)
@@ -149,7 +150,7 @@ if __name__ == "__main__":
             break
         # response = agent_graph.invoke(user_input, history)
         # print(response["messages"][-1].content)
-
-        response = agent_graph.stream(user_input, history)
+        history.append({"type": "human", "content": user_input})
+        response = agent_graph.stream(history)
         for chunk in response:
             print(chunk)
