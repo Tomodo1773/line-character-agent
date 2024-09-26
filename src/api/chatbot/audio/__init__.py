@@ -1,11 +1,8 @@
 import getpass
-import logging
 import os
 import tempfile
 from pathlib import Path
 
-import requests
-from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -68,104 +65,50 @@ system_prompt = """
 """
 
 
-def get_diary_from_audio(audio_file: bytes) -> str:
+class DiaryTranscription:
+    def __init__(self) -> None:
+        pass
 
-    file_path = None
+    def invoke(
+        self,
+        audio_content: bytes,
+    ) -> str:
+        chain = self._create_chain()
+        return chain.invoke(audio_content)
 
-    try:
-
-        # 音声の文字起こし
-        file_path = save_audio_to_tempfile(audio_file)
-        transcribed_text = transcribe_audio(file_path)
-
-        # 文が長い場合は成形する
-        if len(transcribed_text) >= 50:
-            formatted_text = format_text(transcribed_text)
-        else:
-            formatted_text = transcribed_text
-
-        return formatted_text
-    except Exception as e:
-        logging.error(f"Error in main function: {str(e)}")
-        return str(e)
-
-    finally:
-        # 一時ファイルを削除
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-
-    return formatted_text
-
-
-# class DiaryTranscription:
-#     def __init__(self) -> None:
-#         pass
-
-#     def invoke(
-#         self,
-#         audio_content: bytes,
-#     ) -> str:
-
-#         logging.info("Formatting text started")
-#         chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
-#         template = ChatPromptTemplate.from_messages(
-#             [
-#                 ("system", system_prompt),
-#                 ("human", "{transcribed_text}"),
-#             ]
-#         )
-#         user_dictionary = (
-#             (Path(__file__).parent.parent / "audio" / "family_names.txt").read_text(encoding="utf-8").splitlines()
-#         )
-#         prompt = template.partial(user_dictionary=user_dictionary)
-#         parser = StrOutputParser()
-#         chain = prompt | chat | parser
-#         return chain.invoke()
-    
-#     def audio_transcription(self, audio_file: bytes) -> str:
-        
-
-
-def format_text(transcribed_text):
-    logging.info("Formatting text started")
-    chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
-    template = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "{transcribed_text}"),
-        ]
-    )
-    user_dictionary = (
-        (Path(__file__).parent.parent / "audio" / "family_names.txt").read_text(encoding="utf-8").splitlines()
-    )
-    prompt = template.partial(user_dictionary=user_dictionary)
-    parser = StrOutputParser()
-    chain = prompt | chat | parser
-    formatted_text = chain.invoke({"transcribed_text": transcribed_text})
-    logging.info(f"Formatting text completed: {formatted_text}")
-    return formatted_text
-
-
-def transcribe_audio(file_path):
-    logging.info("Starting transcription...")
-    with open(file_path, "rb") as audio_file:
-        # transcript = openai.audio.transcriptions.create(
-        #     model="whisper-1",
-        #     file=audio_file,
-        # )
-        groq = OpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
-        transcript = groq.audio.transcriptions.create(
-            model="whisper-large-v3", file=audio_file, response_format="text"
+    def _create_chain(self):
+        chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
+        template = ChatPromptTemplate.from_messages(
+            [
+                ("system", system_prompt),
+                ("human", "{transcribed_text}"),
+            ]
         )
-    logging.info("Transcription completed.")
-    return transcript
+        prompt = template.partial(user_dictionary=self._read_dictionary())
+        parser = StrOutputParser()
+        chain = self._transcription | prompt | chat | parser
+        return chain
 
+    def _read_dictionary(self) -> str:
+        return (Path(__file__).parent.parent / "audio" / "family_names.txt").read_text(encoding="utf-8").splitlines()
 
-def save_audio_to_tempfile(audio_message_content):
-    logging.info("Saving audio to tempfile started")
-    temp_dir = tempfile.gettempdir()
-    file_path = os.path.join(temp_dir, "temp.m4a")
-    with open(file_path, "wb") as f:
-        f.write(audio_message_content)
-    logging.info("Saving audio to tempfile completed")
-    return file_path
+    def _transcription(self, audio_file: bytes) -> str:
+        file_path = self._save_audio(audio_file)
+
+        with open(file_path, "rb") as audio_file:
+            # transcript = openai.audio.transcriptions.create(
+            #     model="whisper-1",
+            #     file=audio_file,
+            # )
+            groq = OpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
+            transcript = groq.audio.transcriptions.create(
+                model="whisper-large-v3", file=audio_file, response_format="text"
+            )
+        return {"transcribed_text": transcript}
+
+    def _save_audio(self, audio_file: bytes) -> str:
+        temp_dir = tempfile.gettempdir()
+        file_path = os.path.join(temp_dir, "temp.m4a")
+        with open(file_path, "wb") as f:
+            f.write(audio_file)
+        return file_path

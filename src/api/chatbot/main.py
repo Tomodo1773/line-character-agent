@@ -17,7 +17,7 @@ from linebot.v3.messaging import (
     TextMessage,
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, AudioMessageContent
-from chatbot.audio import get_diary_from_audio
+from chatbot.audio import DiaryTranscription
 load_dotenv()
 
 # アプリの設定
@@ -120,7 +120,7 @@ def handle_audio(event):
 
         try:
             # audioから日記を取得
-            content = get_diary_from_audio(audio)
+            content = DiaryTranscription().invoke(audio)
 
             # メッセージを返信
             line_bot_api.reply_message_with_http_info(
