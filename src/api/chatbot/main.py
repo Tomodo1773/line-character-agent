@@ -11,12 +11,13 @@ from linebot.v3.messaging import (
     ApiClient,
     Configuration,
     MessagingApi,
+    MessagingApiBlob,
     ReplyMessageRequest,
     ShowLoadingAnimationRequest,
     TextMessage,
 )
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
-
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, AudioMessageContent
+from chatbot.audio import get_diary_from_audio
 load_dotenv()
 
 # アプリの設定
@@ -41,6 +42,7 @@ async def callback(
     x_line_signature=Header(None),
 ):
     body = await request.body()
+    print(body)
     logger.info("Message received.")
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
@@ -54,15 +56,11 @@ async def callback(
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
+def handle_text(event):
     with ApiClient(configuration) as api_client:
 
         # user_idを取得
-        try:
-            userid = event.source.user_id
-        except AttributeError:
-            logger.error("Failed to get user_id.")  # Logging the failure to get user_id
-            raise HTTPException(status_code=400, detail="Failed to get user_id")
+        userid = event.source.user_id
 
         line_bot_api = MessagingApi(api_client)
 
@@ -103,6 +101,40 @@ def handle_message(event):
             )
             logger.error(f"Returned error message to the user: {e}")
 
+
+@handler.add(MessageEvent, message=AudioMessageContent)
+def handle_audio(event):
+    with ApiClient(configuration) as api_client:
+        logger.info("start handle_audio")
+
+        # user_idを取得
+        userid = event.source.user_id
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api_blob = MessagingApiBlob(api_client)
+
+        # ローディングアニメーションを表示
+        line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=userid, loadingSeconds=60))
+        logger.info("Displayed loading animation.")
+
+        audio = line_bot_api_blob.get_message_content(event.message.id)
+
+        try:
+            # audioから日記を取得
+            content = get_diary_from_audio(audio)
+
+            # メッセージを返信
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=content)])
+            )
+            logger.info("Replied message to the user.")
+
+        except Exception as e:
+            # メッセージを返信
+            error_message = f"Error {e.status_code}: {e.detail}"
+            line_bot_api_blob.reply_message_with_http_info(
+                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=error_message)])
+            )
+            logger.error(f"Returned error message to the user: {e}")
 
 # @app.websocket("/ws")
 # async def websocket_endpoint(websocket: WebSocket):
