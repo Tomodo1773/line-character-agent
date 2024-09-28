@@ -18,6 +18,8 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, AudioMessageContent
 from chatbot.audio import DiaryTranscription
+from utils.line import LineMessenger
+
 load_dotenv()
 
 # アプリの設定
@@ -42,8 +44,8 @@ async def callback(
     x_line_signature=Header(None),
 ):
     body = await request.body()
-    print(body)
-    logger.info("Message received.")
+
+    logger.info(f"Message received. event: {body.decode('utf-8')}")  # Logging the received message
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
         logger.info("Added handler to background tasks.")  # Logging the addition of handler to background tasks
@@ -57,84 +59,61 @@ async def callback(
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text(event):
-    with ApiClient(configuration) as api_client:
+    logger.info(f"Start handling text message: {event.message.text}")
+    line_messennger = LineMessenger(event)
 
-        # user_idを取得
-        userid = event.source.user_id
+    # ローディングアニメーションを表示
+    line_messennger.show_loading_animation()
 
-        line_bot_api = MessagingApi(api_client)
+    # CosmosDBから直近の会話履歴を取得
+    cosmos = SaveComosDB()
+    sessionid, messages = cosmos.fetch_messages()
+    logger.info("Fetched recent chat history.")
 
-        logger.info(f"Received message: {event.message.text}")  # Log only the text part of the message
+    messages.append({"type": "human", "content": event.message.text})
 
-        # ローディングアニメーションを表示
-        line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=userid, loadingSeconds=60))
-        logger.info("Displayed loading animation.")
+    try:
+        # LLMでレスポンスメッセージを作成
+        agent_graph = ChatbotAgent()
+        response = agent_graph.invoke(messages=messages)
+        content = response["messages"][-1].content
+        logger.info(f"Generated response: {content}")
 
-        # CosmosDBから直近の会話履歴を取得
-        cosmos = SaveComosDB()
-        sessionid, messages = cosmos.fetch_messages()
-        logger.info("Fetched recent chat history.")
+        # メッセージを返信
+        line_messennger.reply_message(content)
 
-        messages.append({"type": "human", "content": event.message.text})
+        cosmos.save_messages(event.source.user_id, sessionid, response["messages"])
+        logger.info("Saved conversation history.")
 
-        try:
-            # LLMでレスポンスメッセージを作成
-            agent_graph = ChatbotAgent()
-            response = agent_graph.invoke(messages=messages)
-            content = response["messages"][-1].content
-            logger.info(f"Generated response: {content}")
-
-            # メッセージを返信
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=content)])
-            )
-            logger.info("Replied message to the user.")
-
-            cosmos.save_messages(userid, sessionid, response["messages"])
-            logger.info("Saved conversation history.")
-
-        except Exception as e:
-            # メッセージを返信
-            error_message = f"Error {e.status_code}: {e.detail}"
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=error_message)])
-            )
-            logger.error(f"Returned error message to the user: {e}")
+    except Exception as e:
+        # メッセージを返信
+        error_message = f"Error {e.status_code}: {e.detail}"
+        line_messennger.reply_message(error_message)
+        logger.error(f"Returned error message to the user: {e}")
 
 
 @handler.add(MessageEvent, message=AudioMessageContent)
 def handle_audio(event):
-    with ApiClient(configuration) as api_client:
-        logger.info("start handle_audio")
+    logger.info(f"Start handling audio message: {event.message.id}")
+    line_messennger = LineMessenger(event)
 
-        # user_idを取得
-        userid = event.source.user_id
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api_blob = MessagingApiBlob(api_client)
+    # ローディングアニメーションを表示
+    line_messennger.show_loading_animation()
 
-        # ローディングアニメーションを表示
-        line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chatId=userid, loadingSeconds=60))
-        logger.info("Displayed loading animation.")
+    # 音声データを取得
+    audio = line_messennger.get_content()
 
-        audio = line_bot_api_blob.get_message_content(event.message.id)
+    try:
+        # audioから日記を取得
+        content = DiaryTranscription().invoke(audio)
+        # メッセージを返信
+        line_messennger.reply_message(content)
 
-        try:
-            # audioから日記を取得
-            content = DiaryTranscription().invoke(audio)
-
-            # メッセージを返信
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=content)])
-            )
-            logger.info("Replied message to the user.")
-
-        except Exception as e:
-            # メッセージを返信
-            error_message = f"Error {e.status_code}: {e.detail}"
-            line_bot_api_blob.reply_message_with_http_info(
-                ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=error_message)])
-            )
-            logger.error(f"Returned error message to the user: {e}")
+    except Exception as e:
+        # メッセージを返信
+        error_message = f"Error {e.status_code}: {e.detail}"
+        line_messennger.reply_message(error_message)
+        logger.error(f"Returned error message to the user: {e}")
 
 # @app.websocket("/ws")
 # async def websocket_endpoint(websocket: WebSocket):
