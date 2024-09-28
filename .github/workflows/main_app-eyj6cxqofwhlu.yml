@@ -8,6 +8,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -22,26 +25,26 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Create and start virtual environment
+      - name: Install dependencies with Poetry
         run: |
-          python -m venv venv
-          source venv/bin/activate
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+          cd src/api
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry config virtualenvs.in-project true
+          poetry install
 
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: |
+          cd src/api
+          zip release.zip ./* -r
 
       - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: python-app
           path: |
-            release.zip
-            !venv/
+            src/api/release.zip
+            !src/api/venv/
 
   deploy:
     runs-on: ubuntu-latest
