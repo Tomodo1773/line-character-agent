@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies with Poetry
         run: |
-          cd src/api
+          cd api
           python -m pip install --upgrade pip
           pip install poetry
           poetry config virtualenvs.in-project true
@@ -35,7 +35,7 @@ jobs:
 
       - name: Zip artifact for deployment
         run: |
-          cd src/api
+          cd api
           zip release.zip ./* -r
 
       - name: Upload artifact for deployment jobs
@@ -43,8 +43,8 @@ jobs:
         with:
           name: python-app
           path: |
-            src/api/release.zip
-            !src/api/venv/
+            api/release.zip
+            !api/venv/
 
   deploy:
     runs-on: ubuntu-latest
