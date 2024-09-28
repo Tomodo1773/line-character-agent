@@ -1,29 +1,21 @@
 import os
 
 from chatbot.agent import ChatbotAgent
+from chatbot.audio import DiaryTranscription
+
+# from chatbot.utils.cosmos import SaveComosDB
+from chatbot.database import AgentCosmosDB
 from chatbot.utils.config import logger
-from chatbot.utils.cosmos import SaveComosDB
+from chatbot.utils.line import LineMessenger
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    ApiClient,
-    Configuration,
-    MessagingApi,
-    MessagingApiBlob,
-    ReplyMessageRequest,
-    ShowLoadingAnimationRequest,
-    TextMessage,
-)
-from linebot.v3.webhooks import MessageEvent, TextMessageContent, AudioMessageContent
-from chatbot.audio import DiaryTranscription
-from utils.line import LineMessenger
+from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 
 load_dotenv()
 
 # アプリの設定
-configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
 app = FastAPI(
@@ -66,7 +58,7 @@ def handle_text(event):
     line_messennger.show_loading_animation()
 
     # CosmosDBから直近の会話履歴を取得
-    cosmos = SaveComosDB()
+    cosmos = AgentCosmosDB()
     sessionid, messages = cosmos.fetch_messages()
     logger.info("Fetched recent chat history.")
 
@@ -80,7 +72,7 @@ def handle_text(event):
         logger.info(f"Generated response: {content}")
 
         # メッセージを返信
-        line_messennger.reply_message(content)
+        line_messennger.reply_message([content])
 
         cosmos.save_messages(event.source.user_id, sessionid, response["messages"])
         logger.info("Saved conversation history.")
@@ -88,7 +80,7 @@ def handle_text(event):
     except Exception as e:
         # メッセージを返信
         error_message = f"Error {e.status_code}: {e.detail}"
-        line_messennger.reply_message(error_message)
+        line_messennger.reply_message([error_message])
         logger.error(f"Returned error message to the user: {e}")
 
 
@@ -107,34 +99,13 @@ def handle_audio(event):
         # audioから日記を取得
         content = DiaryTranscription().invoke(audio)
         # メッセージを返信
-        line_messennger.reply_message(content)
+        line_messennger.reply_message([content])
 
     except Exception as e:
         # メッセージを返信
         error_message = f"Error {e.status_code}: {e.detail}"
-        line_messennger.reply_message(error_message)
+        line_messennger.reply_message([error_message])
         logger.error(f"Returned error message to the user: {e}")
-
-# @app.websocket("/ws")
-# async def websocket_endpoint(websocket: WebSocket):
-#     await websocket.accept()
-#     while True:
-#         data = await websocket.receive_text()
-#         logger.info(f"[Websocket]メッセージを受信しました: {data}")
-
-#         # 受信したデータをJSONとしてパース
-#         data_dict = json.loads(data)
-#         logger.info(f"[Websocket]user_prompt: {data_dict['content']}")
-#         # 'content'の値をgenerate_chat_responseに渡す
-#         response = generate_chat_response(data_dict["content"])
-#         logger.info(f"[Websocket]生成されたレスポンス: {response}")
-#         response_json = {
-#             "text": response,
-#             "role": "assistant",
-#             "emotion": "neutral"
-#         }
-#         await websocket.send_json(response_json)
-#         logger.info(f"[Websocket]メッセージを送信しました")
 
 
 if __name__ == "__main__":
