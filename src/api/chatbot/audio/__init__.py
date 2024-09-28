@@ -5,6 +5,7 @@ from pathlib import Path
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
@@ -77,7 +78,13 @@ class DiaryTranscription:
         return chain.invoke(audio_content)
 
     def _create_chain(self):
-        chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
+        # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
+        chat = ChatGoogleGenerativeAI(
+            # model="gemini-1.5-pro-latest",
+            model="gemini-1.5-pro-latest",
+            max_tokens=256,
+            temperature=0.7,
+        )
         template = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
