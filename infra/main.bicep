@@ -100,9 +100,10 @@ module AppService './app/api.bicep' = {
       LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
       LINE_CHANNEL_ACCESS_TOKEN: appSettings.LINE_CHANNEL_ACCESS_TOKEN
       LINE_CHANNEL_SECRET: appSettings.LINE_CHANNEL_SECRET
-      // GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY
+      GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY
       TAVILY_API_KEY: appSettings.TAVILY_API_KEY
       OPENAI_API_KEY: appSettings.OPENAI_API_KEY
+      GROQ_API_KEY: appSettings.GROQ_API_KEY
     }
   }
   dependsOn:[
