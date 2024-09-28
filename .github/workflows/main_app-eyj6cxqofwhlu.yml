@@ -39,7 +39,7 @@ jobs:
           zip release.zip ./* -r
 
       - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-app
           path: |
@@ -62,7 +62,7 @@ jobs:
           name: python-app
 
       - name: Unzip artifact for deployment
-        run: unzip src/api/release.zip
+        run: unzip release.zip
 
       
       - name: Login to Azure
