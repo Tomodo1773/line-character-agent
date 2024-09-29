@@ -4,8 +4,15 @@ from datetime import datetime, timedelta
 import pytz
 from chatbot.utils.config import logger
 from langchain_core.messages import BaseMessage, messages_to_dict
+from pydantic import BaseModel
 
 from .core import CosmosCore
+
+
+class AgentSession(BaseModel):
+    id: str
+    full_contents: list
+    filtered_contents: list
 
 
 class AgentCosmosDB:
@@ -16,12 +23,11 @@ class AgentCosmosDB:
     def save_messages(self, userid: str, sessionid: str, messages: BaseMessage) -> None:
         messages_dict = messages_to_dict(messages)
         history = [message["data"] for message in messages_dict]
+        self.save_dict(userid, sessionid, history)
+
+    def save_dict(self, userid: str, sessionid: str, messages: dict) -> None:
         # 保存するデータを作成
-        data = {
-            "id": sessionid,
-            "userid": userid,
-            "messages": history,
-        }
+        data = {"id": sessionid, "userid": userid, "messages": messages}
         # CosmosDBにデータを保存
         self.container.save(data)
 
@@ -49,4 +55,4 @@ class AgentCosmosDB:
             #     num_items += 1
             #     formatted_items = recent_items[0]["messages"][-num_items:]
         logger.info("Successfully retrieved the latest chat messages.")
-        return sessionid, formatted_items
+        return AgentSession(id=sessionid, full_contents=formatted_items, filtered_contents=[])
