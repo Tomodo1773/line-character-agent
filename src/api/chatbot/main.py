@@ -59,22 +59,25 @@ def handle_text(event):
 
     # CosmosDBから直近の会話履歴を取得
     cosmos = AgentCosmosDB()
-    sessionid, messages = cosmos.fetch_messages()
+    session = cosmos.fetch_messages()
     logger.info("Fetched recent chat history.")
 
+    messages = session.full_contents
     messages.append({"type": "human", "content": event.message.text})
 
     try:
         # LLMでレスポンスメッセージを作成
         agent_graph = ChatbotAgent()
-        response = agent_graph.invoke(messages=messages)
+        response = agent_graph.invoke(messages=session.full_contents)
         content = response["messages"][-1].content
         logger.info(f"Generated response: {content}")
 
         # メッセージを返信
         line_messennger.reply_message([content])
 
-        cosmos.save_messages(event.source.user_id, sessionid, response["messages"])
+        # 会話履歴を保存
+        messages.append({"type": "ai", "content": content})
+        cosmos.save_dict(event.source.user_id, session.id, messages)
         logger.info("Saved conversation history.")
 
     except Exception as e:
