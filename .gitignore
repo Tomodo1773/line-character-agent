@@ -161,4 +161,4 @@ cython_debug/
 #.idea/
 
 .summaryignore
-family_names.txt
+family_names.json

@@ -1,13 +1,13 @@
 import getpass
 import os
 import tempfile
-from pathlib import Path
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
+from chatbot.database import NameCosmosDB
 
 # ############################################
 # 事前準備
@@ -97,7 +97,8 @@ class DiaryTranscription:
         return chain
 
     def _read_dictionary(self) -> str:
-        return (Path(__file__).parent.parent / "audio" / "family_names.txt").read_text(encoding="utf-8").splitlines()
+        cosmos = NameCosmosDB()
+        return cosmos.fetch_names()
 
     def _transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)

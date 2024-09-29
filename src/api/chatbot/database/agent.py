@@ -1,17 +1,11 @@
-import os
 import uuid
 from datetime import datetime, timedelta
 
 import pytz
-from azure.cosmos import ContainerProxy, CosmosClient, PartitionKey, exceptions
 from chatbot.utils.config import logger
-from dotenv import load_dotenv
-from fastapi import HTTPException
 from langchain_core.messages import BaseMessage, messages_to_dict
-from .core import CosmosCore
 
-# .envファイルを読み込む
-load_dotenv()
+from .core import CosmosCore
 
 
 class AgentCosmosDB:
@@ -30,7 +24,6 @@ class AgentCosmosDB:
         }
         # CosmosDBにデータを保存
         self.container.save(data)
-
 
     def fetch_messages(self, limit=1):
         # CosmosDBから最新のチャットメッセージを取得
