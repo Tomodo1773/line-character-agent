@@ -80,14 +80,10 @@ class ChatbotAgent:
 
     def __init__(self) -> None:
 
-        # tool = TavilySearchResults(max_results=2)
         self.tools = [TavilySearchResults(max_results=3), firecrawl_search]
         graph_builder = StateGraph(State)
-        # graph_builder.add_node("demo", self._demo_node)
         graph_builder.add_node("chatbot", self._chatbot_node)
         graph_builder.add_node("tools", self._tool_node)
-        # graph_builder.add_edge(START, "demo")
-        # graph_builder.add_edge("demo", "chatbot")
         graph_builder.add_conditional_edges(
             "chatbot",
             tools_condition,
@@ -109,9 +105,6 @@ class ChatbotAgent:
         prompt = template.partial(datetime=current_datetime)
         chatbot_chain = prompt | llm_with_tools
         return {"messages": [chatbot_chain.invoke(state)]}
-
-    # def _demo_node(self, state: State):
-    #     return {"messages": ["テストです。"]}
 
     def _tool_node(self, state: State):
         return ToolNode(tools=self.tools)
