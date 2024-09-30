@@ -3,6 +3,7 @@ import getpass
 import os
 from typing import Annotated
 
+import pytz
 from chatbot.agent.tools import firecrawl_search
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -104,7 +105,7 @@ class ChatbotAgent:
                 MessagesPlaceholder(variable_name="messages"),
             ]
         )
-        current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
         prompt = template.partial(datetime=current_datetime)
         chatbot_chain = prompt | llm_with_tools
         return {"messages": [chatbot_chain.invoke(state)]}
