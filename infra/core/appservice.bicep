@@ -83,7 +83,6 @@ resource appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
       {
         COSMOS_DB_ACCOUNT_KEY: CosmosAccounts.listKeys().primaryMasterKey
         COSMOS_DB_ACCOUNT_URL: CosmosAccounts.properties.documentEndpoint
-        COSMOS_DB_DATABASE_NAME: 'DEMO'
         SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
         ENABLE_ORYX_BUILD: string(enableOryxBuild)
       })
