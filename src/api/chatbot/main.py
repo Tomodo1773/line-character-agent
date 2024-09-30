@@ -1,7 +1,7 @@
 import os
 
 from chatbot.agent import ChatbotAgent
-from chatbot.audio import DiaryTranscription
+from chatbot.audio import DiaryTranscription, DiaryReaction
 
 # from chatbot.utils.cosmos import SaveComosDB
 from chatbot.database import AgentCosmosDB
@@ -23,6 +23,7 @@ app = FastAPI(
     description="LINEBOT-AI-AGENT by FastAPI.",
 )
 
+agent = ChatbotAgent()
 
 @app.get("/")
 async def root():
@@ -67,8 +68,7 @@ def handle_text(event):
 
     try:
         # LLMでレスポンスメッセージを作成
-        agent_graph = ChatbotAgent()
-        response = agent_graph.invoke(messages=session.full_contents)
+        response = agent.invoke(messages=session.full_contents)
         content = response["messages"][-1].content
         logger.info(f"Generated response: {content}")
 
@@ -100,9 +100,15 @@ def handle_audio(event):
 
     try:
         # audioから日記を取得
-        content = DiaryTranscription().invoke(audio)
+        diary_content = DiaryTranscription().invoke(audio)
+        logger.info(f"Generated diary transcription")
+
+        # 　キャラクターのコメントを追加
+        reaction = DiaryReaction().invoke(diary_content)
+        logger.info(f"Generated character response: {reaction}")
+
         # メッセージを返信
-        line_messennger.reply_message([content])
+        line_messennger.reply_message([diary_content, reaction])
 
     except Exception as e:
         # メッセージを返信

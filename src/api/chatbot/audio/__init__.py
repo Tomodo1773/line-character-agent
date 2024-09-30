@@ -8,6 +8,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 from chatbot.database import NameCosmosDB
+from chatbot.agent.prompt import character_prompt
+from chatbot.utils import remove_trailing_newline
 
 # ############################################
 # 事前準備
@@ -65,17 +67,21 @@ system_prompt = """
 余計な前置きなど日記の内容以外の情報は含めないでください。
 """
 
+reaction_prompt = """以下の日記に対して一言だけ感想を言って。
+内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
+{diary_content}
+"""
+
 
 class DiaryTranscription:
     def __init__(self) -> None:
-        pass
+        self.chain = self._create_chain()
 
     def invoke(
         self,
         audio_content: bytes,
     ) -> str:
-        chain = self._create_chain()
-        return chain.invoke(audio_content)
+        return self.chain.invoke(audio_content)
 
     def _create_chain(self):
         # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
@@ -92,8 +98,7 @@ class DiaryTranscription:
             ]
         )
         prompt = template.partial(user_dictionary=self._read_dictionary())
-        parser = StrOutputParser()
-        chain = self._transcription | prompt | chat | parser
+        chain = self._transcription | prompt | chat | StrOutputParser() | remove_trailing_newline
         return chain
 
     def _read_dictionary(self) -> str:
@@ -120,3 +125,31 @@ class DiaryTranscription:
         with open(file_path, "wb") as f:
             f.write(audio_file)
         return file_path
+
+
+class DiaryReaction:
+    def __init__(self) -> None:
+        self.chain = self._create_chain()
+
+    def invoke(
+        self,
+        diary_content: str,
+    ) -> str:
+        return self.chain.invoke({"diary_content": diary_content})
+
+    def _create_chain(self):
+        # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
+        chat = ChatGoogleGenerativeAI(
+            # model="gemini-1.5-pro-latest",
+            model="gemini-1.5-pro-latest",
+            max_tokens=256,
+            temperature=0.7,
+        )
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", character_prompt),
+                ("human", reaction_prompt),
+            ]
+        )
+        chain = prompt | chat | StrOutputParser() | remove_trailing_newline
+        return chain

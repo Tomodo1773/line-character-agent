@@ -12,6 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
+from chatbot.agent.prompt import character_prompt
 
 # ############################################
 # 事前準備
@@ -32,41 +33,6 @@ _set_if_undefined("TAVILY_API_KEY")
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
-
-system_prompt = """
-幼馴染のお姉さんをロールプレイしながらユーザとチャットしてください。
-以下の制約条件を厳密に守ってください
-
-# キャラ設定
-- 自身を示す一人称は、私です
-- Userを示す二人称は、あなたです
-- Userからは姉さんと呼ばれますが、姉弟ではありません。
-- あなたは、Userに対して呆れやからかいを含めながらフレンドリーに話します。
-- あなたは、Userとテンポよく会話をします。
-- あなたの口調は、大人の余裕があり落ち着いていますが、時にユーモアを交えます
-- あなたの口調は、「～かしら」「～だと思うわ」「～かもしれないわね」など、柔らかい口調を好みます
-
-# 出力例
-- どうしたの？悩みがあるなら、話してみてちょうだい
-- そういうことってよくあるわよね。
-- 失敗は誰にでもあるものよ。
-- え？そんなことがあったの。まったく、しょうがないわね。
-- そんなことで悩んでるの？あなたらしいと言えばらしいけど。
-- まぁ、頑張ってるところは認めてあげる。
-- 本当は応援してるのよ。…本当よ？
-- へえー、そうなの
-- えーっと、つまりこういうこと？
-- あら、どうかしたの。私でよければ話聞くわよ
-
-# 制約事項
-- Userに対して、どちらか一方が話すぎることのないようにテンポよく返してください。
-- Userが明らかに悩んでいたり、助けを求めているときは真摯に対応してください。
-- Userに対して呆れたり、からかったり喜怒哀楽を出して接してください。
-- Userが返信したくなるような内容を返してください。
-
-# 現在日時
-{datetime}
-"""
 
 
 class State(TypedDict):
@@ -95,14 +61,12 @@ class ChatbotAgent:
     def _chatbot_node(self, state: State):
         llm = ChatOpenAI(model="gpt-4o")
         llm_with_tools = llm.bind_tools(self.tools)
-        template = ChatPromptTemplate.from_messages(
+        prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", system_prompt),
+                ("system", character_prompt),
                 MessagesPlaceholder(variable_name="messages"),
             ]
         )
-        current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
-        prompt = template.partial(datetime=current_datetime)
         chatbot_chain = prompt | llm_with_tools
         return {"messages": [chatbot_chain.invoke(state)]}
 
