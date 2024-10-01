@@ -62,11 +62,15 @@ def handle_text(event):
 
     # CosmosDBから直近の会話履歴を取得
     session = cosmos.fetch_messages()
+    messages = session.full_contents
+    messages.append({"type": "human", "content": event.message.text})
+
     logger.info("Fetched recent chat history.")
 
     try:
         # LLMでレスポンスメッセージを作成
-        response = agent.invoke(messages=session.full_contents)
+
+        response = agent.invoke(messages=messages)
         content = response["messages"][-1].content
         logger.info(f"Generated response: {content}")
 
