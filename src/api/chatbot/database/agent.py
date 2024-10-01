@@ -19,17 +19,29 @@ class AgentCosmosDB:
 
     def __init__(self):
         self.container = CosmosCore("CHAT")
+        self.sessionid = None
+        self.history = []
+        self.filtered_history = []
 
-    def save_messages(self, userid: str, sessionid: str, messages: BaseMessage) -> None:
+    def save_messages(self, userid: str, messages: BaseMessage) -> None:
         messages_dict = messages_to_dict(messages)
         history = [message["data"] for message in messages_dict]
-        self.save_dict(userid, sessionid, history)
+        self.save_list(userid, history)
 
-    def save_dict(self, userid: str, sessionid: str, messages: dict) -> None:
+    def save_list(self, userid: str, messages: list) -> None:
         # 保存するデータを作成
-        data = {"id": sessionid, "userid": userid, "messages": messages}
+        data = {"id": self.sessionid, "userid": userid, "messages": messages}
         # CosmosDBにデータを保存
         self.container.save(data)
+
+    def add_messages(self, userid: str, add_messages: list) -> None:
+        # self.historyにリスト型のmessagesを追加
+        if self.sessionid is None:
+            self.fetch_messages()
+        messages = self.history
+        messages.extend(add_messages)
+        self.save_list(userid, messages)
+
 
     def fetch_messages(self, limit=1):
         # CosmosDBから最新のチャットメッセージを取得
@@ -55,4 +67,6 @@ class AgentCosmosDB:
             #     num_items += 1
             #     formatted_items = recent_items[0]["messages"][-num_items:]
         logger.info("Successfully retrieved the latest chat messages.")
+        self.sessionid = sessionid
+        self.history = formatted_items
         return AgentSession(id=sessionid, full_contents=formatted_items, filtered_contents=[])
