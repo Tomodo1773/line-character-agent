@@ -88,8 +88,7 @@ class DiaryTranscription:
         chat = ChatGoogleGenerativeAI(
             # model="gemini-1.5-pro-latest",
             model="gemini-1.5-pro-latest",
-            max_tokens=256,
-            temperature=0.7,
+            temperature=0.2,
         )
         template = ChatPromptTemplate.from_messages(
             [
