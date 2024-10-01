@@ -86,7 +86,6 @@ class DiaryTranscription:
     def _create_chain(self):
         # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
         chat = ChatGoogleGenerativeAI(
-            # model="gemini-1.5-pro-latest",
             model="gemini-1.5-pro-latest",
             temperature=0.2,
         )
