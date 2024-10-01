@@ -8,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 from chatbot.database import NameCosmosDB
-from chatbot.agent.prompt import character_prompt
+from chatbot.agent.prompt import get_character_prompt
 from chatbot.utils import remove_trailing_newline
 
 # ############################################
@@ -147,7 +147,7 @@ class DiaryReaction:
         )
         prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", character_prompt),
+                ("system", get_character_prompt()),
                 ("human", reaction_prompt),
             ]
         )

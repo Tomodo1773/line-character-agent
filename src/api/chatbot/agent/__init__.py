@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
-from chatbot.agent.prompt import character_prompt
+from chatbot.agent.prompt import get_character_prompt
 
 # ############################################
 # 事前準備
@@ -63,7 +63,7 @@ class ChatbotAgent:
         llm_with_tools = llm.bind_tools(self.tools)
         prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", character_prompt),
+                ("system", get_character_prompt()),
                 MessagesPlaceholder(variable_name="messages"),
             ]
         )
