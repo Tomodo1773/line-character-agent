@@ -2,14 +2,15 @@ import getpass
 import os
 import tempfile
 
+from chatbot.agent.prompt import get_character_prompt
+from chatbot.database import NameCosmosDB
+from chatbot.utils import remove_trailing_newline
+from chatbot.utils.config import logger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
-from chatbot.database import NameCosmosDB
-from chatbot.agent.prompt import get_character_prompt
-from chatbot.utils import remove_trailing_newline
 
 # ############################################
 # 事前準備
@@ -81,13 +82,18 @@ class DiaryTranscription:
         self,
         audio_content: bytes,
     ) -> str:
-        return self.chain.invoke(audio_content)
+        try:
+            return self.chain.invoke(audio_content)
+        except Exception as e:
+            logger.error(f"Generate diary transcription error: {e}")
+            raise RuntimeError(f"Generate diary transcription error: {e}") from e
 
     def _create_chain(self):
         # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
         chat = ChatGoogleGenerativeAI(
             model="gemini-1.5-pro-latest",
             temperature=0.2,
+            max_tokens=128000,
         )
         template = ChatPromptTemplate.from_messages(
             [
@@ -105,7 +111,6 @@ class DiaryTranscription:
 
     def _transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)
-
         with open(file_path, "rb") as audio_file:
             # transcript = openai.audio.transcriptions.create(
             #     model="whisper-1",
@@ -130,10 +135,14 @@ class DiaryReaction:
         self.chain = self._create_chain()
 
     def invoke(
-        self,
-        diary_content: str,
-    ) -> str:
-        return self.chain.invoke({"diary_content": diary_content})
+            self,
+            diary_content: str,
+        ) -> str:
+        try:
+            return self.chain.invoke({"diary_content": diary_content})
+        except Exception as e:
+            logger.error(f"Generate character reaction: {e}")
+            raise RuntimeError(f"Generate diary transcription error: {e}") from e
 
     def _create_chain(self):
         # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
@@ -150,8 +159,9 @@ class DiaryReaction:
         chain = prompt | chat | StrOutputParser() | remove_trailing_newline
         return chain
 
+
 if __name__ == "__main__":
-    diary ="""
+    diary = """
 今日は海に行った。\n\n
 海岸で、たくさんの貝殻を拾った。
 夕方には、美しい夕焼けを見ることができた。
