@@ -110,7 +110,10 @@ def handle_audio(event):
         logger.info(f"Generated character response: {reaction}")
 
         # メッセージを返信
-        line_messennger.reply_message([diary_content, reaction])
+        messages = [diary_content]
+        if reaction:
+            messages.append(reaction)
+        line_messennger.reply_message(messages)
 
         # メッセージを保存
         add_messages = [{"type": "human", "content": diary_content}, {"type": "ai", "content": reaction}]
@@ -118,7 +121,7 @@ def handle_audio(event):
 
     except Exception as e:
         # メッセージを返信
-        error_message = f"Error {e.status_code}: {e.detail}"
+        error_message = f"Error: {e}"
         line_messennger.reply_message([error_message])
         logger.error(f"Returned error message to the user: {e}")
 
