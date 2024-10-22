@@ -4,11 +4,13 @@ import os
 from typing import Annotated
 
 import pytz
-from chatbot.agent.tools import firecrawl_search
+from chatbot.agent.tools import firecrawl_search, azure_ai_search
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
+from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
@@ -46,7 +48,7 @@ class ChatbotAgent:
 
     def __init__(self) -> None:
 
-        self.tools = [TavilySearchResults(max_results=3), firecrawl_search]
+        self.tools = [TavilySearchResults(max_results=3), firecrawl_search, azure_ai_search]
         graph_builder = StateGraph(State)
         graph_builder.add_node("chatbot", self._chatbot_node)
         graph_builder.add_node("tools", self._tool_node)
@@ -59,7 +61,12 @@ class ChatbotAgent:
         self.graph = graph_builder.compile()
 
     def _chatbot_node(self, state: State):
-        llm = ChatOpenAI(model="gpt-4o")
+        # llm = ChatOpenAI(model="gpt-4o")
+        # llm = ChatGoogleGenerativeAI(
+        #     model="gemini-1.5-pro-latest",
+        #     temperature=0.2,
+        # )
+        llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
         llm_with_tools = llm.bind_tools(self.tools)
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -74,16 +81,15 @@ class ChatbotAgent:
         return ToolNode(tools=self.tools)
 
     def invoke(self, messages: list):
-        recursion_limit = 5
+        recursion_limit = 8
         return self.graph.invoke({"messages": messages}, {"recursion_limit": recursion_limit})
 
     def stream(self, messages: list):
-        recursion_limit = 5
-        events = self.graph.stream({"messages": messages}, {"recursion_limit": recursion_limit}, stream_mode="values")
+        recursion_limit = 8
+        events = self.graph.stream({"messages": messages}, {"recursion_limit": recursion_limit})
 
         for event in events:
-            if "messages" in event:
-                yield event["messages"][-1].content
+            yield event
 
     def create_image(self):
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
@@ -106,9 +112,7 @@ if __name__ == "__main__":
         if user_input.lower() in ["quit", "exit", "q"]:
             print("Goodbye!")
             break
-        # response = agent_graph.invoke(user_input, history)
-        # print(response["messages"][-1].content)
         history.append({"type": "human", "content": user_input})
-        response = agent_graph.stream(history)
-        for chunk in response:
-            print(chunk)
+        for event in agent_graph.stream(history):
+            for value in event.values():
+                print("Assistant:", value["messages"][-1].content)

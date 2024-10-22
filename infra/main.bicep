@@ -106,6 +106,9 @@ module AppService './app/api.bicep' = {
       GROQ_API_KEY: appSettings.GROQ_API_KEY
       FIRECRAWL_API_KEY:appSettings.FIRECRAWL_API_KEY
       COSMOS_DB_DATABASE_NAME: appSettings.COSMOS_DB_DATABASE_NAME
+      ANTHROPIC_API_KEY:appSettings.ANTHROPIC_API_KEY
+      AZURE_AI_SEARCH_SERVICE_NAME:appSettings.AZURE_AI_SEARCH_SERVICE_NAME
+      AZURE_AI_SEARCH_API_KEY:appSettings.AZURE_AI_SEARCH_API_KEY
     }
   }
   dependsOn:[
