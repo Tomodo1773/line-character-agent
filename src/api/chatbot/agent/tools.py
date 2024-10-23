@@ -3,10 +3,7 @@ from langchain_core.tools import tool
 from dotenv import load_dotenv
 from langchain_community.document_loaders import FireCrawlLoader
 from langchain_core.documents.base import Document
-from langchain_community.vectorstores import AzureSearch
 from langchain_community.retrievers import AzureAISearchRetriever
-from langchain_openai import OpenAIEmbeddings
-import os
 
 load_dotenv()
 
@@ -38,13 +35,6 @@ def azure_ai_search(query: str) -> str:
     retriever = AzureAISearchRetriever(content_key="content", top_k=3, index_name="diary-vector")
     docs = retriever.invoke(query)
     return format_docs(docs)  # Return formatted diary entries as a string
-
-
-# Let's inspect some of the attributes associated with the tool.
-# print(multiply.name)
-# print(multiply.description)
-# print(multiply.args)
-# print(multiply.return_direct)
 
 if __name__ == "__main__":
     # firecrawl_search(url="https://www.example.com")
