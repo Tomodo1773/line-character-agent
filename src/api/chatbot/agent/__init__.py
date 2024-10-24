@@ -46,9 +46,10 @@ class State(TypedDict):
 
 class ChatbotAgent:
 
-    def __init__(self) -> None:
+    def __init__(self,userid: str) -> None:
 
         self.tools = [TavilySearchResults(max_results=3), firecrawl_search, azure_ai_search]
+        self.userid = userid
         graph_builder = StateGraph(State)
         graph_builder.add_node("chatbot", self._chatbot_node)
         graph_builder.add_node("tools", self._tool_node)
@@ -68,12 +69,7 @@ class ChatbotAgent:
         # )
         llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
         llm_with_tools = llm.bind_tools(self.tools)
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", get_character_prompt()),
-                MessagesPlaceholder(variable_name="messages"),
-            ]
-        )
+        prompt = get_character_prompt(self.userid)
         chatbot_chain = prompt | llm_with_tools
         return {"messages": [chatbot_chain.invoke(state)]}
 
@@ -103,7 +99,9 @@ if __name__ == "__main__":
         ("assistant", "こんにちは！ともど！悩みがあるなら、話してみてちょうだい"),
     ]
 
-    agent_graph = ChatbotAgent()
+    userid = os.environ.get("LINE_USER_ID")
+
+    agent_graph = ChatbotAgent(userid)
 
     # agent_graph.create_image()
 

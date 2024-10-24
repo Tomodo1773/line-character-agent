@@ -162,3 +162,4 @@ cython_debug/
 
 .summaryignore
 family_names.json
+user_profile.json
