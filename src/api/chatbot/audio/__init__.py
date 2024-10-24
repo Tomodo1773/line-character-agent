@@ -68,11 +68,6 @@ system_prompt = """
 余計な前置きなど日記の内容以外の情報は含めないでください。
 """
 
-reaction_prompt = """以下の日記に対して一言だけ感想を言って。
-内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
-{diary_content}
-"""
-
 
 class DiaryTranscription:
     def __init__(self) -> None:
@@ -131,15 +126,23 @@ class DiaryTranscription:
 
 
 class DiaryReaction:
-    def __init__(self) -> None:
+    def __init__(self, userid: str) -> None:
+        self.userid = userid
         self.chain = self._create_chain()
 
     def invoke(
-            self,
-            diary_content: str,
-        ) -> str:
+        self,
+        diary_content: str,
+    ) -> str:
         try:
-            return self.chain.invoke({"diary_content": diary_content})
+            reaction_prompt = f"""以下の日記に対して一言だけ感想を言って。
+内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
+{diary_content}
+"""
+            messages = [
+                ("human", reaction_prompt),
+            ]
+            return self.chain.invoke({"messages": messages})
         except Exception as e:
             logger.error(f"Generate character reaction: {e}")
             raise RuntimeError(f"Generate diary transcription error: {e}") from e
@@ -150,17 +153,13 @@ class DiaryReaction:
             model="gemini-1.5-pro-latest",
             temperature=0.7,
         )
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", get_character_prompt()),
-                ("human", reaction_prompt),
-            ]
-        )
+        prompt = get_character_prompt(self.userid)
         chain = prompt | chat | StrOutputParser() | remove_trailing_newline
         return chain
 
 
 if __name__ == "__main__":
+    userid = os.environ.get("LINE_USER_ID")
     diary = """
 今日は海に行った。\n\n
 海岸で、たくさんの貝殻を拾った。
@@ -168,7 +167,7 @@ if __name__ == "__main__":
 明日も海に行きたい。
 """
 
-    chain = DiaryReaction()
+    chain = DiaryReaction(userid)
     reaction = chain.invoke(diary)
 
     print(reaction)

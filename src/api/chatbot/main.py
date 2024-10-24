@@ -23,8 +23,6 @@ app = FastAPI(
     description="LINEBOT-AI-AGENT by FastAPI.",
 )
 
-agent = ChatbotAgent()
-
 
 @app.get("/")
 async def root():
@@ -56,6 +54,8 @@ def handle_text(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messennger = LineMessenger(event)
     cosmos = AgentCosmosDB()
+    userid = event.source.user_id
+    agent = ChatbotAgent(userid)
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -79,7 +79,7 @@ def handle_text(event):
 
         # 会話履歴を保存
         add_messages = [{"type": "human", "content": event.message.text}, {"type": "ai", "content": content}]
-        cosmos.add_messages(event.source.user_id, add_messages)
+        cosmos.add_messages(userid, add_messages)
 
     except Exception as e:
         # メッセージを返信
@@ -93,6 +93,7 @@ def handle_audio(event):
     logger.info(f"Start handling audio message: {event.message.id}")
     line_messennger = LineMessenger(event)
     cosmos = AgentCosmosDB()
+    userid = event.source.user_id
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -106,7 +107,7 @@ def handle_audio(event):
         logger.info(f"Generated diary transcription")
 
         # キャラクターのコメントを追加
-        reaction = DiaryReaction().invoke(diary_content)
+        reaction = DiaryReaction(userid).invoke(diary_content)
         logger.info(f"Generated character response: {reaction}")
 
         # メッセージを返信
@@ -117,7 +118,7 @@ def handle_audio(event):
 
         # メッセージを保存
         add_messages = [{"type": "human", "content": diary_content}, {"type": "ai", "content": reaction}]
-        cosmos.add_messages(event.source.user_id, add_messages)
+        cosmos.add_messages(userid, add_messages)
 
     except Exception as e:
         # メッセージを返信
