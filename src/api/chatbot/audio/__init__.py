@@ -10,6 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from openai import OpenAI
 
 # ############################################
@@ -85,11 +86,12 @@ class DiaryTranscription:
 
     def _create_chain(self):
         # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
-        chat = ChatGoogleGenerativeAI(
-            model="gemini-1.5-pro-latest",
-            temperature=0.2,
-            max_tokens=128000,
-        )
+        # chat = ChatGoogleGenerativeAI(
+        #     model="gemini-1.5-pro-latest",
+        #     temperature=0.2,
+        #     max_tokens=128000,
+        # )
+        chat = ChatAnthropic(model="claude-3-5-sonnet-20240620")
         template = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
@@ -149,10 +151,13 @@ class DiaryReaction:
 
     def _create_chain(self):
         # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
-        chat = ChatGoogleGenerativeAI(
-            model="gemini-1.5-pro-latest",
-            temperature=0.7,
-        )
+        # chat = ChatGoogleGenerativeAI(
+        #     model="gemini-1.5-pro-latest",
+        #     temperature=0.7,
+        #     max_tokens=128000,
+        # )
+        chat = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+
         prompt = get_character_prompt(self.userid)
         chain = prompt | chat | StrOutputParser() | remove_trailing_newline
         return chain
