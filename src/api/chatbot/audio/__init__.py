@@ -6,11 +6,11 @@ from chatbot.agent.prompt import get_character_prompt
 from chatbot.database import NameCosmosDB
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import logger
+from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from openai import OpenAI
 
 # ############################################
@@ -91,7 +91,7 @@ class DiaryTranscription:
         #     temperature=0.2,
         #     max_tokens=128000,
         # )
-        chat = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+        chat = ChatAnthropic(model="claude-3-5-sonnet-latest")
         template = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
@@ -156,7 +156,7 @@ class DiaryReaction:
         #     temperature=0.7,
         #     max_tokens=128000,
         # )
-        chat = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+        chat = ChatAnthropic(model="claude-3-5-sonnet-latest")
 
         prompt = get_character_prompt(self.userid)
         chain = prompt | chat | StrOutputParser() | remove_trailing_newline
