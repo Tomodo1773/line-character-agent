@@ -85,13 +85,13 @@ class DiaryTranscription:
             raise RuntimeError(f"Generate diary transcription error: {e}") from e
 
     def _create_chain(self):
-        # chat = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
+        chat = ChatOpenAI(model="gpt-4o", temperature=0.2)
         # chat = ChatGoogleGenerativeAI(
         #     model="gemini-1.5-pro-latest",
         #     temperature=0.2,
         #     max_tokens=128000,
         # )
-        chat = ChatAnthropic(model="claude-3-5-sonnet-latest")
+        # chat = ChatAnthropic(model="claude-3-5-sonnet-latest")
         template = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
