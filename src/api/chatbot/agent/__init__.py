@@ -4,17 +4,17 @@ import os
 from typing import Annotated
 
 import pytz
-from chatbot.agent.tools import firecrawl_search, azure_ai_search
+from chatbot.agent.prompt import get_character_prompt
+from chatbot.agent.tools import azure_ai_search, firecrawl_search
+from langchain_anthropic import ChatAnthropic
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
-from chatbot.agent.prompt import get_character_prompt
 
 # ############################################
 # 事前準備
@@ -46,7 +46,7 @@ class State(TypedDict):
 
 class ChatbotAgent:
 
-    def __init__(self,userid: str) -> None:
+    def __init__(self, userid: str) -> None:
 
         self.tools = [TavilySearchResults(max_results=3), firecrawl_search, azure_ai_search]
         self.userid = userid
@@ -67,7 +67,7 @@ class ChatbotAgent:
         #     model="gemini-1.5-pro-latest",
         #     temperature=0.2,
         # )
-        llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+        llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
         llm_with_tools = llm.bind_tools(self.tools)
         prompt = get_character_prompt(self.userid)
         chatbot_chain = prompt | llm_with_tools
