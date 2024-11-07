@@ -1,7 +1,7 @@
 import os
 
 from chatbot.agent import ChatbotAgent
-from chatbot.audio import DiaryReaction, DiaryTranscription
+from chatbot.audio import DiaryTranscription
 
 # from chatbot.utils.cosmos import SaveComosDB
 from chatbot.database import AgentCosmosDB
@@ -69,7 +69,6 @@ def handle_text(event):
 
     try:
         # LLMでレスポンスメッセージを作成
-
         response = agent.invoke(messages=messages)
         content = response["messages"][-1].content
         logger.info(f"Generated response: {content}")
@@ -94,6 +93,8 @@ def handle_audio(event):
     line_messennger = LineMessenger(event)
     cosmos = AgentCosmosDB()
     userid = event.source.user_id
+    messages = []
+    agent = ChatbotAgent(userid)
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -104,20 +105,28 @@ def handle_audio(event):
     try:
         # audioから日記を取得
         diary_content = DiaryTranscription().invoke(audio)
+        reaction_prompt = f"""以下の日記に対して一言だけ感想を言って。
+内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
+{diary_content}
+"""
+        messages.append({"type": "human", "content": reaction_prompt})
         logger.info(f"Generated diary transcription")
 
         # キャラクターのコメントを追加
-        reaction = DiaryReaction(userid).invoke(diary_content)
+        response = agent.invoke(messages=messages)
+        reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
         # メッセージを返信
-        messages = [diary_content]
+        reply_messages = [diary_content]
         if reaction:
-            messages.append(reaction)
-        line_messennger.reply_message(messages)
+            reply_messages.append(reaction)
+        line_messennger.reply_message(reply_messages)
 
         # メッセージを保存
-        add_messages = [{"type": "human", "content": diary_content}, {"type": "ai", "content": reaction}]
+        messages.append({"type": "ai", "content": reaction})
+        print(messages)
+        add_messages = messages
         cosmos.add_messages(userid, add_messages)
 
     except Exception as e:
