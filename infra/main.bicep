@@ -118,4 +118,73 @@ module AppService './app/api.bicep' = {
 }
 
 
-// App outputs
+// ****************************************************************
+// Functions
+// ****************************************************************
+
+
+module monitoring './core/monitor/monitoring.bicep' = {
+  name: 'monitoring'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    logAnalyticsName: '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
+    applicationInsightsName: '${abbrs.insightsComponents}${resourceToken}'
+    applicationInsightsDashboardName: '${abbrs.insightsComponents}${resourceToken}-board'
+  }
+}
+
+module storageAccount 'core/storage/storage-account.bicep' = {
+  name: 'storage'
+  scope: rg
+  params: {
+    name: '${abbrs.storageStorageAccounts}${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
+module appServicePlan './core/host/appserviceplan.bicep' = {
+  name: 'func-appserviceplan'
+  scope: rg
+  params: {
+    name: '${abbrs.webServerFarms}${resourceToken}-func'
+    location: location
+    tags: tags
+    sku: {
+      name: 'Y1'
+      tier: 'Dynamic'
+    }
+  }
+}
+
+module functionApp 'core/host/functions.bicep' = {
+  name: 'function'
+  scope: rg
+  params: {
+    name: '${abbrs.webSitesFunctions}${resourceToken}'
+    location: location
+    tags: union(tags, { 'azd-service-name': 'api' })
+    alwaysOn: false
+    appSettings: {
+      AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
+    }
+    applicationInsightsName: monitoring.outputs.applicationInsightsName
+    appServicePlanId: appServicePlan.outputs.id
+    runtimeName: 'python'
+    runtimeVersion: '3.11'
+    storageAccountName: storageAccount.outputs.name
+  }
+}
+
+
+module diagnostics 'core/host/app-diagnostics.bicep' = {
+  name: 'diagnostics'
+  scope: rg
+  params: {
+    appName: functionApp.outputs.name
+    kind: 'functionapp'
+    diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+  }
+}
