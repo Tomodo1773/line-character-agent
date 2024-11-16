@@ -9,6 +9,9 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
+@description('Location for azure functions')
+param locationFunc string ='Australia East'
+
 param resourceGroupName string = ''
 
 param cosmosDbAccountName string = ''
@@ -122,25 +125,12 @@ module AppService './app/api.bicep' = {
 // Functions
 // ****************************************************************
 
-
-module monitoring './core/monitor/monitoring.bicep' = {
-  name: 'monitoring'
-  scope: rg
-  params: {
-    location: location
-    tags: tags
-    logAnalyticsName: '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
-    applicationInsightsName: '${abbrs.insightsComponents}${resourceToken}'
-    applicationInsightsDashboardName: '${abbrs.insightsComponents}${resourceToken}-board'
-  }
-}
-
 module storageAccount 'core/storage/storage-account.bicep' = {
   name: 'storage'
   scope: rg
   params: {
     name: '${abbrs.storageStorageAccounts}${resourceToken}'
-    location: location
+    location: locationFunc
     tags: tags
   }
 }
@@ -149,12 +139,12 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
   name: 'func-appserviceplan'
   scope: rg
   params: {
-    name: '${abbrs.webServerFarms}${resourceToken}-func'
-    location: location
+    name: '${abbrs.webServerFarms}func-${resourceToken}'
+    location: locationFunc
     tags: tags
     sku: {
-      name: 'Y1'
-      tier: 'Dynamic'
+      name: 'FC1'
+      tier: 'FlexConsumption'
     }
   }
 }
@@ -164,27 +154,17 @@ module functionApp 'core/host/functions.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.webSitesFunctions}${resourceToken}'
-    location: location
-    tags: union(tags, { 'azd-service-name': 'api' })
+    location: locationFunc
+    tags: union(tags, { 'azd-service-name': 'func' })
     alwaysOn: false
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
     }
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
-  }
-}
-
-
-module diagnostics 'core/host/app-diagnostics.bicep' = {
-  name: 'diagnostics'
-  scope: rg
-  params: {
-    appName: functionApp.outputs.name
-    kind: 'functionapp'
-    diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    functionAppScaleLimit: 100
+    minimumElasticInstanceCount: 0
   }
 }
