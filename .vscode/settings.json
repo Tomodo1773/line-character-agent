@@ -46,5 +46,12 @@
 			"organization": ""
 		}
 	],
-	"debug.onTaskErrors": "debugAnyway"
+	"debug.onTaskErrors": "debugAnyway",
+	"azureFunctions.deploySubpath": ".",
+	"azureFunctions.scmDoBuildDuringDeployment": true,
+	"azureFunctions.pythonVenv": "sec/func/.venv",
+	"azureFunctions.projectLanguage": "Python",
+	"azureFunctions.projectRuntime": "~4",
+	"debug.internalConsoleOptions": "neverOpen",
+	"azureFunctions.projectLanguageModel": 2
 }

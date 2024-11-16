@@ -20,6 +20,16 @@
 			"request": "launch",
 			"cwd": "${workspaceFolder}/api", // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
 			"module": "tests.utils.test_chat"
+		},
+		{
+			"name": "Attach to Python Functions",
+			"type": "debugpy",
+			"request": "attach",
+			"connect": {
+				"host": "localhost",
+				"port": 9091
+			},
+			"preLaunchTask": "func: host start"
 		}
 	]
 }
