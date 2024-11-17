@@ -14,7 +14,6 @@ param managedIdentity bool = !empty(keyVaultName)
   'dotnet', 'dotnetcore', 'dotnet-isolated', 'node', 'python', 'java', 'powershell', 'custom'
 ])
 param runtimeName string
-param runtimeNameAndVersion string = '${runtimeName}|${runtimeVersion}'
 param runtimeVersion string
 
 // Microsoft.Web/sites Properties
@@ -29,7 +28,6 @@ param appSettings object = {}
 param clientAffinityEnabled bool = false
 param enableOryxBuild bool = contains(kind, 'linux')
 param functionAppScaleLimit int = -1
-param linuxFxVersion string = runtimeNameAndVersion
 param minimumElasticInstanceCount int = -1
 param numberOfWorkers int = -1
 param scmDoBuildDuringDeployment bool = false
@@ -37,7 +35,12 @@ param use32BitWorkerProcess bool = false
 param ftpsState string = 'FtpsOnly'
 param healthCheckPath string = ''
 
-resource appService 'Microsoft.Web/sites@2022-03-01' = {
+param maximumInstanceCount int = 100
+param instanceMemoryMB int = 2048
+
+param functionAppContainer string = ''
+
+resource appService 'Microsoft.Web/sites@2023-12-01' = {
   name: name
   location: location
   tags: tags
@@ -45,7 +48,6 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
   properties: {
     serverFarmId: appServicePlanId
     siteConfig: {
-      linuxFxVersion: linuxFxVersion
       alwaysOn: alwaysOn
       ftpsState: ftpsState
       minTlsVersion: '1.2'
@@ -61,6 +63,26 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
     }
     clientAffinityEnabled: clientAffinityEnabled
     httpsOnly: true
+    functionAppConfig: {
+      deployment: {
+        storage: {
+          type: 'blobcontainer'
+          value: functionAppContainer
+          authentication: {
+            type: 'storageaccountconnectionstring'
+            storageAccountConnectionStringName: 'DEPLOYMENT_STORAGE_CONNECTION_STRING'
+          }
+        }
+      }
+      runtime: {
+        name: runtimeName
+        version: runtimeVersion
+      }
+      scaleAndConcurrency: {
+        maximumInstanceCount: maximumInstanceCount
+        instanceMemoryMB: instanceMemoryMB
+      }
+    }
   }
 
   identity: { type: managedIdentity ? 'SystemAssigned' : 'None' }
@@ -87,10 +109,6 @@ module configAppSettings 'appservice-appsettings.bicep' = {
   params: {
     name: appService.name
     appSettings: union(appSettings,
-      {
-        SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
-        ENABLE_ORYX_BUILD: string(enableOryxBuild)
-      },
       runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {},
       !empty(applicationInsightsName) ? { APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString } : {},
       !empty(keyVaultName) ? { AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri } : {})

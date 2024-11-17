@@ -15,7 +15,6 @@ param storageAccountName string
   'dotnet', 'dotnetcore', 'dotnet-isolated', 'node', 'python', 'java', 'powershell', 'custom'
 ])
 param runtimeName string
-param runtimeNameAndVersion string = '${runtimeName}|${runtimeVersion}'
 param runtimeVersion string
 
 // Function Settings
@@ -29,19 +28,20 @@ param kind string = 'functionapp,linux'
 
 // Microsoft.Web/sites/config
 param allowedOrigins array = []
-param alwaysOn bool = true
+param alwaysOn bool = false
 param appCommandLine string = ''
 @secure()
 param appSettings object = {}
 param clientAffinityEnabled bool = false
 param enableOryxBuild bool = contains(kind, 'linux')
 param functionAppScaleLimit int = -1
-param linuxFxVersion string = runtimeNameAndVersion
 param minimumElasticInstanceCount int = -1
 param numberOfWorkers int = -1
 param scmDoBuildDuringDeployment bool = true
 param use32BitWorkerProcess bool = false
 param healthCheckPath string = ''
+
+param functionAppContainer string = ''
 
 module functions 'appservice.bicep' = {
   name: '${name}-functions'
@@ -56,8 +56,8 @@ module functions 'appservice.bicep' = {
     appServicePlanId: appServicePlanId
     appSettings: union(appSettings, {
         AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+        DEPLOYMENT_STORAGE_CONNECTION_STRING: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
         FUNCTIONS_EXTENSION_VERSION: extensionVersion
-        FUNCTIONS_WORKER_RUNTIME: runtimeName
       })
     clientAffinityEnabled: clientAffinityEnabled
     enableOryxBuild: enableOryxBuild
@@ -65,15 +65,14 @@ module functions 'appservice.bicep' = {
     healthCheckPath: healthCheckPath
     keyVaultName: keyVaultName
     kind: kind
-    linuxFxVersion: linuxFxVersion
     managedIdentity: managedIdentity
     minimumElasticInstanceCount: minimumElasticInstanceCount
     numberOfWorkers: numberOfWorkers
     runtimeName: runtimeName
     runtimeVersion: runtimeVersion
-    runtimeNameAndVersion: runtimeNameAndVersion
     scmDoBuildDuringDeployment: scmDoBuildDuringDeployment
     use32BitWorkerProcess: use32BitWorkerProcess
+    functionAppContainer: functionAppContainer
   }
 }
 

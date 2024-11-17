@@ -28,11 +28,18 @@ resource storage 'Microsoft.Storage/storageAccounts@2022-05-01' = {
     resource container 'containers' = [for container in containers: {
       name: container.name
       properties: {
+        immutableStorageWithVersioning: {
+          enabled: false
+        }
+        defaultEncryptionScope: '$account-encryption-key'
+        denyEncryptionScopeOverride: false
         publicAccess: contains(container, 'publicAccess') ? container.publicAccess : 'None'
       }
     }]
   }
 }
+
+
 
 output name string = storage.name
 output primaryEndpoints object = storage.properties.primaryEndpoints

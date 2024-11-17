@@ -132,6 +132,20 @@ module storageAccount 'core/storage/storage-account.bicep' = {
     name: '${abbrs.storageStorageAccounts}${resourceToken}'
     location: locationFunc
     tags: tags
+    containers: [
+      {
+        name: 'app-package-${resourceToken}'
+        publicAccess: 'None'
+      }
+      {
+        name: 'azure-webjobs-hosts'
+        publicAccess: 'None'
+      }
+      {
+        name: 'azure-webjobs'
+        publicAccess: 'None'
+      }
+    ]
   }
 }
 
@@ -159,11 +173,16 @@ module functionApp 'core/host/functions.bicep' = {
     alwaysOn: false
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
+      OPENAI_API_KEY: appSettings.OPENAI_API_KEY
+      AZURE_SEARCH_ENDPOINT:'https://${appSettings.AZURE_AI_SEARCH_SERVICE_NAME}.search.windows.net'
+      AZURE_SEARCH_ADMIN_KEY: appSettings.AZURE_AI_SEARCH_API_KEY
+      SPAN_DAYS: 7
     }
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
   }
