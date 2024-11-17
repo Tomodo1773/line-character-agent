@@ -5,12 +5,14 @@ import azure.functions as func
 
 from aisearch import AISearchUploader
 from get_google_drive import GoogleDriveHandler
+import os
 
 app = func.FunctionApp()
 
 @app.timer_trigger(schedule="0 * * * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False) 
 def timer_trigger(myTimer: func.TimerRequest) -> None:
-    upload_recent_diaries(3650)
+    span_days = int(os.getenv("SPAN_DAYS", 3650))
+    upload_recent_diaries(span_days)
 
 
 def upload_recent_diaries(span_days: int = 1):
