@@ -33,11 +33,9 @@ param appCommandLine string = ''
 @secure()
 param appSettings object = {}
 param clientAffinityEnabled bool = false
-param enableOryxBuild bool = contains(kind, 'linux')
 param functionAppScaleLimit int = -1
 param minimumElasticInstanceCount int = -1
 param numberOfWorkers int = -1
-param scmDoBuildDuringDeployment bool = true
 param use32BitWorkerProcess bool = false
 param healthCheckPath string = ''
 
@@ -60,7 +58,6 @@ module functions 'appservice.bicep' = {
         FUNCTIONS_EXTENSION_VERSION: extensionVersion
       })
     clientAffinityEnabled: clientAffinityEnabled
-    enableOryxBuild: enableOryxBuild
     functionAppScaleLimit: functionAppScaleLimit
     healthCheckPath: healthCheckPath
     keyVaultName: keyVaultName
@@ -70,7 +67,6 @@ module functions 'appservice.bicep' = {
     numberOfWorkers: numberOfWorkers
     runtimeName: runtimeName
     runtimeVersion: runtimeVersion
-    scmDoBuildDuringDeployment: scmDoBuildDuringDeployment
     use32BitWorkerProcess: use32BitWorkerProcess
     functionAppContainer: functionAppContainer
   }

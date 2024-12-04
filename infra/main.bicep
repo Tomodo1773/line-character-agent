@@ -67,18 +67,17 @@ resource existingAppServicePlan 'Microsoft.Web/serverfarms@2021-02-01' existing 
   scope: resourceGroup(appServicePlanResourceGroupName)
 }
 
-module AppServicePlan 'core/appserviceplan.bicep' = if (empty(appServicePlanName)) {
+module AppServicePlan 'core/host/appserviceplan.bicep' = if (empty(appServicePlanName)) {
   name: 'AppServicePlan'
   scope: rg
   params: {
     name: '${abbrs.webServerFarms}${resourceToken}'
     location: location
     tags: tags
-    skuName: 'F1'
-    skuTier: 'Free'
-    skuSize: 'F1'
-    skuFamily: 'F'
-    skuCapacity: 1
+    sku: {
+      name: 'F1'
+      tier: 'Free'
+    }
     kind: 'linux'
   }
 }
@@ -124,6 +123,18 @@ module AppService './app/api.bicep' = {
 // ****************************************************************
 // Functions
 // ****************************************************************
+
+module monitoring './core/monitor/monitoring.bicep' = {
+  name: 'monitoring'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    logAnalyticsName: '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
+    applicationInsightsName: '${abbrs.insightsComponents}${resourceToken}'
+    applicationInsightsDashboardName: '${abbrs.insightsComponents}${resourceToken}-dashboard'
+  }
+}
 
 module storageAccount 'core/storage/storage-account.bicep' = {
   name: 'storage'
@@ -178,6 +189,7 @@ module functionApp 'core/host/functions.bicep' = {
       AZURE_SEARCH_ADMIN_KEY: appSettings.AZURE_AI_SEARCH_API_KEY
       SPAN_DAYS: 7
     }
+    applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
@@ -185,5 +197,15 @@ module functionApp 'core/host/functions.bicep' = {
     functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
+  }
+}
+
+module diagnostics 'core/host/app-diagnostics.bicep' = {
+  name: 'functions-diagnostics'
+  scope: rg
+  params: {
+    appName: functionApp.outputs.name
+    kind: 'functionapp'
+    diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
   }
 }

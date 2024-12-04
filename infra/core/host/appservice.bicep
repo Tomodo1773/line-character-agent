@@ -26,11 +26,9 @@ param appCommandLine string = ''
 @secure()
 param appSettings object = {}
 param clientAffinityEnabled bool = false
-param enableOryxBuild bool = contains(kind, 'linux')
 param functionAppScaleLimit int = -1
 param minimumElasticInstanceCount int = -1
 param numberOfWorkers int = -1
-param scmDoBuildDuringDeployment bool = false
 param use32BitWorkerProcess bool = false
 param ftpsState string = 'FtpsOnly'
 param healthCheckPath string = ''
