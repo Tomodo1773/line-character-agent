@@ -1,22 +1,31 @@
 metadata description = 'Creates an Azure App Service plan.'
 param name string
 param location string = resourceGroup().location
+param kind string = ''
 param tags object = {}
 
-param kind string = ''
-param reserved bool = true
+param maximumElasticWorkerCount int =0
 param sku object
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
+resource AppServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: name
   location: location
   tags: tags
   sku: sku
   kind: kind
-  properties: {
-    reserved: reserved
-  }
+  properties: {    
+    perSiteScaling: false
+    elasticScaleEnabled: false
+    maximumElasticWorkerCount: maximumElasticWorkerCount
+    isSpot: false
+    reserved: true
+    isXenon: false
+    hyperV: false
+    targetWorkerCount: 0
+    targetWorkerSizeId: 0
+    zoneRedundant: false
+    }
 }
 
-output id string = appServicePlan.id
-output name string = appServicePlan.name
+output id string = AppServicePlan.id
+output name string = AppServicePlan.name
