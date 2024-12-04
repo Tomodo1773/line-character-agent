@@ -102,16 +102,15 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
 
 // Updates to the single Microsoft.sites/web/config resources that need to be performed sequentially
 // sites/web/config 'appsettings'
-module configAppSettings 'appservice-appsettings.bicep' = {
-  name: '${name}-appSettings'
-  params: {
-    name: appService.name
-    appSettings: union(appSettings,
-      runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {},
-      !empty(applicationInsightsName) ? { APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString } : {},
-      !empty(keyVaultName) ? { AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri } : {})
-  }
+resource appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
+  name: 'appsettings'
+  parent: appService
+  properties: union(appSettings,
+    runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {},
+    !empty(applicationInsightsName) ? { APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString } : {},
+    !empty(keyVaultName) ? { AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri } : {})
 }
+
 
 // sites/web/config 'logs'
 resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
@@ -123,7 +122,7 @@ resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
     failedRequestsTracing: { enabled: true }
     httpLogs: { fileSystem: { enabled: true, retentionInDays: 1, retentionInMb: 35 } }
   }
-  dependsOn: [configAppSettings]
+  dependsOn: [appsettings]
 }
 
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = if (!(empty(keyVaultName))) {

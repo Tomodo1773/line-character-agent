@@ -11,6 +11,10 @@ param serviceName string = 'api'
 param cosmosDbAccountName string
 param cosmosDbResourceGroupName string
 
+param kind string = 'app,linux'
+param enableOryxBuild bool = contains(kind, 'linux')
+param scmDoBuildDuringDeployment bool = false
+
 param alwaysOn bool
 module api '../core/appservice.bicep' = {
   name: 'api'
@@ -22,10 +26,20 @@ module api '../core/appservice.bicep' = {
     appServicePlanId: appServicePlanId
     cosmosDbAccountName: cosmosDbAccountName
     cosmosDbResourceGroupName: cosmosDbResourceGroupName
-    appSettings: appSettings
+    appSettings: union(appSettings,
+      {
+        COSMOS_DB_ACCOUNT_KEY: CosmosAccounts.listKeys().primaryMasterKey
+        COSMOS_DB_ACCOUNT_URL: CosmosAccounts.properties.documentEndpoint
+        SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
+        ENABLE_ORYX_BUILD: string(enableOryxBuild)
+      })
     runtimeName: 'python'
     runtimeVersion: '3.11'
-    scmDoBuildDuringDeployment: true
     alwaysOn: alwaysOn
   }
+}
+
+resource CosmosAccounts 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' existing = {
+  name: cosmosDbAccountName
+  scope: resourceGroup(cosmosDbResourceGroupName)
 }
