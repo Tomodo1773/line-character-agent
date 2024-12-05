@@ -43,7 +43,7 @@ param functionAppContainer string = ''
 
 param serviceName string = 'func'
 
-module functions 'appservice.bicep' = {
+module functions '../core/host/function.bicep' = {
   name: '${name}-functions'
   params: {
     name: name

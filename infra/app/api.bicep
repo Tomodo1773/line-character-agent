@@ -16,7 +16,7 @@ param enableOryxBuild bool = contains(kind, 'linux')
 param scmDoBuildDuringDeployment bool = false
 
 param alwaysOn bool
-module api '../core/appservice.bicep' = {
+module api '../core/host/appservice.bicep' = {
   name: 'api'
   params: {
     name: name
@@ -24,8 +24,6 @@ module api '../core/appservice.bicep' = {
     tags: union(tags, { 'azd-service-name': serviceName })
     appCommandLine: appCommandLine
     appServicePlanId: appServicePlanId
-    cosmosDbAccountName: cosmosDbAccountName
-    cosmosDbResourceGroupName: cosmosDbResourceGroupName
     appSettings: union(appSettings,
       {
         COSMOS_DB_ACCOUNT_KEY: CosmosAccounts.listKeys().primaryMasterKey

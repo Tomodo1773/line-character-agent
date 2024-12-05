@@ -42,7 +42,7 @@ resource existingCosmosDB 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' exi
   scope: resourceGroup(cosmosDbResourceGroupName)
 }
 
-module CosmosDB 'core/cosmos.bicep' = if (empty(cosmosDbAccountName)) {
+module CosmosDB 'core/db/cosmos.bicep' = if (empty(cosmosDbAccountName)) {
   name: 'CosmosDB'
   scope: rg
   params: {
@@ -174,7 +174,7 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
   }
 }
 
-module functionApp 'core/host/functions.bicep' = {
+module functionApp 'app/func.bicep' = {
   name: 'function'
   scope: rg
   params: {
