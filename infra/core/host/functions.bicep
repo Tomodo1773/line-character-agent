@@ -41,12 +41,14 @@ param healthCheckPath string = ''
 
 param functionAppContainer string = ''
 
+param serviceName string = 'func'
+
 module functions 'appservice.bicep' = {
   name: '${name}-functions'
   params: {
     name: name
     location: location
-    tags: tags
+    tags: union(tags, { 'azd-service-name': serviceName })
     allowedOrigins: allowedOrigins
     alwaysOn: alwaysOn
     appCommandLine: appCommandLine

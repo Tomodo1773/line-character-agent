@@ -1,8 +1,12 @@
 name: demo-app
 infra:
   provider: bicep
-# services:
-#   api:
-#     project: ./src/api
-#     language: python
-#     host: appservice
+services:
+  #   api:
+  #     project: ./src/api
+  #     language: python
+  #     host: appservice
+  func:
+    project: ./src/func
+    language: python
+    host: function
