@@ -6,6 +6,7 @@ import azure.functions as func
 from aisearch import AISearchUploader
 from get_google_drive import GoogleDriveHandler
 import os
+from logger import logger
 
 app = func.FunctionApp()
 
@@ -38,9 +39,11 @@ def upload_recent_diaries(span_days: int = 1):
             # Get the content of the file
             document = drive_handler.get(file["id"])
             documents.append(document)
+            logger.info(f"Document {document.metadata['source']} added to upload list.")
 
     # Upload the content to Azure AI Search
     uploader.upload(documents)
+    logger.info(f"{len(documents)} documents uploaded to Azure AI Search.")
 
 if __name__ == "__main__":
     upload_recent_diaries(3650)

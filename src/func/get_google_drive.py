@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 from langchain_core.documents import Document
-
+from logger import logger
 
 class GoogleDriveHandler:
     SCOPES = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/documents.readonly"]
@@ -39,9 +39,10 @@ class GoogleDriveHandler:
                 page_token = results.get("nextPageToken")
                 if not page_token:
                     break
+            logger.info(f"{len(items)} files listed from Google Drive.")
             return items
         except HttpError as error:
-            print(f"An error occurred while listing files: {error}")
+            logger.error(f"An error occurred while listing files: {error}")
             return []
 
     def get(self, file_id) -> Document:
@@ -60,10 +61,11 @@ class GoogleDriveHandler:
                 _, done = downloader.next_chunk()
 
             content = fh.getvalue().decode("utf-8-sig")
+            logger.info(f"File {file_metadata['name']} downloaded successfully.")
             return Document(page_content=content, metadata={"source": file_metadata["name"]})
 
         except HttpError as error:
-            print(f"An error occurred while getting file content: {error}")
+            logger.error(f"An error occurred while getting file content: {error}")
             return None
 
 

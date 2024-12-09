@@ -8,19 +8,10 @@ from azure.search.documents.indexes.models import (
     SimpleField,
 )
 from langchain_community.vectorstores.azuresearch import AzureSearch
-from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
 
-# ロガーの設定
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# ストリームハンドラを追加
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
+from logger import logger
 
 
 class AISearchUploader:
