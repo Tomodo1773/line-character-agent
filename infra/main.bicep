@@ -188,7 +188,7 @@ module functionApp 'app/func.bicep' = {
       OPENAI_API_KEY: appSettings.OPENAI_API_KEY
       AZURE_SEARCH_ENDPOINT:'https://${appSettings.AZURE_AI_SEARCH_SERVICE_NAME}.search.windows.net'
       AZURE_SEARCH_ADMIN_KEY: appSettings.AZURE_AI_SEARCH_API_KEY
-      SPAN_DAYS: 7
+      SPAN_DAYS: 1
       DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
