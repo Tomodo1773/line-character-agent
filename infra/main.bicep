@@ -20,6 +20,7 @@ param appServicePlanName string = ''
 param appServicePlanResourceGroupName string = ''
 
 param appSettings object
+param funcappSettings object
 
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -188,6 +189,7 @@ module functionApp 'app/func.bicep' = {
       AZURE_SEARCH_ENDPOINT:'https://${appSettings.AZURE_AI_SEARCH_SERVICE_NAME}.search.windows.net'
       AZURE_SEARCH_ADMIN_KEY: appSettings.AZURE_AI_SEARCH_API_KEY
       SPAN_DAYS: 7
+      DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id

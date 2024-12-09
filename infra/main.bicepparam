@@ -19,6 +19,10 @@ param appSettings = {
   AZURE_AI_SEARCH_API_KEY: readEnvironmentVariable('AZURE_AI_SEARCH_API_KEY', 'default-azure-search-admin-key')
 }
 
+param funcappSettings = {
+  DRIVE_FOLDER_ID: readEnvironmentVariable('DRIVE_FOLDER_ID', 'default-drive-folder-id')
+}
+
 param cosmosDbAccountName = readEnvironmentVariable('AZURE_COSMOSDB_NAME', '')
 param cosmosDbResourceGroupName = readEnvironmentVariable('AZURE_COSMOSDB_RG', '')
 param appServicePlanName = readEnvironmentVariable('AZURE_APPSERVICEPLAN_NAME', '')
