@@ -17,7 +17,7 @@ from logger import logger
 class AISearchUploader:
 
     def __init__(self):
-        self.model: str = "text-embedding-3-large"
+        self.model: str = "text-embedding-3-small"
         self.index_name = "diary-vector"
         self.embeddings = self._set_embeddings()
         self.fields = self._set_index_fields()
