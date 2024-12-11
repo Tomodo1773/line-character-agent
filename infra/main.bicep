@@ -9,6 +9,9 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
+@description('Location for azure functions')
+param locationFunc string ='Australia East'
+
 param resourceGroupName string = ''
 
 param cosmosDbAccountName string = ''
@@ -17,6 +20,7 @@ param appServicePlanName string = ''
 param appServicePlanResourceGroupName string = ''
 
 param appSettings object
+param funcappSettings object
 
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -39,7 +43,7 @@ resource existingCosmosDB 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' exi
   scope: resourceGroup(cosmosDbResourceGroupName)
 }
 
-module CosmosDB 'core/cosmos.bicep' = if (empty(cosmosDbAccountName)) {
+module CosmosDB 'core/db/cosmos.bicep' = if (empty(cosmosDbAccountName)) {
   name: 'CosmosDB'
   scope: rg
   params: {
@@ -64,18 +68,17 @@ resource existingAppServicePlan 'Microsoft.Web/serverfarms@2021-02-01' existing 
   scope: resourceGroup(appServicePlanResourceGroupName)
 }
 
-module AppServicePlan 'core/appserviceplan.bicep' = if (empty(appServicePlanName)) {
+module AppServicePlan 'core/host/appserviceplan.bicep' = if (empty(appServicePlanName)) {
   name: 'AppServicePlan'
   scope: rg
   params: {
     name: '${abbrs.webServerFarms}${resourceToken}'
     location: location
     tags: tags
-    skuName: 'F1'
-    skuTier: 'Free'
-    skuSize: 'F1'
-    skuFamily: 'F'
-    skuCapacity: 1
+    sku: {
+      name: 'F1'
+      tier: 'Free'
+    }
     kind: 'linux'
   }
 }
@@ -118,4 +121,93 @@ module AppService './app/api.bicep' = {
 }
 
 
-// App outputs
+// ****************************************************************
+// Functions
+// ****************************************************************
+
+module monitoring './core/monitor/monitoring.bicep' = {
+  name: 'monitoring'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    logAnalyticsName: '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
+    applicationInsightsName: '${abbrs.insightsComponents}${resourceToken}'
+    applicationInsightsDashboardName: '${abbrs.insightsComponents}${resourceToken}-dashboard'
+  }
+}
+
+module storageAccount 'core/storage/storage-account.bicep' = {
+  name: 'storage'
+  scope: rg
+  params: {
+    name: '${abbrs.storageStorageAccounts}${resourceToken}'
+    location: locationFunc
+    tags: tags
+    containers: [
+      {
+        name: 'app-package-${resourceToken}'
+        publicAccess: 'None'
+      }
+      {
+        name: 'azure-webjobs-hosts'
+        publicAccess: 'None'
+      }
+      {
+        name: 'azure-webjobs'
+        publicAccess: 'None'
+      }
+    ]
+  }
+}
+
+module appServicePlan './core/host/appserviceplan.bicep' = {
+  name: 'func-appserviceplan'
+  scope: rg
+  params: {
+    name: '${abbrs.webServerFarms}func-${resourceToken}'
+    location: locationFunc
+    tags: tags
+    sku: {
+      name: 'FC1'
+      tier: 'FlexConsumption'
+    }
+  }
+}
+
+module functionApp 'app/func.bicep' = {
+  name: 'function'
+  scope: rg
+  params: {
+    name: '${abbrs.webSitesFunctions}${resourceToken}'
+    location: locationFunc
+    tags: union(tags, { 'azd-service-name': 'func' })
+    alwaysOn: false
+    appSettings: {
+      AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
+      OPENAI_API_KEY: appSettings.OPENAI_API_KEY
+      AZURE_SEARCH_ENDPOINT:'https://${appSettings.AZURE_AI_SEARCH_SERVICE_NAME}.search.windows.net'
+      AZURE_SEARCH_ADMIN_KEY: appSettings.AZURE_AI_SEARCH_API_KEY
+      SPAN_DAYS: 1
+      DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
+    }
+    applicationInsightsName: monitoring.outputs.applicationInsightsName
+    appServicePlanId: appServicePlan.outputs.id
+    runtimeName: 'python'
+    runtimeVersion: '3.11'
+    storageAccountName: storageAccount.outputs.name
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-${resourceToken}'
+    functionAppScaleLimit: 100
+    minimumElasticInstanceCount: 0
+  }
+}
+
+module diagnostics 'core/host/app-diagnostics.bicep' = {
+  name: 'functions-diagnostics'
+  scope: rg
+  params: {
+    appName: functionApp.outputs.name
+    kind: 'functionapp'
+    diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+  }
+}

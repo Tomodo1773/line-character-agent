@@ -1,0 +1,50 @@
+{
+	"files.autoSave": "afterDelay",
+	"editor.renderWhitespace": "all",
+	"csv-preview.numberFormat": "g",
+	"csv-preview.formatValues": "never",
+	"workbench.iconTheme": "material-icon-theme",
+	"prettier.printWidth": 200,
+	"prettier.useTabs": true,
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"[python]": {
+		"editor.defaultFormatter": "ms-python.black-formatter",
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "explicit"
+		}
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+	},
+	"markdownlint.config": {
+		"default": true,
+		"MD018": false,
+		"MD034": false
+	},
+	"japanese-proofreading.textlint.外来語カタカナ表記": false,
+	"editor.formatOnSave": true,
+	"editor.formatOnPaste": true,
+	"isort.args": ["--profile", "black"],
+	"black-formatter.args": ["--line-length=119"],
+	"githubPullRequests.pullBranch": "never",
+	"cursor.cpp.disabledLanguages": ["plaintext", "scminput"],
+	"gitlens.views.remotes.branches.layout": "list",
+	"workbench.activityBar.orientation": "vertical",
+	"prompty.modelConfigurations": [
+		{
+			"name": "gpt-4o(AzureOpenAI)",
+			"type": "azure_openai",
+			"api_version": "2023-12-01-preview",
+			"azure_endpoint": "${env:AZURE_OPENAI_ENDPOINT}",
+			"azure_deployment": "gpt-4o",
+			"api_key": "${env:AZURE_OPENAI_API_KEY}"
+		},
+		{
+			"name": "gpt-4o-mini",
+			"type": "openai",
+			"api_key": "${env:OPENAI_API_KEY}",
+			"organization": ""
+		}
+	],
+	"debug.onTaskErrors": "debugAnyway"
+}

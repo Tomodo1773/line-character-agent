@@ -1,12 +1,12 @@
 import os
 
 from chatbot.agent import ChatbotAgent
-from chatbot.audio import DiaryTranscription
 
 # from chatbot.utils.cosmos import SaveComosDB
 from chatbot.database import AgentCosmosDB
 from chatbot.utils.config import logger
 from chatbot.utils.line import LineMessenger
+from chatbot.utils.transcript import DiaryTranscription
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
 from linebot.v3 import WebhookHandler

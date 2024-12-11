@@ -163,3 +163,5 @@ cython_debug/
 .summaryignore
 family_names.json
 user_profile.json
+local.settings.json
+credentials.json
