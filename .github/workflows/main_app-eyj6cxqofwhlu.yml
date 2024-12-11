@@ -31,6 +31,7 @@ jobs:
           pip install poetry
           poetry config virtualenvs.in-project true
           poetry install
+          mv venv antenv
 
       - name: Zip artifact for deployment
         run: |
@@ -43,7 +44,6 @@ jobs:
           name: python-app
           path: |
             src/api/release.zip
-            !src/api/venv/
 
   deploy:
     runs-on: ubuntu-latest
