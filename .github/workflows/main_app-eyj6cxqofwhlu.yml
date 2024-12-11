@@ -28,10 +28,7 @@ jobs:
         run: |
           cd src/api
           python -m pip install --upgrade pip
-          pip install poetry
-          poetry config virtualenvs.in-project true
-          poetry install
-          mv venv antenv
+          pip install -r requirements.txt
 
       - name: Zip artifact for deployment
         run: |
