@@ -38,10 +38,8 @@ class LineMessenger:
         logger.info("Displayed loading animation.")
 
     def reply_message(self, messages_list: list) -> None:
-        formatted_messages = [TextMessage(text=messages_list[i]) for i in range(len(messages_list))]
-        print(formatted_messages)
         self.line_api.reply_message_with_http_info(
-            ReplyMessageRequest(reply_token=self.reply_token, messages=formatted_messages)
+            ReplyMessageRequest(reply_token=self.reply_token, messages=messages_list)
         )
         logger.info("Replied to the message.")
 

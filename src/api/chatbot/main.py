@@ -6,11 +6,13 @@ from chatbot.agent import ChatbotAgent
 from chatbot.database import AgentCosmosDB
 from chatbot.utils.config import logger
 from chatbot.utils.line import LineMessenger
+from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import AudioMessage, TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 
 load_dotenv()
@@ -56,6 +58,7 @@ def handle_text(event):
     cosmos = AgentCosmosDB()
     userid = event.source.user_id
     agent = ChatbotAgent(userid)
+    nijivoice = NijiVoiceClient()
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -71,10 +74,23 @@ def handle_text(event):
         # LLMでレスポンスメッセージを作成
         response = agent.invoke(messages=messages)
         content = response["messages"][-1].content
-        logger.info(f"Generated response: {content}")
+        logger.info(f"Generated text response: {content}")
+
+        # 音声を生成
+        voice_response = nijivoice.generate(content)
+        audio_url = voice_response["generatedVoice"]["audioFileUrl"]
+        duration = voice_response["generatedVoice"]["duration"]
+        logger.info(f"Generated voice response: {audio_url}")
 
         # メッセージを返信
-        line_messennger.reply_message([content])
+        reply_messages = [
+            TextMessage(text=content),
+            AudioMessage(
+                original_content_url=audio_url,
+                duration=duration
+            ),
+        ]
+        line_messennger.reply_message(reply_messages)
 
         # 会話履歴を保存
         add_messages = [{"type": "human", "content": event.message.text}, {"type": "ai", "content": content}]
@@ -95,6 +111,7 @@ def handle_audio(event):
     userid = event.source.user_id
     messages = []
     agent = ChatbotAgent(userid)
+    nijivoice = NijiVoiceClient()
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -117,10 +134,24 @@ def handle_audio(event):
         reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
+        # 音声を生成
+        voice_response = nijivoice.generate(reaction)
+        audio_url = voice_response["generatedVoice"]["audioFileUrl"]
+        duration = voice_response["generatedVoice"]["duration"]
+        logger.info(f"Generated voice response: {audio_url}")
+
         # メッセージを返信
-        reply_messages = [diary_content]
+        reply_messages = [
+            TextMessage(text=diary_content)  # 日記の内容は常に送信
+        ]
         if reaction:
-            reply_messages.append(reaction)
+            reply_messages.extend([
+                TextMessage(text=reaction),
+                AudioMessage(
+                    original_content_url=audio_url,
+                    duration=duration
+                )
+            ])
         line_messennger.reply_message(reply_messages)
 
         # メッセージを保存

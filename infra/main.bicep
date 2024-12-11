@@ -112,12 +112,9 @@ module AppService './app/api.bicep' = {
       ANTHROPIC_API_KEY:appSettings.ANTHROPIC_API_KEY
       AZURE_AI_SEARCH_SERVICE_NAME:appSettings.AZURE_AI_SEARCH_SERVICE_NAME
       AZURE_AI_SEARCH_API_KEY:appSettings.AZURE_AI_SEARCH_API_KEY
+      NIJIVOICE_API_KEY:appSettings.NIJIVOICE_API_KEY
     }
   }
-  dependsOn:[
-    AppServicePlan
-    CosmosDB
-  ]
 }
 
 
