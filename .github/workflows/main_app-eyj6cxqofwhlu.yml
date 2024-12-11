@@ -76,4 +76,3 @@ jobs:
         with:
           app-name: "app-eyj6cxqofwhlu"
           slot-name: "Production"
-          enable-oryx-build: true
