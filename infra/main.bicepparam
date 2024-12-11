@@ -17,6 +17,7 @@ param appSettings = {
   ANTHROPIC_API_KEY: readEnvironmentVariable('ANTHROPIC_API_KEY', 'default-anthropic-api-key')
   AZURE_AI_SEARCH_SERVICE_NAME: readEnvironmentVariable('AZURE_AI_SEARCH_SERVICE_NAME', 'default-azure-search-service-name')
   AZURE_AI_SEARCH_API_KEY: readEnvironmentVariable('AZURE_AI_SEARCH_API_KEY', 'default-azure-search-admin-key')
+  NIJIVOICE_API_KEY: readEnvironmentVariable('NIJIVOICE_API_KEY', 'default-nijivoice-api-key')
 }
 
 param funcappSettings = {
