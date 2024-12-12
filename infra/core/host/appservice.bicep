@@ -30,6 +30,9 @@ param numberOfWorkers int = -1
 param ftpsState string = 'FtpsOnly'
 param healthCheckPath string = ''
 
+param enableOryxBuild bool = contains(kind, 'linux')
+param scmDoBuildDuringDeployment bool = true
+
 resource appService 'Microsoft.Web/sites@2022-03-01' = {
   name: name
   location: location
@@ -71,7 +74,12 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
 resource appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
   name: 'appsettings'
   parent: appService
-  properties: appSettings
+  properties: union(appSettings,
+    {
+        SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
+        ENABLE_ORYX_BUILD: string(enableOryxBuild)
+    },
+    runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {})
 }
 
 // sites/web/config 'logs'

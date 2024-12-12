@@ -11,10 +11,6 @@ param serviceName string = 'api'
 param cosmosDbAccountName string
 param cosmosDbResourceGroupName string
 
-param kind string = 'app,linux'
-param enableOryxBuild bool = contains(kind, 'linux')
-param scmDoBuildDuringDeployment bool = false
-
 param alwaysOn bool
 module api '../core/host/appservice.bicep' = {
   name: 'api'
@@ -28,8 +24,6 @@ module api '../core/host/appservice.bicep' = {
       {
         COSMOS_DB_ACCOUNT_KEY: CosmosAccounts.listKeys().primaryMasterKey
         COSMOS_DB_ACCOUNT_URL: CosmosAccounts.properties.documentEndpoint
-        SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
-        ENABLE_ORYX_BUILD: string(enableOryxBuild)
       })
     runtimeName: 'python'
     runtimeVersion: '3.11'
