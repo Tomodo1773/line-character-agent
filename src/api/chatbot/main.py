@@ -57,7 +57,7 @@ def handle_text(event):
     line_messennger = LineMessenger(event)
     cosmos = AgentCosmosDB()
     userid = event.source.user_id
-    agent = ChatbotAgent(userid)
+    agent = ChatbotAgent()
     nijivoice = NijiVoiceClient()
 
     # ローディングアニメーションを表示
@@ -72,7 +72,7 @@ def handle_text(event):
 
     try:
         # LLMでレスポンスメッセージを作成
-        response = agent.invoke(messages=messages)
+        response = agent.invoke(messages=messages, userid=userid)
         content = response["messages"][-1].content
         logger.info(f"Generated text response: {content}")
 
@@ -110,7 +110,7 @@ def handle_audio(event):
     cosmos = AgentCosmosDB()
     userid = event.source.user_id
     messages = []
-    agent = ChatbotAgent(userid)
+    agent = ChatbotAgent()
     nijivoice = NijiVoiceClient()
 
     # ローディングアニメーションを表示
@@ -130,7 +130,7 @@ def handle_audio(event):
         logger.info(f"Generated diary transcription")
 
         # キャラクターのコメントを追加
-        response = agent.invoke(messages=messages)
+        response = agent.invoke(messages=messages, userid=userid)
         reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
