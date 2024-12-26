@@ -9,20 +9,13 @@ from chatbot.agent.tools import azure_ai_search, firecrawl_search
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    MessagesPlaceholder,
-    PromptTemplate,
-)
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.types import Command
-from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 # ############################################
