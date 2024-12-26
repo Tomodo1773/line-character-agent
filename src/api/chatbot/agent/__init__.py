@@ -113,14 +113,16 @@ def tavily_search(query: str) -> list:
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
-    prompt = hub.pull("create_web_search_query")
-    
+    template = hub.pull("create_web_search_query")
+
+    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
+    prompt = template.partial(current_datetime=current_datetime)
     create_web_search_query_chain = prompt | llm | StrOutputParser() | tavily_search
-    docs = create_web_search_query_chain.invoke(state)
+    docs = create_web_search_query_chain.invoke(state["messages"])
 
     return Command(
     goto="chatbot",
-    update={"messages": [AIMessage(content=docs)]},
+    update={"messages": [AIMessage(content=f"{docs}")]},
 )
 
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
@@ -166,7 +168,6 @@ class ChatbotAgent:
 
 
 if __name__ == "__main__":
-    history = []
 
     userid = os.environ.get("LINE_USER_ID")
 
@@ -179,9 +180,8 @@ if __name__ == "__main__":
         if user_input.lower() in ["quit", "exit", "q"]:
             print("Goodbye!")
             break
-        history.append({"type": "human", "content": user_input})
+        history = [{"type": "human", "content": user_input}]
         for event in agent_graph.stream(messages=history, userid=userid):
             for value in event.values():
                 if value:
                     print("Assistant:", value["messages"][-1].content)
-                    history.append({"type": "assistant", "content": value["messages"][-1].content})
