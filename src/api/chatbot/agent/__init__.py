@@ -130,7 +130,7 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
     return Command(
     goto="chatbot",
-    update={"messages": [AIMessage(content="URL fetch results")]},
+    update={"documents": []},
 )
 
 class ChatbotAgent:
