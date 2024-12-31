@@ -6,10 +6,9 @@ from typing import Annotated, Literal
 
 import pytz
 from chatbot.agent.prompt import get_character_prompt
-from chatbot.agent.tools import azure_ai_search, firecrawl_search
+from chatbot.agent.tools import azure_ai_search, firecrawl_search, tavily_search
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -102,9 +101,6 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         update={"messages": [AIMessage(content=content)]},
     )
 
-def tavily_search(query: str) -> list:
-    tool = TavilySearchResults(max_results=3)
-    return tool.invoke({"query": query})
 
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
