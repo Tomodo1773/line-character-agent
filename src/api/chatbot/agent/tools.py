@@ -3,6 +3,7 @@ from typing import List
 from dotenv import load_dotenv
 from langchain_community.document_loaders import FireCrawlLoader
 from langchain_community.retrievers import AzureAISearchRetriever
+from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.documents.base import Document
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -21,6 +22,9 @@ def firecrawl_search(url: str) -> Document:
     docs = loader.load()
     return docs[0]
 
+def tavily_search(query: str) -> list:
+    tool = TavilySearchResults(max_results=3)
+    return tool.invoke({"query": query})
 
 class AzureAISearchInput(BaseModel):
     query: str = Field(description="search query")
