@@ -1,6 +1,7 @@
 import datetime
 import getpass
 import os
+from operator import add
 from typing import Annotated, Literal
 
 import pytz
@@ -45,6 +46,7 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
+    documents: Annotated[list, add] = []
 
 
 def supervisor_node(state: State) -> Command[Literal["web_searcher", "diary_searcher", "url_fetcher", "chatbot"]]:
@@ -90,13 +92,14 @@ def remove_trailing_newline(text: str) -> str:
     return text.rstrip("\n")
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=1.0)
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
     prompt = get_character_prompt(state["userid"])
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
+    content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
     return Command(
         goto= "__end__",
-        update={"messages": [AIMessage(content=chatbot_chain.invoke(state))]},
+        update={"messages": [AIMessage(content=content)]},
     )
 
 def tavily_search(query: str) -> list:
@@ -110,18 +113,22 @@ def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
     current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
     prompt = template.partial(current_datetime=current_datetime)
-    create_web_search_query_chain = prompt | llm | StrOutputParser() | tavily_search
-    docs = create_web_search_query_chain.invoke(state["messages"])
+    web_search_chain = prompt | llm | StrOutputParser() | tavily_search
+    docs = web_search_chain.invoke(state["messages"])
 
     return Command(
     goto="chatbot",
-    update={"messages": [AIMessage(content=f"{docs}")]},
+    update={"documents": docs},
 )
 
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
+    prompt = hub.pull("create_diary_search_query")
+    create_diary_search_query_chain = prompt | llm | StrOutputParser() | azure_ai_search
+    docs = create_diary_search_query_chain.invoke(state["messages"])
     return Command(
     goto="chatbot",
-    update={"messages": [AIMessage(content="Diary search results")]},
+    update={"documents": docs},
 )
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
@@ -176,5 +183,5 @@ if __name__ == "__main__":
         history = [{"type": "human", "content": user_input}]
         for event in agent_graph.stream(messages=history, userid=userid):
             for value in event.values():
-                if value:
+                if value and "messages" in value:
                     print("Assistant:", value["messages"][-1].content)

@@ -1,9 +1,11 @@
-from pydantic import BaseModel, Field
-from langchain_core.tools import tool
+from typing import List
+
 from dotenv import load_dotenv
 from langchain_community.document_loaders import FireCrawlLoader
-from langchain_core.documents.base import Document
 from langchain_community.retrievers import AzureAISearchRetriever
+from langchain_core.documents.base import Document
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -24,11 +26,10 @@ class AzureAISearchInput(BaseModel):
     query: str = Field(description="search query")
 
 
-def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
+def format_docs(docs) -> List[str]:
+    return [doc.page_content for doc in docs]
 
 
-@tool("azure-ai-search-tool", args_schema=AzureAISearchInput)
 def azure_ai_search(query: str) -> str:
     """A tool for retrieving relevant entries from the user's personal diary stored in Azure AI Search.
     Useful for answering questions based on the user's past experiences and thoughts."""
