@@ -46,6 +46,7 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
     userid: str
     documents: Annotated[list, add] = []
+    query: str = ""
 
 
 def supervisor_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
@@ -185,14 +186,16 @@ if __name__ == "__main__":
     agent_graph = ChatbotAgent()
 
     # agent_graph.create_image()
+    history = []
 
     while True:
         user_input = input("User: ")
         if user_input.lower() in ["quit", "exit", "q"]:
             print("Goodbye!")
             break
-        history = [{"type": "human", "content": user_input}]
+        history.append({"type": "human", "content": user_input})
         for event in agent_graph.stream(messages=history, userid=userid):
             for value in event.values():
                 if value and "messages" in value:
                     print("Assistant:", value["messages"][-1].content)
+                    history.append({"type": "assistant", "content": value["messages"][-1].content})
