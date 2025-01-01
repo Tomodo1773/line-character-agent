@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 import pytz
 from chatbot.agent.prompt import get_character_prompt
-from chatbot.agent.tools import azure_ai_search, firecrawl_search, tavily_search
+from chatbot.agent.tools import azure_ai_search, google_search
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
@@ -32,7 +32,7 @@ def _set_if_undefined(var: str) -> None:
 # 必要な環境変数を設定
 _set_if_undefined("OPENAI_API_KEY")
 _set_if_undefined("LANGCHAIN_API_KEY")
-_set_if_undefined("TAVILY_API_KEY")
+_set_if_undefined("GOOGLE_API_KEY")
 
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
@@ -104,12 +104,12 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
     template = hub.pull("create_web_search_query")
 
     current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
     prompt = template.partial(current_datetime=current_datetime)
-    web_search_chain = prompt | llm | StrOutputParser() | tavily_search
+    web_search_chain = prompt | llm | StrOutputParser() | google_search
     docs = web_search_chain.invoke(state["messages"])
 
     return Command(
