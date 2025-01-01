@@ -128,7 +128,9 @@ def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
-    prompt = hub.pull("create_diary_search_query")
+    template = hub.pull("create_diary_search_query")
+    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
+    prompt = template.partial(current_datetime=current_datetime)
     create_diary_query_chain = prompt | llm | StrOutputParser()
     return Command(
         goto="diary_searcher",
