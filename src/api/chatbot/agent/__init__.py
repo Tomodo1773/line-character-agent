@@ -46,9 +46,10 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
     userid: str
     documents: Annotated[list, add] = []
+    query: str = ""
 
 
-def supervisor_node(state: State) -> Command[Literal["web_searcher", "diary_searcher", "url_fetcher", "chatbot"]]:
+def supervisor_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
     """
     Determines the next node to transition to based on the current state.
     Args:
@@ -77,6 +78,10 @@ def supervisor_node(state: State) -> Command[Literal["web_searcher", "diary_sear
     goto = response["next"]
     if goto == "FINISH":
         goto = "chatbot"
+    elif goto == "web_searcher":
+        goto = "create_web_query"
+    elif goto == "diary_searcher":
+        goto = "create_diary_query"
 
     return Command(goto=goto)
     
@@ -102,29 +107,40 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     )
 
 
-def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
 
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
     template = hub.pull("create_web_search_query")
-
     current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
     prompt = template.partial(current_datetime=current_datetime)
-    web_search_chain = prompt | llm | StrOutputParser() | google_search
-    docs = web_search_chain.invoke(state["messages"])
+    create_web_query_chain = prompt | llm | StrOutputParser()
+    created_query = create_web_query_chain.invoke({"messages": state["messages"]})
+    return Command(
+        goto="web_searcher",
+        update={"query": created_query},
+    )
 
+def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     return Command(
     goto="chatbot",
-    update={"documents": docs},
+    update={"documents": google_search(state["query"])},
 )
 
-def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
-    prompt = hub.pull("create_diary_search_query")
-    create_diary_search_query_chain = prompt | llm | StrOutputParser() | azure_ai_search
-    docs = create_diary_search_query_chain.invoke(state["messages"])
+    template = hub.pull("create_diary_search_query")
+    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
+    prompt = template.partial(current_datetime=current_datetime)
+    create_diary_query_chain = prompt | llm | StrOutputParser()
+    return Command(
+        goto="diary_searcher",
+        update={"query": create_diary_query_chain.invoke({"messages": state["messages"]})},
+    )
+
+def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     return Command(
     goto="chatbot",
-    update={"documents": docs},
+    update={"documents": azure_ai_search(state["query"])},
 )
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
@@ -141,8 +157,10 @@ class ChatbotAgent:
         graph_builder.add_edge(START, "supervisor")
         graph_builder.add_node("supervisor", supervisor_node)
         graph_builder.add_node("chatbot", chatbot_node)
+        graph_builder.add_node("create_web_query", create_web_query_node)
         graph_builder.add_node("web_searcher", web_searcher_node)
         graph_builder.add_node("url_fetcher", url_fetcher_node)
+        graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)
         self.graph = graph_builder.compile()
 
@@ -169,15 +187,17 @@ if __name__ == "__main__":
 
     agent_graph = ChatbotAgent()
 
-    agent_graph.create_image()
+    # agent_graph.create_image()
+    history = []
 
     while True:
         user_input = input("User: ")
         if user_input.lower() in ["quit", "exit", "q"]:
             print("Goodbye!")
             break
-        history = [{"type": "human", "content": user_input}]
+        history.append({"type": "human", "content": user_input})
         for event in agent_graph.stream(messages=history, userid=userid):
             for value in event.values():
                 if value and "messages" in value:
                     print("Assistant:", value["messages"][-1].content)
+                    history.append({"type": "assistant", "content": value["messages"][-1].content})
