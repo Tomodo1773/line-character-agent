@@ -110,7 +110,10 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
 
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
-    template = hub.pull("create_web_search_query")
+
+    # プロンプトはLangchain Hubから取得
+    # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
+    template = hub.pull("tomodo1773/create_web_search_query")
     current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
     prompt = template.partial(current_datetime=current_datetime)
     create_web_query_chain = prompt | llm | StrOutputParser()
@@ -128,7 +131,10 @@ def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
-    template = hub.pull("create_diary_search_query")
+
+    # プロンプトはLangchain Hubから取得
+    # https://smith.langchain.com/hub/tomodo1773/create_diary_search_query
+    template = hub.pull("tomodo1773/create_diary_search_query")
     current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
     prompt = template.partial(current_datetime=current_datetime)
     create_diary_query_chain = prompt | llm | StrOutputParser()

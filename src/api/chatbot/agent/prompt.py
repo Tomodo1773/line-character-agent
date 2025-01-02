@@ -20,7 +20,9 @@ def get_character_prompt(userid: str) -> str:
     user_profile = read_user_profile(userid)
     current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
 
-    prompt = hub.pull("sister_edinet")
+    # プロンプトはLangchain Hubから取得
+    # https://smith.langchain.com/hub/tomodo1773/sister_edinet
+    prompt = hub.pull("tomodo1773/sister_edinet")
     character_prompt = prompt.partial(current_datetime=current_datetime,user_profile=user_profile)
 
     return character_prompt
