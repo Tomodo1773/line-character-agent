@@ -57,6 +57,7 @@ def supervisor_node(state: State) -> Command[Literal["create_web_query", "create
     Returns:
         Command: A command indicating the next node to transition to.
     """
+    print("--- Supervisor Node ---")
     members = ["web_searcher", "diary_searcher", "url_fetcher"]
     system_prompt = (
         "You are a supervisor tasked with managing a conversation between the"
@@ -96,6 +97,7 @@ def remove_trailing_newline(text: str) -> str:
     return text.rstrip("\n")
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
+    print("--- Chatbot Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=1.0)
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
     prompt = get_character_prompt(state["userid"])
@@ -108,7 +110,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
 
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
-
+    print("--- Create Web Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
 
     # プロンプトはLangchain Hubから取得
@@ -124,12 +126,14 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
     )
 
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    print("--- Web Searcher Node ---")
     return Command(
     goto="chatbot",
     update={"documents": google_search(state["query"])},
 )
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
+    print("--- Create Diary Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
     # プロンプトはLangchain Hubから取得
@@ -144,12 +148,14 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     )
 
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    print("--- Diary Searcher Node ---")
     return Command(
     goto="chatbot",
     update={"documents": azure_ai_search(state["query"])},
 )
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
+    print("--- URL Fetcher Node ---")
     return Command(
     goto="chatbot",
     update={"documents": []},
