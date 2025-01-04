@@ -5,8 +5,9 @@ from operator import add
 from typing import Annotated, Literal
 
 import pytz
-from chatbot.agent.prompt import get_character_prompt
 from chatbot.agent.tools import azure_ai_search, google_search
+from chatbot.database import UsersCosmosDB
+from chatbot.utils.config import logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
@@ -47,9 +48,21 @@ class State(TypedDict):
     userid: str
     documents: Annotated[list, add] = []
     query: str = ""
+    profile: dict = {}
 
+def get_user_profile_node(state: State) -> Command[Literal["router"]]:
+    logger.info("--- Get User Profile Node ---")
+    cosmos = UsersCosmosDB()
+    result = cosmos.fetch_profile(state["userid"])
+    # プロファイルデータを整形
+    if isinstance(result, list) and result:
+        user_profile = result[0].get("profile", {})
 
-def supervisor_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
+    return Command(
+        goto="router",
+        update={"profile": user_profile})
+
+def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
     """
     Determines the next node to transition to based on the current state.
     Args:
@@ -57,10 +70,10 @@ def supervisor_node(state: State) -> Command[Literal["create_web_query", "create
     Returns:
         Command: A command indicating the next node to transition to.
     """
-    print("--- Supervisor Node ---")
+    logger.info("--- Router Node ---")
     members = ["web_searcher", "diary_searcher", "url_fetcher"]
     system_prompt = (
-        "You are a supervisor tasked with managing a conversation between the"
+        "You are a router tasked with managing a conversation between the"
         f" following workers: {members}. Given the following user request,"
         " respond with the worker to act next. Each worker will perform a"
         " task and respond with their results and status. When finished,"
@@ -97,10 +110,16 @@ def remove_trailing_newline(text: str) -> str:
     return text.rstrip("\n")
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
-    print("--- Chatbot Node ---")
+    logger.info("--- Chatbot Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=1.0)
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
-    prompt = get_character_prompt(state["userid"])
+
+    # プロンプトはLangchain Hubから取得
+    # https://smith.langchain.com/hub/tomodo1773/sister_edinet
+    template = hub.pull("tomodo1773/sister_edinet")
+    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
+    prompt = template.partial(current_datetime=current_datetime,user_profile=state["profile"])
+
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
     return Command(
@@ -108,9 +127,8 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         update={"messages": [AIMessage(content=content)]},
     )
 
-
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
-    print("--- Create Web Query Node ---")
+    logger.info("--- Create Web Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
 
     # プロンプトはLangchain Hubから取得
@@ -126,14 +144,14 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
     )
 
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
-    print("--- Web Searcher Node ---")
+    logger.info("--- Web Searcher Node ---")
     return Command(
     goto="chatbot",
     update={"documents": google_search(state["query"])},
 )
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
-    print("--- Create Diary Query Node ---")
+    logger.info("--- Create Diary Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
     # プロンプトはLangchain Hubから取得
@@ -148,14 +166,14 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     )
 
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
-    print("--- Diary Searcher Node ---")
+    logger.info("--- Diary Searcher Node ---")
     return Command(
     goto="chatbot",
     update={"documents": azure_ai_search(state["query"])},
 )
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
-    print("--- URL Fetcher Node ---")
+    logger.info("--- URL Fetcher Node ---")
     return Command(
     goto="chatbot",
     update={"documents": []},
@@ -166,8 +184,9 @@ class ChatbotAgent:
     def __init__(self) -> None:
 
         graph_builder = StateGraph(State)
-        graph_builder.add_edge(START, "supervisor")
-        graph_builder.add_node("supervisor", supervisor_node)
+        graph_builder.add_edge(START, "get_user_profile")
+        graph_builder.add_node("get_user_profile", get_user_profile_node)
+        graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("create_web_query", create_web_query_node)
         graph_builder.add_node("web_searcher", web_searcher_node)
@@ -199,7 +218,7 @@ if __name__ == "__main__":
 
     agent_graph = ChatbotAgent()
 
-    # agent_graph.create_image()
+    agent_graph.create_image()
     history = []
 
     while True:
