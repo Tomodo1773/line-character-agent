@@ -49,16 +49,12 @@ class AzureAISearchInput(BaseModel):
     query: str = Field(description="search query")
 
 
-def format_docs(docs) -> List[str]:
-    return [doc.page_content for doc in docs]
-
-
 def azure_ai_search(query: str) -> str:
     """A tool for retrieving relevant entries from the user's personal diary stored in Azure AI Search.
     Useful for answering questions based on the user's past experiences and thoughts."""
     retriever = AzureAISearchRetriever(content_key="content", top_k=3, index_name="diary-vector")
     docs = retriever.invoke(query)
-    return format_docs(docs)  # Return formatted diary entries as a string
+    return [doc.page_content for doc in docs]  # Return formatted diary entries as a string
 
 if __name__ == "__main__":
     # firecrawl_search(url="https://www.example.com")
