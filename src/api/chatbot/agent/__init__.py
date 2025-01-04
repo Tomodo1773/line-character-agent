@@ -49,7 +49,7 @@ class State(TypedDict):
     query: str = ""
     profile: dict = {}
 
-def get_user_profile_node(state: State) -> Command[Literal["supervisor"]]:
+def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     print("--- Get User Profile Node ---")
     cosmos = UsersCosmosDB()
     result = cosmos.fetch_profile(state["userid"])
@@ -58,10 +58,10 @@ def get_user_profile_node(state: State) -> Command[Literal["supervisor"]]:
         user_profile = result[0].get("profile", {})
 
     return Command(
-        goto="supervisor",
+        goto="router",
         update={"profile": user_profile})
 
-def supervisor_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
+def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
     """
     Determines the next node to transition to based on the current state.
     Args:
@@ -69,10 +69,10 @@ def supervisor_node(state: State) -> Command[Literal["create_web_query", "create
     Returns:
         Command: A command indicating the next node to transition to.
     """
-    print("--- Supervisor Node ---")
+    print("--- Router Node ---")
     members = ["web_searcher", "diary_searcher", "url_fetcher"]
     system_prompt = (
-        "You are a supervisor tasked with managing a conversation between the"
+        "You are a router tasked with managing a conversation between the"
         f" following workers: {members}. Given the following user request,"
         " respond with the worker to act next. Each worker will perform a"
         " task and respond with their results and status. When finished,"
@@ -185,7 +185,7 @@ class ChatbotAgent:
         graph_builder = StateGraph(State)
         graph_builder.add_edge(START, "get_user_profile")
         graph_builder.add_node("get_user_profile", get_user_profile_node)
-        graph_builder.add_node("supervisor", supervisor_node)
+        graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("create_web_query", create_web_query_node)
         graph_builder.add_node("web_searcher", web_searcher_node)
