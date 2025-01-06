@@ -2,7 +2,6 @@ import getpass
 import os
 import tempfile
 
-from chatbot.agent.prompt import get_character_prompt
 from chatbot.database import NameCosmosDB
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import logger
