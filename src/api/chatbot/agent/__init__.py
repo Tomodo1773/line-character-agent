@@ -71,24 +71,17 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
         Command: A command indicating the next node to transition to.
     """
     logger.info("--- Router Node ---")
-    members = ["web_searcher", "diary_searcher", "url_fetcher"]
-    system_prompt = (
-        "You are a router tasked with managing a conversation between the"
-        f" following workers: {members}. Given the following user request,"
-        " respond with the worker to act next. Each worker will perform a"
-        " task and respond with their results and status. When finished,"
-        " respond with FINISH."
-    )
+    prompt = hub.pull("tomodo1773/character-agent-router")
+
     class Router(TypedDict):
         """Worker to route to next. If no workers needed, route to FINISH."""
         next: Literal["web_searcher", "diary_searcher", "url_fetcher", "FINISH"]
 
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
     llm = ChatOpenAI(temperature=0, model="gpt-4o")
-    messages = [
-        {"role": "system", "content": system_prompt},
-    ] + state["messages"]
-    response = llm.with_structured_output(Router).invoke(messages)
+    structured_llm = llm.with_structured_output(Router)
+    chain = prompt | structured_llm
+    response = chain.invoke({"messages": state["messages"]})
     goto = response["next"]
     if goto == "FINISH":
         goto = "chatbot"
