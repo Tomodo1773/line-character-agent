@@ -129,7 +129,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
     logger.info("--- Create Web Query Node ---")
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
