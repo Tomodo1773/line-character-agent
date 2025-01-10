@@ -43,7 +43,8 @@ def google_search(query: str) -> list:
     )
 
     results = [each.text for each in response.candidates[0].content.parts]
-    return results
+    documents = [{"web_contents": results}]
+    return documents
 
 class AzureAISearchInput(BaseModel):
     query: str = Field(description="search query")
@@ -54,7 +55,8 @@ def azure_ai_search(query: str) -> str:
     Useful for answering questions based on the user's past experiences and thoughts."""
     retriever = AzureAISearchRetriever(content_key="content", top_k=3, index_name="diary-vector")
     docs = retriever.invoke(query)
-    return [doc.page_content for doc in docs]  # Return formatted diary entries as a string
+    documents = [{"diary_contents": [doc.page_content for doc in docs]}]
+    return documents  # Return formatted diary entries as a string
 
 if __name__ == "__main__":
     # firecrawl_search(url="https://www.example.com")
