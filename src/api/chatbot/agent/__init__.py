@@ -5,7 +5,8 @@ from typing import Annotated, Literal
 
 from chatbot.agent.tools import azure_ai_search, google_search
 from chatbot.database import UsersCosmosDB
-from chatbot.utils import get_japan_datetime, logger, remove_trailing_newline
+from chatbot.utils import get_japan_datetime, remove_trailing_newline
+from chatbot.utils.config import logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
