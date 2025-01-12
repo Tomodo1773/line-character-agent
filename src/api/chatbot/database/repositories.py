@@ -88,11 +88,16 @@ class AgentRepository(BaseRepository):
 
         if not recent_items:
             sessionid = uuid.uuid4().hex
-            formatted_items = []
+            messages = []
+            userid = ""  # デフォルト値または適切な値を設定
         else:
             sessionid = recent_items[0]["id"]
-            formatted_items = recent_items[0]["messages"]
+            messages = recent_items[0].get("messages", [])
+            userid = recent_items[0].get("userid", "")
 
         self.sessionid = sessionid
-        self.history = formatted_items
-        return AgentSession(id=sessionid, full_contents=formatted_items, filtered_contents=[])
+        self.history = messages
+
+        return AgentSession(
+            id=sessionid, date=now, userid=userid, messages=messages, full_contents=messages, filtered_contents=[]
+        )

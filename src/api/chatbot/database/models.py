@@ -27,5 +27,9 @@ class NameData(DatabaseRecord):
 class AgentSession(DatabaseRecord):
     """エージェントセッションモデル"""
 
+    id: str
+    date: datetime
     userid: str
     messages: List[Dict[str, Any]]
+    full_contents: List[Dict[str, Any]]
+    filtered_contents: List[Dict[str, Any]]
