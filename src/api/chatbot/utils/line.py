@@ -1,6 +1,6 @@
 import os
 
-from chatbot.utils.config import logger
+from chatbot.utils.config import create_logger
 from dotenv import load_dotenv
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -14,6 +14,8 @@ from linebot.v3.messaging import (
     TextMessage,
 )
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
+
+logger = create_logger(__name__)
 
 load_dotenv()
 

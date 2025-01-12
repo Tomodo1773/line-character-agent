@@ -1,13 +1,12 @@
-import datetime
 import getpass
 import os
 from operator import add
 from typing import Annotated, Literal
 
-import pytz
 from chatbot.agent.tools import azure_ai_search, google_search
 from chatbot.database import UsersCosmosDB
-from chatbot.utils.config import logger
+from chatbot.utils import get_japan_datetime, remove_trailing_newline
+from chatbot.utils.config import create_logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
@@ -18,6 +17,8 @@ from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
 from typing_extensions import TypedDict
+
+logger = create_logger(__name__)
 
 # ############################################
 # 事前準備
@@ -38,7 +39,6 @@ _set_if_undefined("GOOGLE_API_KEY")
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
-
 
 class State(TypedDict):
     # Messages have the type "list". The `add_messages` function
@@ -91,16 +91,6 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
         goto = "create_diary_query"
 
     return Command(goto=goto)
-    
-
-def remove_trailing_newline(text: str) -> str:
-    """
-    入力されたテキストの最後の改行を削除する関数
-
-    :param text: 入力テキスト
-    :return: 最後の改行が削除されたテキスト
-    """
-    return text.rstrip("\n")
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     logger.info("--- Chatbot Node ---")
@@ -110,8 +100,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = hub.pull("tomodo1773/sister_edinet")
-    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
-    prompt = template.partial(current_datetime=current_datetime,user_profile=state["profile"])
+    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
 
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
@@ -127,8 +116,7 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
     template = hub.pull("tomodo1773/create_web_search_query")
-    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
-    prompt = template.partial(current_datetime=current_datetime)
+    prompt = template.partial(current_datetime=get_japan_datetime())
     create_web_query_chain = prompt | llm | StrOutputParser()
     created_query = create_web_query_chain.invoke({"messages": state["messages"]})
     return Command(
@@ -150,8 +138,7 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_diary_search_query
     template = hub.pull("tomodo1773/create_diary_search_query")
-    current_datetime = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
-    prompt = template.partial(current_datetime=current_datetime)
+    prompt = template.partial(current_datetime=get_japan_datetime())
     create_diary_query_chain = prompt | llm | StrOutputParser()
     return Command(
         goto="diary_searcher",
@@ -220,6 +207,11 @@ if __name__ == "__main__":
             print("Goodbye!")
             break
         history.append({"type": "human", "content": user_input})
+        
+        # response = agent_graph.invoke(messages=history, userid=userid)
+        # print("Assistant:", response)
+        # print("Assistant:", response["messages"][-1].content)
+
         for event in agent_graph.stream(messages=history, userid=userid):
             for value in event.values():
                 if value and "messages" in value:

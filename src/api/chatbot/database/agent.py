@@ -2,12 +2,13 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytz
-from chatbot.utils.config import logger
+from chatbot.utils.config import create_logger
 from langchain_core.messages import BaseMessage, messages_to_dict
 from pydantic import BaseModel
 
 from .core import CosmosCore
 
+logger = create_logger(__name__)
 
 class AgentSession(BaseModel):
     id: str

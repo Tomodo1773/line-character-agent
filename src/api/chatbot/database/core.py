@@ -4,9 +4,11 @@ from datetime import datetime, timedelta
 
 import pytz
 from azure.cosmos import ContainerProxy, CosmosClient, PartitionKey, exceptions
-from chatbot.utils.config import logger
+from chatbot.utils.config import create_logger
 from dotenv import load_dotenv
 from fastapi import HTTPException
+
+logger = create_logger(__name__)
 
 # .envファイルを読み込む
 load_dotenv()

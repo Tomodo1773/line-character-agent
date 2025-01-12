@@ -1,10 +1,9 @@
 import os
+import sys
 
 from chatbot.agent import ChatbotAgent
-
-# from chatbot.utils.cosmos import SaveComosDB
 from chatbot.database import AgentCosmosDB
-from chatbot.utils.config import logger
+from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
@@ -16,6 +15,14 @@ from linebot.v3.messaging import AudioMessage, TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 
 load_dotenv()
+
+logger = create_logger(__name__)
+# 環境変数のチェック
+is_valid, missing_vars = check_environment_variables()
+if not is_valid:
+    logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
+    logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
+    sys.exit(1)
 
 # アプリの設定
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
