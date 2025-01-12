@@ -4,7 +4,7 @@ from operator import add
 from typing import Annotated, Literal
 
 from chatbot.agent.tools import azure_ai_search, google_search
-from chatbot.database import UsersCosmosDB
+from chatbot.database.repositories import UserRepository
 from chatbot.utils import get_japan_datetime, remove_trailing_newline
 from chatbot.utils.config import create_logger
 from langchain import hub
@@ -52,7 +52,7 @@ class State(TypedDict):
 
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     logger.info("--- Get User Profile Node ---")
-    cosmos = UsersCosmosDB()
+    cosmos = UserRepository()
     result = cosmos.fetch_profile(state["userid"])
     # プロファイルデータを整形
     if isinstance(result, list) and result:

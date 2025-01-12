@@ -2,12 +2,12 @@ import json
 import os
 from pathlib import Path
 
-from chatbot.database import UsersCosmosDB
+from chatbot.database.repositories import UserRepository
 from dotenv import load_dotenv
 
 load_dotenv()
 
-cosmos = UsersCosmosDB()
+cosmos = UserRepository()
 
 
 def main(profile: dict):
