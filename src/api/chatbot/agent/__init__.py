@@ -205,6 +205,11 @@ if __name__ == "__main__":
             print("Goodbye!")
             break
         history.append({"type": "human", "content": user_input})
+        
+        # response = agent_graph.invoke(messages=history, userid=userid)
+        # print("Assistant:", response)
+        # print("Assistant:", response["messages"][-1].content)
+
         for event in agent_graph.stream(messages=history, userid=userid):
             for value in event.values():
                 if value and "messages" in value:
