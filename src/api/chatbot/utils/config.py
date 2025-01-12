@@ -39,15 +39,22 @@ def check_environment_variables() -> Tuple[bool, List[str]]:
     return len(missing_vars) == 0, missing_vars
 
 
-def setup_logger():
-    logger = logging.getLogger(__name__)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    handler.setFormatter(formatter)
-    handler.encoding = "utf-8"  # Set the encoding to UTF-8
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+def create_logger(name: str) -> logging.Logger:
+    """
+    ロガーを作成するファクトリー関数
+    
+    Args:
+        name (str): ロガーの名前（通常は__name__を使用）
+    
+    Returns:
+        logging.Logger: 設定済みのロガーインスタンス
+    """
+    logger = logging.getLogger(name)
+    if not logger.handlers:  # 既にハンドラーが設定されている場合は追加しない
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        handler.setFormatter(formatter)
+        handler.encoding = "utf-8"
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
     return logger
-
-
-logger = setup_logger()

@@ -3,7 +3,7 @@ import sys
 
 from chatbot.agent import ChatbotAgent
 from chatbot.database import AgentCosmosDB
-from chatbot.utils.config import logger, check_environment_variables
+from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
@@ -16,6 +16,7 @@ from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageCo
 
 load_dotenv()
 
+logger = create_logger(__name__)
 # 環境変数のチェック
 is_valid, missing_vars = check_environment_variables()
 if not is_valid:

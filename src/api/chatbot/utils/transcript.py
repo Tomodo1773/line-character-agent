@@ -4,13 +4,15 @@ import tempfile
 
 from chatbot.database import NameCosmosDB
 from chatbot.utils import remove_trailing_newline
-from chatbot.utils.config import logger
+from chatbot.utils.config import create_logger
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
+
+logger = create_logger(__name__)
 
 # ############################################
 # 事前準備
