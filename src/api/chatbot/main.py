@@ -2,7 +2,7 @@ import os
 import sys
 
 from chatbot.agent import ChatbotAgent
-from chatbot.database import AgentCosmosDB
+from chatbot.database.repositories import AgentRepository
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
@@ -62,7 +62,7 @@ async def callback(
 def handle_text(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messennger = LineMessenger(event)
-    cosmos = AgentCosmosDB()
+    cosmos = AgentRepository()
     userid = event.source.user_id
     agent = ChatbotAgent()
     nijivoice = NijiVoiceClient()
@@ -114,7 +114,7 @@ def handle_text(event):
 def handle_audio(event):
     logger.info(f"Start handling audio message: {event.message.id}")
     line_messennger = LineMessenger(event)
-    cosmos = AgentCosmosDB()
+    cosmos = AgentRepository()
     userid = event.source.user_id
     messages = []
     agent = ChatbotAgent()

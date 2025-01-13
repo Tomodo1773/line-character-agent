@@ -2,7 +2,7 @@ import getpass
 import os
 import tempfile
 
-from chatbot.database import NameCosmosDB
+from chatbot.database.repositories import NameRepository
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import create_logger
 from langchain_anthropic import ChatAnthropic
@@ -104,7 +104,7 @@ class DiaryTranscription:
         return chain
 
     def _read_dictionary(self) -> str:
-        cosmos = NameCosmosDB()
+        cosmos = NameRepository()
         return cosmos.fetch_names()
 
     def _transcription(self, audio_file: bytes) -> str:

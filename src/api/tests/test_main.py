@@ -81,18 +81,19 @@ def test_diary_transcription():
     - 返り値に「ランニング」が含まれていることを確認
     """
     from chatbot.utils.transcript import DiaryTranscription
-    
+
     # サンプル音声ファイルを読み込む
-    with open("tests/sample.mp3", "rb") as f:
+    with open("src/api/tests/sample.mp3", "rb") as f:
         audio_content = f.read()
-    
+
     # DiaryTranscriptionクラスのインスタンスを作成
     transcriber = DiaryTranscription()
-    
+
     # 文字起こしを実行
     result = transcriber.invoke(audio_content)
-    
+
     # 結果の検証
     assert isinstance(result, str)
     assert len(result) > 0
     assert "ランニング" in result
+
