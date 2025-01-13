@@ -4,7 +4,6 @@ import pytz
 from typing import Dict, Any, List
 
 from langchain_core.messages import BaseMessage, messages_to_dict
-from pydantic import BaseModel
 
 from .interfaces import BaseRepository
 from .core import CosmosCore
