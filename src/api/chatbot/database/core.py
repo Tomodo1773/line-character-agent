@@ -2,6 +2,9 @@ import os
 from typing import List, Dict, Any
 from azure.cosmos import CosmosClient, PartitionKey
 from fastapi import HTTPException
+from datetime import datetime
+import pytz
+import uuid
 
 
 class CosmosCore:
@@ -29,6 +32,16 @@ class CosmosCore:
     def save(self, data: Dict[str, Any]) -> None:
         """データの保存"""
         try:
+            # 保存するデータを作成
+            now = datetime.now(pytz.timezone("Asia/Tokyo"))
+            # contentの中にidがなければidを生成して追加
+            if "id" not in data:
+                data["id"] = uuid.uuid4().hex
+            # id,dataのあとにcontentを接続してdictを作成
+            data = {
+                "date": now.isoformat(),
+                **data,
+            }
             self._container.upsert_item(data)
         except Exception as e:
             raise HTTPException(status_code=500, detail="Failed to save data")
