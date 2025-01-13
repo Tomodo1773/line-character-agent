@@ -19,13 +19,24 @@ def fetch():
     return cosmos.fetch_profile()
 
 
+def read_markdown_file():
+    try:
+        filepath = Path(__file__).parent / "user_profile.md"
+        with open(filepath, "r", encoding="utf-8") as file:
+            content = file.read()
+            return {"content": content}
+    except FileNotFoundError:
+        print(f"エラー: {filepath} が見つかりません")
+        return {"content": ""}
+    except Exception as e:
+        print(f"エラー: {e}")
+        return {"content": ""}
+
+
 if __name__ == "__main__":
 
-    with open(Path(__file__).parent.parent / "tools" / "user_profile.json", "r") as file:
-        profile = json.load(file)
-        print(profile)
-
-
+    profile = read_markdown_file()
+    print(profile)
     main(profile)
 
     # items = fetch()
