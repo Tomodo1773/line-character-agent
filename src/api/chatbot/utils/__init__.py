@@ -1,7 +1,8 @@
 import datetime
 
 import pytz
-
+from collections.abc import Sequence
+from langchain_core.messages.base import BaseMessage
 
 def remove_trailing_newline(text: str) -> str:
     """
@@ -22,3 +23,19 @@ def get_japan_datetime() -> str:
     tz = pytz.timezone("Asia/Tokyo")
     now = datetime.datetime.now(tz)
     return now.strftime("%Y-%m-%d %H:%M:%S (%a)")
+
+
+def messages_to_dict(messages: Sequence[BaseMessage]) -> list[dict]:
+    """
+    BaseMessageオブジェクトのシーケンスを辞書のリストに変換する関数
+
+    :param messages: BaseMessageオブジェクトのシーケンス
+    :return: 各メッセージのタイプと内容を含む辞書のリスト
+    """
+
+    messages_dict = []
+    for m in messages:
+        message_data = m.model_dump()
+        if "content" in message_data:
+            messages_dict.append({"type": m.type, "content": message_data["content"]})
+    return messages_dict

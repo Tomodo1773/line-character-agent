@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from chatbot.agent.tools import azure_ai_search, google_search
 from chatbot.database.repositories import UserRepository
-from chatbot.utils import get_japan_datetime, remove_trailing_newline
+from chatbot.utils import get_japan_datetime, remove_trailing_newline, messages_to_dict
 from chatbot.utils.config import create_logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
@@ -128,9 +128,10 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
     template = hub.pull("tomodo1773/create_web_search_query")
-    prompt = template.partial(current_datetime=get_japan_datetime())
+    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
     create_web_query_chain = prompt | llm | StrOutputParser()
-    created_query = create_web_query_chain.invoke({"messages": state["messages"]})
+
+    created_query = create_web_query_chain.invoke({"messages": messages_to_dict(state["messages"])})
     return Command(
         goto="web_searcher",
         update={"query": created_query},
@@ -156,7 +157,7 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     create_diary_query_chain = prompt | llm | StrOutputParser()
     return Command(
         goto="diary_searcher",
-        update={"query": create_diary_query_chain.invoke({"messages": state["messages"]})},
+        update={"query": create_diary_query_chain.invoke({"messages": messages_to_dict(state["messages"])})},
     )
 
 
