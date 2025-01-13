@@ -40,6 +40,7 @@ _set_if_undefined("GOOGLE_API_KEY")
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
 
+
 class State(TypedDict):
     # Messages have the type "list". The `add_messages` function
     # in the annotation defines how this state key should be updated
@@ -50,6 +51,7 @@ class State(TypedDict):
     query: str = ""
     profile: dict = {}
 
+
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     logger.info("--- Get User Profile Node ---")
     cosmos = UserRepository()
@@ -58,9 +60,8 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     if isinstance(result, list) and result:
         user_profile = result[0].get("profile", {})
 
-    return Command(
-        goto="router",
-        update={"profile": user_profile})
+    return Command(goto="router", update={"profile": user_profile})
+
 
 def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
     """
@@ -75,6 +76,7 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
 
     class Router(TypedDict):
         """Worker to route to next. If no workers needed, route to FINISH."""
+
         next: Literal["web_searcher", "diary_searcher", "url_fetcher", "FINISH"]
 
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
@@ -92,22 +94,32 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
 
     return Command(goto=goto)
 
+
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     logger.info("--- Chatbot Node ---")
+
+    # 検索結果があるときは詳細に、それ以外は簡潔に回答する
+    if state["documents"] and any("web_contents" in doc for doc in state["documents"]):
+        instruction = "ユーザからの質問に詳しく返答してください。"
+    else:
+        instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=1.0)
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = hub.pull("tomodo1773/sister_edinet")
-    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
+    prompt = template.partial(
+        current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction
+    )
 
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
     return Command(
-        goto= "__end__",
+        goto="__end__",
         update={"messages": [AIMessage(content=content)]},
     )
+
 
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
     logger.info("--- Create Web Query Node ---")
@@ -124,12 +136,14 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
         update={"query": created_query},
     )
 
+
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     logger.info("--- Web Searcher Node ---")
     return Command(
-    goto="chatbot",
-    update={"documents": google_search(state["query"])},
-)
+        goto="chatbot",
+        update={"documents": google_search(state["query"])},
+    )
+
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
     logger.info("--- Create Diary Query Node ---")
@@ -145,19 +159,22 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
         update={"query": create_diary_query_chain.invoke({"messages": state["messages"]})},
     )
 
+
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     logger.info("--- Diary Searcher Node ---")
     return Command(
-    goto="chatbot",
-    update={"documents": azure_ai_search(state["query"])},
-)
+        goto="chatbot",
+        update={"documents": azure_ai_search(state["query"])},
+    )
+
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
     logger.info("--- URL Fetcher Node ---")
     return Command(
-    goto="chatbot",
-    update={"documents": []},
-)
+        goto="chatbot",
+        update={"documents": []},
+    )
+
 
 class ChatbotAgent:
 
@@ -207,7 +224,7 @@ if __name__ == "__main__":
             print("Goodbye!")
             break
         history.append({"type": "human", "content": user_input})
-        
+
         # response = agent_graph.invoke(messages=history, userid=userid)
         # print("Assistant:", response)
         # print("Assistant:", response["messages"][-1].content)
