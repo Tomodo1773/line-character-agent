@@ -60,7 +60,7 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     if isinstance(result, list) and result:
         user_profile = result[0].get("profile", {})
 
-    return Command(goto="router", update={"profile": user_profile})
+    return Command(goto="router", update={"profile": user_profile["content"]})
 
 
 def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
