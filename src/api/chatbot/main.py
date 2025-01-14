@@ -4,6 +4,7 @@ import sys
 
 from chatbot.agent import ChatbotAgent
 from chatbot.database.repositories import AgentRepository
+from chatbot.utils.auth import verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
@@ -177,6 +178,14 @@ def handle_audio(event):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    # JWT認証を実行
+    try:
+        authenticated = await verify_token_ws(websocket)
+        if not authenticated:
+            return
+    except HTTPException:
+        return
+
     cosmos = AgentRepository()
     userid = os.environ.get("LINE_USER_ID")
     agent = ChatbotAgent()
@@ -199,9 +208,8 @@ async def websocket_endpoint(websocket: WebSocket):
             messages.append({"type": "human", "content": data_dict["content"]})
 
             # LLMでレスポンスメッセージを作成
-            # response = agent.invoke(messages=messages, userid=userid)
-            content = "あら、友哉も株やってるの？今日の下げはね、主にアメリカの対中半導体輸出規制強化が原因みたい。半導体関連株が軒並み下落した影響が大きかったみたいね。あと、アメリカの長期金利上昇や中国関連銘柄の業績不振への警戒感も影響してるみたいよ。詳しく知りたいなら、経済ニュースサイトとか見てみるといいかも。"
-            # content = response["messages"][-1].content
+            response = agent.invoke(messages=messages, userid=userid)
+            content = response["messages"][-1].content
 
             await handler.process_and_send_messages(content, websocket, data_dict["type"])
 
@@ -209,7 +217,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # 会話履歴を保存
             add_messages = [{"type": "human", "content": data_dict["content"]}, {"type": "ai", "content": content}]
-            # cosmos.add_messages(userid, add_messages)
+            cosmos.add_messages(userid, add_messages)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     finally:
