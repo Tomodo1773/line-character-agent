@@ -22,15 +22,19 @@ async def verify_token_ws(websocket: WebSocket) -> bool:
     Raises:
         HTTPException: トークンが無効な場合
     """
-    token = websocket.query_params.get("token")
-    if token is None:
+    # token = websocket.query_params.get("token")
+    protocol = websocket.headers.get("Sec-WebSocket-Protocol")
+
+    if protocol is None:
         await websocket.close(code=4001, reason="Authentication required")
-        raise HTTPException(status_code=401, detail="Authentication required")
+        return False, None
+
+    # 最初のプロトコルを取得
+    token = protocol.split(",")[0].strip()
 
     if token != VALID_TOKEN:
         await websocket.close(code=4001, reason="Invalid authentication token")
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        return False, None
 
-    # 認証成功のログを出力
     logger.info("Authentication successful for WebSocket connection")
-    return True
+    return True, token

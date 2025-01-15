@@ -6,8 +6,14 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket, subprotocol: str | None = None):
+        """WebSocket接続を確立
+
+        Args:
+            websocket (WebSocket): WebSocket接続
+            subprotocol (str | None): 使用するサブプロトコル
+        """
+        await websocket.accept(subprotocol=subprotocol)
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):

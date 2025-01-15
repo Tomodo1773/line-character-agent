@@ -8,7 +8,6 @@ from chatbot.utils.auth import verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
-from chatbot.utils.sentiment import sentiment_tagging
 from chatbot.utils.transcript import DiaryTranscription
 from chatbot.websocket import ConnectionManager, WebSocketHandler
 from dotenv import load_dotenv
@@ -179,11 +178,8 @@ def handle_audio(event):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     # JWT認証を実行
-    try:
-        authenticated = await verify_token_ws(websocket)
-        if not authenticated:
-            return
-    except HTTPException:
+    is_valid, token = await verify_token_ws(websocket)
+    if not is_valid:
         return
 
     cosmos = AgentRepository()
@@ -192,7 +188,8 @@ async def websocket_endpoint(websocket: WebSocket):
     manager = ConnectionManager()
     handler = WebSocketHandler(agent, cosmos)
 
-    await manager.connect(websocket)
+    # 検証済みトークンをサブプロトコルとして使用
+    await manager.connect(websocket, subprotocol=token)
     try:
         while True:
             # CosmosDBから直近の会話履歴を取得
