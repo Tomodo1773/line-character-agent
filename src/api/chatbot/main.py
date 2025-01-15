@@ -1,14 +1,25 @@
+import json
 import os
 import sys
 
 from chatbot.agent import ChatbotAgent
 from chatbot.database.repositories import AgentRepository
+from chatbot.utils.auth import verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
+from chatbot.websocket import ConnectionManager
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import AudioMessage, TextMessage
@@ -92,10 +103,7 @@ def handle_text(event):
         # メッセージを返信
         reply_messages = [
             TextMessage(text=content),
-            AudioMessage(
-                original_content_url=audio_url,
-                duration=duration
-            ),
+            AudioMessage(original_content_url=audio_url, duration=duration),
         ]
         line_messennger.reply_message(reply_messages)
 
@@ -148,22 +156,15 @@ def handle_audio(event):
         logger.info(f"Generated voice response: {audio_url}")
 
         # メッセージを返信
-        reply_messages = [
-            TextMessage(text=diary_content)  # 日記の内容は常に送信
-        ]
+        reply_messages = [TextMessage(text=diary_content)]  # 日記の内容は常に送信
         if reaction:
-            reply_messages.extend([
-                TextMessage(text=reaction),
-                AudioMessage(
-                    original_content_url=audio_url,
-                    duration=duration
-                )
-            ])
+            reply_messages.extend(
+                [TextMessage(text=reaction), AudioMessage(original_content_url=audio_url, duration=duration)]
+            )
         line_messennger.reply_message(reply_messages)
 
         # メッセージを保存
         messages.append({"type": "ai", "content": reaction})
-        print(messages)
         add_messages = messages
         cosmos.add_messages(userid, add_messages)
 
@@ -172,6 +173,50 @@ def handle_audio(event):
         error_message = f"Error: {e}"
         line_messennger.reply_message([error_message])
         logger.error(f"Returned error message to the user: {e}")
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    # JWT認証を実行
+    is_valid, token = await verify_token_ws(websocket)
+    if not is_valid:
+        return
+
+    cosmos = AgentRepository()
+    userid = os.environ.get("LINE_USER_ID")
+    agent = ChatbotAgent()
+    manager = ConnectionManager(agent=agent, cosmos_repository=cosmos)
+
+    # 検証済みトークンをサブプロトコルとして使用
+    await manager.connect(websocket, subprotocol=token)
+    try:
+        while True:
+            # CosmosDBから直近の会話履歴を取得
+            session = cosmos.fetch_messages()
+            messages = session.full_contents
+
+            data = await websocket.receive_text()
+            logger.info(f"[Websocket]メッセージを受信しました: {data}")
+
+            # 受信したデータをJSONとしてパース
+            data_dict = json.loads(data)
+            logger.info(f"[Websocket]user_prompt: {data_dict['content']}")
+            messages.append({"type": "human", "content": data_dict["content"]})
+
+            # LLMでレスポンスメッセージを作成
+            response = agent.invoke(messages=messages, userid=userid)
+            content = response["messages"][-1].content
+
+            await manager.process_and_send_messages(content, websocket, data_dict["type"])
+
+            # 会話履歴を保存
+            add_messages = [{"type": "human", "content": data_dict["content"]}, {"type": "ai", "content": content}]
+            cosmos.add_messages(userid, add_messages)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    finally:
+        await websocket.close()
+        logger.info("[Websocket]接続を閉じました")
 
 
 if __name__ == "__main__":
