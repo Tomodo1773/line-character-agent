@@ -9,7 +9,7 @@ from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
-from chatbot.websocket import ConnectionManager, WebSocketHandler
+from chatbot.websocket import ConnectionManager
 from dotenv import load_dotenv
 from fastapi import (
     BackgroundTasks,
@@ -185,8 +185,7 @@ async def websocket_endpoint(websocket: WebSocket):
     cosmos = AgentRepository()
     userid = os.environ.get("LINE_USER_ID")
     agent = ChatbotAgent()
-    manager = ConnectionManager()
-    handler = WebSocketHandler(agent, cosmos)
+    manager = ConnectionManager(agent=agent, cosmos_repository=cosmos)
 
     # 検証済みトークンをサブプロトコルとして使用
     await manager.connect(websocket, subprotocol=token)
@@ -208,9 +207,7 @@ async def websocket_endpoint(websocket: WebSocket):
             response = agent.invoke(messages=messages, userid=userid)
             content = response["messages"][-1].content
 
-            await handler.process_and_send_messages(content, websocket, data_dict["type"])
-
-            logger.info(f"[Websocket]メッセージを送信しました")
+            await manager.process_and_send_messages(content, websocket, data_dict["type"])
 
             # 会話履歴を保存
             add_messages = [{"type": "human", "content": data_dict["content"]}, {"type": "ai", "content": content}]
