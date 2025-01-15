@@ -178,12 +178,11 @@ def handle_audio(event):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     # JWT認証を実行
-    is_valid, token = await verify_token_ws(websocket)
+    is_valid, token, userid = await verify_token_ws(websocket)
     if not is_valid:
         return
 
     cosmos = AgentRepository()
-    userid = os.environ.get("LINE_USER_ID")
     agent = ChatbotAgent()
     manager = ConnectionManager(agent=agent, cosmos_repository=cosmos)
 
