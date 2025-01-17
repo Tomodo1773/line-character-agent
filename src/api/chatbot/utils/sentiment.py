@@ -10,7 +10,7 @@ async def sentiment_tagging(question: str) -> str:
     prompt = hub.pull("tomodo1773/sentiment-tagging-prompt")
     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
 
-    chain = prompt | llm | StrOutputParser()
+    chain = (prompt | llm | StrOutputParser()).with_config({"run_name": "TaggingSentiment"})
 
     sentiment = await chain.ainvoke({"question": question})
 
