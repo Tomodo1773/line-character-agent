@@ -100,14 +100,15 @@ class DiaryTranscription:
             ]
         )
         prompt = template.partial(user_dictionary=self._read_dictionary())
-        chain = self._transcription | prompt | chat | StrOutputParser() | remove_trailing_newline
-        return chain
+        chain = self.transcription | prompt | chat | StrOutputParser() | remove_trailing_newline
+        configured_chain = chain.with_config({"run_name": "DiaryTranscription"})
+        return configured_chain
 
     def _read_dictionary(self) -> str:
         cosmos = NameRepository()
         return cosmos.fetch_names()
 
-    def _transcription(self, audio_file: bytes) -> str:
+    def transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)
         with open(file_path, "rb") as audio_file:
             # transcript = openai.audio.transcriptions.create(
