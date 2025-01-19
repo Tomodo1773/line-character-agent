@@ -9,7 +9,7 @@ from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_
 from chatbot.utils.config import check_environment_variables, create_logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -234,11 +234,27 @@ class ChatbotAgent:
         recursion_limit = 8
         return self.graph.invoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
 
-    def stream(self, messages: list, userid: str):
+    async def ainvoke(self, messages: list, userid: str):
         recursion_limit = 8
-        events = self.graph.stream({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
+        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
 
-        for event in events:
+    async def astream(self, messages: list, userid: str):
+        recursion_limit = 8
+        async for msg, metadata in self.graph.astream(
+            {"messages": messages, "userid": userid},
+            {"recursion_limit": recursion_limit},
+            stream_mode="messages",
+            # stream_mode=["messages", "values"],
+        ):
+            yield msg, metadata
+
+    async def astream_events(self, messages: list, userid: str):
+        recursion_limit = 8
+        async for event in self.graph.astream_events(
+            {"messages": messages, "userid": userid},
+            {"recursion_limit": recursion_limit},
+            version="v1",
+        ):
             yield event
 
     def create_image(self):
@@ -263,19 +279,48 @@ if __name__ == "__main__":
     agent_graph.create_image()
     history = []
 
-    while True:
-        user_input = input("User: ")
-        if user_input.lower() in ["quit", "exit", "q"]:
-            print("Goodbye!")
-            break
-        history.append({"type": "human", "content": user_input})
+    # invoke
+    # while True:
+    #     user_input = input("User: ")
+    #     if user_input.lower() in ["quit", "exit", "q"]:
+    #         print("Goodbye!")
+    #         break
+    #     history.append({"type": "human", "content": user_input})
 
-        # response = agent_graph.invoke(messages=history, userid=userid)
-        # print("Assistant:", response)
-        # print("Assistant:", response["messages"][-1].content)
+    #     response = agent_graph.invoke(messages=history, userid=userid)
+    #     print("Assistant:", response)
 
-        for event in agent_graph.stream(messages=history, userid=userid):
-            for value in event.values():
-                if value and "messages" in value:
-                    print("Assistant:", value["messages"][-1].content)
-                    history.append({"type": "assistant", "content": value["messages"][-1].content})
+    import asyncio
+
+    async def main():
+        while True:
+            user_input = input("User: ")
+            if user_input.lower() in ["quit", "exit", "q"]:
+                print("Goodbye!")
+                break
+            history.append({"type": "human", "content": user_input})
+
+            # ainvoke
+            # response = await agent_graph.ainvoke(messages=history, userid=userid)
+            # print("Assistant:", response)
+            # print("Assistant:", response["messages"][-1].content)
+
+            # astream(stream_mode=["messages"])
+            async for msg, metadata in agent_graph.astream(messages=history, userid=userid):
+                # print(f"msg: {msg}")
+                # print(f"metadata: {metadata}")
+                if msg.content and not isinstance(msg, HumanMessage):
+                    print(msg.content, end="", flush=True)
+                    full_content += msg.content
+
+            # astream_events
+            # async for msg in agent_graph.astream_events(messages=history, userid=userid):
+            # print(f"event: {msg}")
+
+            # print(event)
+            # for value in event.values():
+            #     if value and "messages" in value:
+            #         print("Assistant:", value["messages"][-1].content)
+            # history.append({"type": "assistant", "content": value["messages"][-1].content})
+
+    asyncio.run(main())
