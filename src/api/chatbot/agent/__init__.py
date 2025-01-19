@@ -41,6 +41,13 @@ class State(TypedDict):
 
 
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
+    """
+    ユーザーのプロフィール情報を取得します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
+    Returns:
+        Command: routerノードへの遷移＆ユーザプロフィール情報
+    """
     logger.info("--- Get User Profile Node ---")
     cosmos = UserRepository()
     result = cosmos.fetch_profile(state["userid"])
@@ -53,11 +60,11 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
 
 def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
     """
-    Determines the next node to transition to based on the current state.
+    現在の状態に基づいて次に遷移するノードを決定します。
     Args:
-        state (State): The current state containing messages.
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
     Returns:
-        Command: A command indicating the next node to transition to.
+        Command: 次に遷移するノード。
     """
     logger.info("--- Router Node ---")
     prompt = hub.pull("tomodo1773/character-agent-router")
@@ -84,6 +91,13 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
 
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
+    """
+    ユーザーのメッセージに対して応答を生成します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: Endへの遷移＆AIの応答メッセージ
+    """
     logger.info("--- Chatbot Node ---")
 
     # 検索結果があるときは詳細に、それ以外は簡潔に回答する
@@ -110,6 +124,13 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
 
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
+    """
+    ウェブ検索用のクエリを生成します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: web_searcherノードへの遷移＆作成したクエリ
+    """
     logger.info("--- Create Web Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
@@ -127,6 +148,13 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
 
 
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    生成されたクエリを使用してウェブ検索を実行します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: chatbotノードへの遷移＆検索結果
+    """
     logger.info("--- Web Searcher Node ---")
     return Command(
         goto="chatbot",
@@ -135,6 +163,13 @@ def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
+    """
+    日記検索用のクエリを生成します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: diary_searcherノードへの遷移＆作成したクエリ
+    """
     logger.info("--- Create Diary Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
@@ -150,6 +185,13 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
 
 
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    生成されたクエリを使用して日記検索を実行します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: chatbotノードへの遷移＆検索結果
+    """
     logger.info("--- Diary Searcher Node ---")
     return Command(
         goto="chatbot",
@@ -158,6 +200,13 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    URLから情報を取得します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: chatbotノードへの遷移（主要機能は未実装）
+    """
     logger.info("--- URL Fetcher Node ---")
     return Command(
         goto="chatbot",
