@@ -24,14 +24,6 @@ logger = create_logger(__name__)
 # 事前準備
 # ############################################
 
-
-# 環境変数のチェック
-is_valid, missing_vars = check_environment_variables()
-if not is_valid:
-    logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
-    logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
-    sys.exit(1)
-
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
@@ -207,6 +199,13 @@ class ChatbotAgent:
 
 
 if __name__ == "__main__":
+
+    # 環境変数のチェック
+    is_valid, missing_vars = check_environment_variables()
+    if not is_valid:
+        logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
+        logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
+        sys.exit(1)
 
     userid = os.environ.get("LINE_USER_ID")
 
