@@ -29,6 +29,9 @@ google-genai = "^0.3.0"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 
 
+[tool.poetry.group.dev.dependencies]
+pytest-asyncio = "^0.25.2"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
