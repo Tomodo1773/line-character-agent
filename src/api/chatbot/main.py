@@ -203,7 +203,7 @@ async def websocket_endpoint(websocket: WebSocket):
             messages.append({"type": "human", "content": data_dict["content"]})
 
             # LLMでレスポンスメッセージを作成
-            response = agent.invoke(messages=messages, userid=userid)
+            response = await agent.ainvoke(messages=messages, userid=userid)
             content = response["messages"][-1].content
 
             await manager.process_and_send_messages(content, websocket, data_dict["type"])
