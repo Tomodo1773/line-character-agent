@@ -311,7 +311,6 @@ if __name__ == "__main__":
                 # print(f"metadata: {metadata}")
                 if msg.content and not isinstance(msg, HumanMessage):
                     print(msg.content, end="", flush=True)
-                    full_content += msg.content
 
             # astream_events
             # async for msg in agent_graph.astream_events(messages=history, userid=userid):
