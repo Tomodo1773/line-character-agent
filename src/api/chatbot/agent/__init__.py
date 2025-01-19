@@ -1,12 +1,12 @@
-import getpass
 import os
+import sys
 from operator import add
 from typing import Annotated, Literal
 
 from chatbot.agent.tools import azure_ai_search, google_search
 from chatbot.database.repositories import UserRepository
-from chatbot.utils import get_japan_datetime, remove_trailing_newline, messages_to_dict
-from chatbot.utils.config import create_logger
+from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
+from chatbot.utils.config import check_environment_variables, create_logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
@@ -25,16 +25,12 @@ logger = create_logger(__name__)
 # ############################################
 
 
-def _set_if_undefined(var: str) -> None:
-    # 環境変数が未設定の場合、ユーザーに入力を促す
-    if not os.environ.get(var):
-        os.environ[var] = getpass.getpass(f"Please provide your {var}")
-
-
-# 必要な環境変数を設定
-_set_if_undefined("OPENAI_API_KEY")
-_set_if_undefined("LANGCHAIN_API_KEY")
-_set_if_undefined("GOOGLE_API_KEY")
+# 環境変数のチェック
+is_valid, missing_vars = check_environment_variables()
+if not is_valid:
+    logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
+    logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
+    sys.exit(1)
 
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
