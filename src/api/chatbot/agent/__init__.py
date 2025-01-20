@@ -16,6 +16,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
+from langsmith import traceable
 from typing_extensions import TypedDict
 
 logger = create_logger(__name__)
@@ -38,6 +39,11 @@ class State(TypedDict):
     documents: Annotated[list, add] = []
     query: str = ""
     profile: dict = {}
+
+
+@traceable(run_type="prompt", name="Get Prompt")
+def get_prompt(path: str):
+    return hub.pull(path)
 
 
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
@@ -67,7 +73,7 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
         Command: 次に遷移するノード。
     """
     logger.info("--- Router Node ---")
-    prompt = hub.pull("tomodo1773/character-agent-router")
+    prompt = get_prompt("tomodo1773/character-agent-router")
 
     class Router(TypedDict):
         """Worker to route to next. If no workers needed, route to FINISH."""
@@ -110,7 +116,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
-    template = hub.pull("tomodo1773/sister_edinet")
+    template = get_prompt("tomodo1773/sister_edinet")
     prompt = template.partial(
         current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction
     )
@@ -136,7 +142,7 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
-    template = hub.pull("tomodo1773/create_web_search_query")
+    template = get_prompt("tomodo1773/create_web_search_query")
     prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
     create_web_query_chain = prompt | llm | StrOutputParser()
 
@@ -175,7 +181,7 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_diary_search_query
-    template = hub.pull("tomodo1773/create_diary_search_query")
+    template = get_prompt("tomodo1773/create_diary_search_query")
     prompt = template.partial(current_datetime=get_japan_datetime())
     create_diary_query_chain = prompt | llm | StrOutputParser()
     return Command(
