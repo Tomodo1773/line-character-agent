@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from chatbot.agent import ChatbotAgent
+from chatbot.agent import ChatbotAgent, get_user_profile
 from chatbot.database.repositories import AgentRepository
 from chatbot.utils.auth import verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
@@ -183,16 +183,19 @@ async def websocket_endpoint(websocket: WebSocket):
     if not is_valid:
         return
 
-    # プロンプトテンプレートを事前にキャッシュ
-    cached_prompts = {
-        "tomodo1773/character-agent-router": hub.pull("tomodo1773/character-agent-router"),
-        "tomodo1773/sister_edinet": hub.pull("tomodo1773/sister_edinet"),
-        "tomodo1773/create_web_search_query": hub.pull("tomodo1773/create_web_search_query"),
-        "tomodo1773/create_diary_search_query": hub.pull("tomodo1773/create_diary_search_query"),
+    # 事前にキャッシュ
+    cached = {
+        "prompts": {
+            "tomodo1773/character-agent-router": hub.pull("tomodo1773/character-agent-router"),
+            "tomodo1773/sister_edinet": hub.pull("tomodo1773/sister_edinet"),
+            "tomodo1773/create_web_search_query": hub.pull("tomodo1773/create_web_search_query"),
+            "tomodo1773/create_diary_search_query": hub.pull("tomodo1773/create_diary_search_query"),
+        },
+        "profile": {userid: get_user_profile(userid)},
     }
 
     cosmos = AgentRepository()
-    agent = ChatbotAgent(cached_prompts=cached_prompts)
+    agent = ChatbotAgent(cached=cached)
     manager = ConnectionManager(agent=agent, cosmos_repository=cosmos)
 
     # 検証済みトークンをサブプロトコルとして使用
