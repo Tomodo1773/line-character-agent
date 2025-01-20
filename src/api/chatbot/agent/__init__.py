@@ -56,7 +56,7 @@ def get_prompt(path: str):
         _cached["prompts"][path] = hub.pull(path)
     return _cached["prompts"][path]
 
-@traceable(run_type="tool", name="Get User Profile")
+
 def get_user_profile(userid: str) -> dict:
     """キャッシュされたユーザプロフィール情報を取得、なければDBから取得"""
     global _cached
@@ -70,6 +70,8 @@ def get_user_profile(userid: str) -> dict:
         _cached["profile"][userid] = user_profile["content"]
     return _cached["profile"][userid]
 
+
+@traceable(run_type="tool", name="Get User Profile")
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのプロフィール情報を取得します。
