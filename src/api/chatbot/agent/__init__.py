@@ -41,18 +41,34 @@ class State(TypedDict):
     profile: dict = {}
 
 # グローバル変数
-_cached_prompts = {}
+_cached = {
+    "profile": {},
+    "prompts": {}
+}
 
 
 @traceable(run_type="prompt", name="Get Prompt")
 def get_prompt(path: str):
     """キャッシュされたプロンプトを取得、なければhubから取得"""
-    global _cached_prompts
-    if path not in _cached_prompts:
+    global _cached
+    if path not in _cached["prompts"]:
         logger.info(f"Fetching prompt from hub as it is not cached: {path}")
-        _cached_prompts[path] = hub.pull(path)
-    return _cached_prompts[path]
+        _cached["prompts"][path] = hub.pull(path)
+    return _cached["prompts"][path]
 
+@traceable(run_type="tool", name="Get User Profile")
+def get_user_profile(userid: str) -> dict:
+    """キャッシュされたユーザプロフィール情報を取得、なければDBから取得"""
+    global _cached
+    if userid not in _cached["profile"]:
+        logger.info(f"Fetching user profile from db as it is not cached: {userid}")
+        cosmos = UserRepository()
+        result = cosmos.fetch_profile(userid)
+        # プロファイルデータを整形
+        if isinstance(result, list) and result:
+            user_profile = result[0].get("profile", {})
+        _cached["profile"][userid] = user_profile["content"]
+    return _cached["profile"][userid]
 
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     """
@@ -63,13 +79,7 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
         Command: routerノードへの遷移＆ユーザプロフィール情報
     """
     logger.info("--- Get User Profile Node ---")
-    cosmos = UserRepository()
-    result = cosmos.fetch_profile(state["userid"])
-    # プロファイルデータを整形
-    if isinstance(result, list) and result:
-        user_profile = result[0].get("profile", {})
-
-    return Command(goto="router", update={"profile": user_profile["content"]})
+    return Command(goto="router", update={"profile": get_user_profile(state["userid"])})
 
 
 def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
@@ -230,11 +240,11 @@ def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 class ChatbotAgent:
 
-    def __init__(self, cached_prompts: dict = None) -> None:
+    def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
-        global _cached_prompts
-        if cached_prompts:
-            _cached_prompts = cached_prompts
+        global _cached
+        if cached:
+            _cached = cached
 
         graph_builder = StateGraph(State)
         graph_builder.add_edge(START, "get_user_profile")
