@@ -20,6 +20,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from langchain import hub
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import AudioMessage, TextMessage
@@ -182,8 +183,16 @@ async def websocket_endpoint(websocket: WebSocket):
     if not is_valid:
         return
 
+    # プロンプトテンプレートを事前にキャッシュ
+    cached_prompts = {
+        "tomodo1773/character-agent-router": hub.pull("tomodo1773/character-agent-router"),
+        "tomodo1773/sister_edinet": hub.pull("tomodo1773/sister_edinet"),
+        "tomodo1773/create_web_search_query": hub.pull("tomodo1773/create_web_search_query"),
+        "tomodo1773/create_diary_search_query": hub.pull("tomodo1773/create_diary_search_query"),
+    }
+
     cosmos = AgentRepository()
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(cached_prompts=cached_prompts)
     manager = ConnectionManager(agent=agent, cosmos_repository=cosmos)
 
     # 検証済みトークンをサブプロトコルとして使用

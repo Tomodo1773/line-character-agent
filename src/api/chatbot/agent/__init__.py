@@ -40,10 +40,18 @@ class State(TypedDict):
     query: str = ""
     profile: dict = {}
 
+# グローバル変数
+_cached_prompts = {}
+
 
 @traceable(run_type="prompt", name="Get Prompt")
 def get_prompt(path: str):
-    return hub.pull(path)
+    """キャッシュされたプロンプトを取得、なければhubから取得"""
+    global _cached_prompts
+    if path not in _cached_prompts:
+        logger.info(f"Fetching prompt from hub as it is not cached: {path}")
+        _cached_prompts[path] = hub.pull(path)
+    return _cached_prompts[path]
 
 
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
@@ -222,7 +230,11 @@ def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 class ChatbotAgent:
 
-    def __init__(self) -> None:
+    def __init__(self, cached_prompts: dict = None) -> None:
+        """Initialize agent with cached prompts"""
+        global _cached_prompts
+        if cached_prompts:
+            _cached_prompts = cached_prompts
 
         graph_builder = StateGraph(State)
         graph_builder.add_edge(START, "get_user_profile")
