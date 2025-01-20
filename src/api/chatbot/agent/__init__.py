@@ -1,21 +1,22 @@
-import getpass
 import os
+import sys
 from operator import add
 from typing import Annotated, Literal
 
 from chatbot.agent.tools import azure_ai_search, google_search
 from chatbot.database.repositories import UserRepository
-from chatbot.utils import get_japan_datetime, remove_trailing_newline, messages_to_dict
-from chatbot.utils.config import create_logger
+from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
+from chatbot.utils.config import check_environment_variables, create_logger
 from langchain import hub
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
+from langsmith import traceable
 from typing_extensions import TypedDict
 
 logger = create_logger(__name__)
@@ -23,18 +24,6 @@ logger = create_logger(__name__)
 # ############################################
 # 事前準備
 # ############################################
-
-
-def _set_if_undefined(var: str) -> None:
-    # 環境変数が未設定の場合、ユーザーに入力を促す
-    if not os.environ.get(var):
-        os.environ[var] = getpass.getpass(f"Please provide your {var}")
-
-
-# 必要な環境変数を設定
-_set_if_undefined("OPENAI_API_KEY")
-_set_if_undefined("LANGCHAIN_API_KEY")
-_set_if_undefined("GOOGLE_API_KEY")
 
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
@@ -52,7 +41,19 @@ class State(TypedDict):
     profile: dict = {}
 
 
+@traceable(run_type="prompt", name="Get Prompt")
+def get_prompt(path: str):
+    return hub.pull(path)
+
+
 def get_user_profile_node(state: State) -> Command[Literal["router"]]:
+    """
+    ユーザーのプロフィール情報を取得します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
+    Returns:
+        Command: routerノードへの遷移＆ユーザプロフィール情報
+    """
     logger.info("--- Get User Profile Node ---")
     cosmos = UserRepository()
     result = cosmos.fetch_profile(state["userid"])
@@ -65,14 +66,14 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
 
 def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
     """
-    Determines the next node to transition to based on the current state.
+    現在の状態に基づいて次に遷移するノードを決定します。
     Args:
-        state (State): The current state containing messages.
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
     Returns:
-        Command: A command indicating the next node to transition to.
+        Command: 次に遷移するノード。
     """
     logger.info("--- Router Node ---")
-    prompt = hub.pull("tomodo1773/character-agent-router")
+    prompt = get_prompt("tomodo1773/character-agent-router")
 
     class Router(TypedDict):
         """Worker to route to next. If no workers needed, route to FINISH."""
@@ -96,6 +97,13 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
 
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
+    """
+    ユーザーのメッセージに対して応答を生成します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: Endへの遷移＆AIの応答メッセージ
+    """
     logger.info("--- Chatbot Node ---")
 
     # 検索結果があるときは詳細に、それ以外は簡潔に回答する
@@ -108,7 +116,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
-    template = hub.pull("tomodo1773/sister_edinet")
+    template = get_prompt("tomodo1773/sister_edinet")
     prompt = template.partial(
         current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction
     )
@@ -122,12 +130,19 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
 
 def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
+    """
+    ウェブ検索用のクエリを生成します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: web_searcherノードへの遷移＆作成したクエリ
+    """
     logger.info("--- Create Web Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
-    template = hub.pull("tomodo1773/create_web_search_query")
+    template = get_prompt("tomodo1773/create_web_search_query")
     prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
     create_web_query_chain = prompt | llm | StrOutputParser()
 
@@ -139,6 +154,13 @@ def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
 
 
 def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    生成されたクエリを使用してウェブ検索を実行します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: chatbotノードへの遷移＆検索結果
+    """
     logger.info("--- Web Searcher Node ---")
     return Command(
         goto="chatbot",
@@ -147,12 +169,19 @@ def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
+    """
+    日記検索用のクエリを生成します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: diary_searcherノードへの遷移＆作成したクエリ
+    """
     logger.info("--- Create Diary Query Node ---")
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_diary_search_query
-    template = hub.pull("tomodo1773/create_diary_search_query")
+    template = get_prompt("tomodo1773/create_diary_search_query")
     prompt = template.partial(current_datetime=get_japan_datetime())
     create_diary_query_chain = prompt | llm | StrOutputParser()
     return Command(
@@ -162,6 +191,13 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
 
 
 def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    生成されたクエリを使用して日記検索を実行します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: chatbotノードへの遷移＆検索結果
+    """
     logger.info("--- Diary Searcher Node ---")
     return Command(
         goto="chatbot",
@@ -170,6 +206,13 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    URLから情報を取得します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: chatbotノードへの遷移（主要機能は未実装）
+    """
     logger.info("--- URL Fetcher Node ---")
     return Command(
         goto="chatbot",
@@ -197,11 +240,27 @@ class ChatbotAgent:
         recursion_limit = 8
         return self.graph.invoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
 
-    def stream(self, messages: list, userid: str):
+    async def ainvoke(self, messages: list, userid: str):
         recursion_limit = 8
-        events = self.graph.stream({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
+        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
 
-        for event in events:
+    async def astream(self, messages: list, userid: str):
+        recursion_limit = 8
+        async for msg, metadata in self.graph.astream(
+            {"messages": messages, "userid": userid},
+            {"recursion_limit": recursion_limit},
+            stream_mode="messages",
+            # stream_mode=["messages", "values"],
+        ):
+            yield msg, metadata
+
+    async def astream_events(self, messages: list, userid: str):
+        recursion_limit = 8
+        async for event in self.graph.astream_events(
+            {"messages": messages, "userid": userid},
+            {"recursion_limit": recursion_limit},
+            version="v1",
+        ):
             yield event
 
     def create_image(self):
@@ -212,6 +271,13 @@ class ChatbotAgent:
 
 if __name__ == "__main__":
 
+    # 環境変数のチェック
+    is_valid, missing_vars = check_environment_variables()
+    if not is_valid:
+        logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
+        logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
+        sys.exit(1)
+
     userid = os.environ.get("LINE_USER_ID")
 
     agent_graph = ChatbotAgent()
@@ -219,19 +285,47 @@ if __name__ == "__main__":
     agent_graph.create_image()
     history = []
 
-    while True:
-        user_input = input("User: ")
-        if user_input.lower() in ["quit", "exit", "q"]:
-            print("Goodbye!")
-            break
-        history.append({"type": "human", "content": user_input})
+    # invoke
+    # while True:
+    #     user_input = input("User: ")
+    #     if user_input.lower() in ["quit", "exit", "q"]:
+    #         print("Goodbye!")
+    #         break
+    #     history.append({"type": "human", "content": user_input})
 
-        # response = agent_graph.invoke(messages=history, userid=userid)
-        # print("Assistant:", response)
-        # print("Assistant:", response["messages"][-1].content)
+    #     response = agent_graph.invoke(messages=history, userid=userid)
+    #     print("Assistant:", response)
 
-        for event in agent_graph.stream(messages=history, userid=userid):
-            for value in event.values():
-                if value and "messages" in value:
-                    print("Assistant:", value["messages"][-1].content)
-                    history.append({"type": "assistant", "content": value["messages"][-1].content})
+    import asyncio
+
+    async def main():
+        while True:
+            user_input = input("User: ")
+            if user_input.lower() in ["quit", "exit", "q"]:
+                print("Goodbye!")
+                break
+            history.append({"type": "human", "content": user_input})
+
+            # ainvoke
+            # response = await agent_graph.ainvoke(messages=history, userid=userid)
+            # print("Assistant:", response)
+            # print("Assistant:", response["messages"][-1].content)
+
+            # astream(stream_mode=["messages"])
+            async for msg, metadata in agent_graph.astream(messages=history, userid=userid):
+                # print(f"msg: {msg}")
+                # print(f"metadata: {metadata}")
+                if msg.content and not isinstance(msg, HumanMessage):
+                    print(msg.content, end="", flush=True)
+
+            # astream_events
+            # async for msg in agent_graph.astream_events(messages=history, userid=userid):
+            # print(f"event: {msg}")
+
+            # print(event)
+            # for value in event.values():
+            #     if value and "messages" in value:
+            #         print("Assistant:", value["messages"][-1].content)
+            # history.append({"type": "assistant", "content": value["messages"][-1].content})
+
+    asyncio.run(main())
