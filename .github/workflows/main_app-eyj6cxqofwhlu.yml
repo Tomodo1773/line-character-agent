@@ -24,13 +24,20 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies with Poetry
+      - name: Create requirements.txt from uv.lock
         run: |
           cd src/api
           python -m pip install --upgrade pip
-          pip install poetry
-          poetry config virtualenvs.in-project true
-          poetry install
+          pip install --no-cache-dir uv
+          uv export --format requirements.txt > requirements.txt
+
+      - name: Install dependencies with Poetry
+        run: |
+          cd src/api
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install --no-cache-dir requirements.txt
+
       - name: Zip artifact for deployment
         run: |
           cd src/api
@@ -42,6 +49,7 @@ jobs:
           path: |
             src/api/release.zip
             !src/api/venv/
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
