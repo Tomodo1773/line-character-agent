@@ -17,14 +17,17 @@ class GoogleDriveHandler:
     
     SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
     
-    def __init__(self, credentials_file="credentials.json"):
+    def __init__(self, credentials_file=None):
         """
         Google Drive APIクライアントを初期化する
         
         Args:
-            credentials_file: サービスアカウントの認証情報ファイルパス
+            credentials_file: サービスアカウントの認証情報ファイルパス（指定がない場合は環境変数から取得）
         """
         try:
+            if credentials_file is None:
+                credentials_file = os.environ.get("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+                
             self.creds = service_account.Credentials.from_service_account_file(
                 credentials_file, scopes=self.SCOPES
             )
