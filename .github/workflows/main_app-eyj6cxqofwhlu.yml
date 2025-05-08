@@ -10,6 +10,7 @@ on:
       - main
     paths:
       - "src/api/**"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 jobs:
