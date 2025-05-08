@@ -1,36 +1,19 @@
 {
-	"files.autoSave": "afterDelay",
-	"editor.renderWhitespace": "all",
-	"csv-preview.numberFormat": "g",
-	"csv-preview.formatValues": "never",
-	"workbench.iconTheme": "material-icon-theme",
-	"prettier.printWidth": 200,
-	"prettier.useTabs": true,
 	"editor.defaultFormatter": "esbenp.prettier-vscode",
-	"[python]": {
-		"editor.defaultFormatter": "ms-python.black-formatter",
-		"editor.codeActionsOnSave": {
-			"source.organizeImports": "explicit"
-		}
-	},
-	"[markdown]": {
-		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
-	},
-	"markdownlint.config": {
-		"default": true,
-		"MD018": false,
-		"MD034": false
-	},
-	"japanese-proofreading.textlint.外来語カタカナ表記": false,
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": true,
-	"isort.args": ["--profile", "black"],
-	"black-formatter.args": ["--line-length=119"],
-	"githubPullRequests.pullBranch": "never",
-	"gitlens.views.remotes.branches.layout": "list",
-
-	"debug.onTaskErrors": "debugAnyway",
-	"python.testing.pytestArgs": ["src/api/tests"],
-	"python.testing.unittestEnabled": false,
-	"python.testing.pytestEnabled": true
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": "explicit",
+		"source.fixAll": "explicit"
+	},
+	"python.defaultInterpreterPath": ".venv/bin/python",
+	"python.terminal.activateEnvironment": false,
+	"[python]": {
+		"editor.tabSize": 4,
+		"editor.defaultFormatter": "charliermarsh.ruff"
+	},
+	"ruff.lineLength": 127,
+	"[toml]": {
+		"editor.defaultFormatter": "tamasfe.even-better-toml"
+	}
 }
