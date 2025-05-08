@@ -5,10 +5,8 @@ import tempfile
 from chatbot.database.repositories import NameRepository
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import create_logger
-from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 

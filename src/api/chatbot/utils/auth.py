@@ -1,11 +1,10 @@
 import os
-from datetime import datetime, timedelta
 from typing import Tuple
 
 import jwt
 from chatbot.database.repositories import UserRepository
 from chatbot.utils.config import create_logger
-from fastapi import HTTPException, WebSocket
+from fastapi import WebSocket
 from dotenv import load_dotenv
 
 load_dotenv()

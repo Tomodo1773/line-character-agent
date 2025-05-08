@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from typing import List
 
 from chatbot.utils.config import create_logger

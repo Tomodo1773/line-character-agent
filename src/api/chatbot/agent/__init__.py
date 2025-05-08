@@ -3,12 +3,7 @@ import sys
 from operator import add
 from typing import Annotated, Literal
 
-from chatbot.agent.tools import azure_ai_search, google_search
-from chatbot.database.repositories import UserRepository
-from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
-from chatbot.utils.config import check_environment_variables, create_logger
 from langchain import hub
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -18,6 +13,11 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
+
+from chatbot.agent.tools import azure_ai_search, google_search
+from chatbot.database.repositories import UserRepository
+from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
+from chatbot.utils.config import check_environment_variables, create_logger
 
 logger = create_logger(__name__)
 
@@ -346,4 +346,5 @@ if __name__ == "__main__":
             #         print("Assistant:", value["messages"][-1].content)
             # history.append({"type": "assistant", "content": value["messages"][-1].content})
 
+    asyncio.run(main())
     asyncio.run(main())

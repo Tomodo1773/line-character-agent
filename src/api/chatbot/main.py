@@ -144,7 +144,7 @@ def handle_audio(event):
 {diary_content}
 """
         messages.append({"type": "human", "content": reaction_prompt})
-        logger.info(f"Generated diary transcription")
+        logger.info("Generated diary transcription")
 
         saved_filename = save_diary_to_drive(diary_content)
         if saved_filename:
