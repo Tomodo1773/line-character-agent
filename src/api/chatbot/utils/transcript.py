@@ -5,10 +5,8 @@ import tempfile
 from chatbot.database.repositories import NameRepository
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import create_logger
-from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
@@ -116,9 +114,7 @@ class DiaryTranscription:
             #     file=audio_file,
             # )
             groq = OpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
-            transcript = groq.audio.transcriptions.create(
-                model="whisper-large-v3", file=audio_file, response_format="text"
-            )
+            transcript = groq.audio.transcriptions.create(model="whisper-large-v3", file=audio_file, response_format="text")
         return {"transcribed_text": transcript}
 
     def _save_audio(self, audio_file: bytes) -> str:

@@ -1,11 +1,10 @@
 import os
-from datetime import datetime, timedelta
 from typing import Tuple
 
 import jwt
 from chatbot.database.repositories import UserRepository
 from chatbot.utils.config import create_logger
-from fastapi import HTTPException, WebSocket
+from fastapi import WebSocket
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -83,7 +82,6 @@ def create_jwt_token(userid: str) -> str:
 
 
 if __name__ == "__main__":
-
     userid = os.environ.get("LINE_USER_ID")
     print(userid)
 

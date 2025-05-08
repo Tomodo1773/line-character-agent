@@ -43,14 +43,12 @@ class CosmosCore:
                 **data,
             }
             self._container.upsert_item(data)
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Failed to save data")
 
     def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """データの取得"""
         try:
-            return list(
-                self._container.query_items(query=query, parameters=parameters, enable_cross_partition_query=True)
-            )
-        except Exception as e:
+            return list(self._container.query_items(query=query, parameters=parameters, enable_cross_partition_query=True))
+        except Exception:
             raise HTTPException(status_code=500, detail="Failed to fetch data")

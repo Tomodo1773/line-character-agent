@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from typing import List
 
 from chatbot.utils.config import create_logger
@@ -54,9 +53,7 @@ class ConnectionManager:
 
         return [f"{msg}。" if i < len(result) - 1 else msg for i, msg in enumerate(result)]
 
-    async def send_message(
-        self, websocket: WebSocket, message: str, role: str, type: str = "", emotion: str = "neutral"
-    ):
+    async def send_message(self, websocket: WebSocket, message: str, role: str, type: str = "", emotion: str = "neutral"):
         """単一のWebSocketメッセージを送信"""
         if not websocket:
             logger.error("Can't send message, WebSocket connection is closed.")

@@ -38,6 +38,11 @@ jobs:
           source antenv/bin/activate
           pip install --no-cache-dir -r requirements.txt
 
+      - name: Create credential.json from GitHub Secret
+        run: |
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > src/api/credentials.json
+          ls -l src/api/credentials.json
+
       - name: Zip artifact for deployment
         run: |
           cd src/api

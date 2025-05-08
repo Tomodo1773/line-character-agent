@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -34,7 +33,6 @@ def read_markdown_file():
 
 
 if __name__ == "__main__":
-
     profile = read_markdown_file()
     print(profile)
     main(profile)

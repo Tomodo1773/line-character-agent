@@ -3,12 +3,7 @@ import sys
 from operator import add
 from typing import Annotated, Literal
 
-from chatbot.agent.tools import azure_ai_search, google_search
-from chatbot.database.repositories import UserRepository
-from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
-from chatbot.utils.config import check_environment_variables, create_logger
 from langchain import hub
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -18,6 +13,11 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
+
+from chatbot.agent.tools import azure_ai_search, google_search
+from chatbot.database.repositories import UserRepository
+from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
+from chatbot.utils.config import check_environment_variables, create_logger
 
 logger = create_logger(__name__)
 
@@ -40,11 +40,9 @@ class State(TypedDict):
     query: str = ""
     profile: dict = {}
 
+
 # グローバル変数
-_cached = {
-    "profile": {},
-    "prompts": {}
-}
+_cached = {"profile": {}, "prompts": {}}
 
 
 @traceable(run_type="prompt", name="Get Prompt")
@@ -137,9 +135,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
-    prompt = template.partial(
-        current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction
-    )
+    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction)
 
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
@@ -241,7 +237,6 @@ def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 class ChatbotAgent:
-
     def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
         global _cached
@@ -294,7 +289,6 @@ class ChatbotAgent:
 
 
 if __name__ == "__main__":
-
     # 環境変数のチェック
     is_valid, missing_vars = check_environment_variables()
     if not is_valid:
@@ -352,4 +346,5 @@ if __name__ == "__main__":
             #         print("Assistant:", value["messages"][-1].content)
             # history.append({"type": "assistant", "content": value["messages"][-1].content})
 
+    asyncio.run(main())
     asyncio.run(main())
