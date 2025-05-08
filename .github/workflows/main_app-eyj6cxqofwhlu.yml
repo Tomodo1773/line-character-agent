@@ -40,7 +40,7 @@ jobs:
 
       - name: Create credential.json from GitHub Secret
         run: |
-          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > src/api/credentials.json
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | jq . > src/api/credentials.json
           ls -l src/api/credentials.json
 
       - name: Zip artifact for deployment
