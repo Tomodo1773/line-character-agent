@@ -20,7 +20,6 @@ def fetch():
 
 
 if __name__ == "__main__":
-
     with open(Path(__file__).parent.parent / "tools" / "family_names.json", "r") as file:
         family_names = json.load(file)
         print(family_names)

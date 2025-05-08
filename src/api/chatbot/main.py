@@ -145,7 +145,7 @@ def handle_audio(event):
 """
         messages.append({"type": "human", "content": reaction_prompt})
         logger.info(f"Generated diary transcription")
-        
+
         saved_filename = save_diary_to_drive(diary_content)
         if saved_filename:
             logger.info(f"日記をGoogle Driveに保存しました: {saved_filename}")
@@ -163,11 +163,11 @@ def handle_audio(event):
 
         # メッセージを返信
         reply_messages = [TextMessage(text=diary_content)]  # 日記の内容は常に送信
-        
+
         if saved_filename:
             save_message = f"日記を「{saved_filename}」としてGoogle Driveに保存しました。"
             reply_messages.append(TextMessage(text=save_message))
-            
+
         if reaction:
             reply_messages.extend(
                 [TextMessage(text=reaction), AudioMessage(original_content_url=audio_url, duration=duration)]

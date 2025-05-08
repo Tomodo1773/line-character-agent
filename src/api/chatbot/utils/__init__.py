@@ -4,6 +4,7 @@ import pytz
 from collections.abc import Sequence
 from langchain_core.messages.base import BaseMessage
 
+
 def remove_trailing_newline(text: str) -> str:
     """
     入力されたテキストの最後の改行を削除する関数

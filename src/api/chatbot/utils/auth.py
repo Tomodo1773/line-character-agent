@@ -83,7 +83,6 @@ def create_jwt_token(userid: str) -> str:
 
 
 if __name__ == "__main__":
-
     userid = os.environ.get("LINE_USER_ID")
     print(userid)
 

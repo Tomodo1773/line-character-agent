@@ -25,7 +25,6 @@ class LineMessenger:
         self,
         event: MessageEvent,
     ) -> None:
-
         line_api_configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 
         self.line_api_client = ApiClient(line_api_configuration)
@@ -40,9 +39,7 @@ class LineMessenger:
         logger.info("Displayed loading animation.")
 
     def reply_message(self, messages_list: list) -> None:
-        self.line_api.reply_message_with_http_info(
-            ReplyMessageRequest(reply_token=self.reply_token, messages=messages_list)
-        )
+        self.line_api.reply_message_with_http_info(ReplyMessageRequest(reply_token=self.reply_token, messages=messages_list))
         logger.info("Replied to the message.")
 
     def get_content(self) -> None:

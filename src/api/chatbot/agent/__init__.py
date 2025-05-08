@@ -40,11 +40,9 @@ class State(TypedDict):
     query: str = ""
     profile: dict = {}
 
+
 # グローバル変数
-_cached = {
-    "profile": {},
-    "prompts": {}
-}
+_cached = {"profile": {}, "prompts": {}}
 
 
 @traceable(run_type="prompt", name="Get Prompt")
@@ -137,9 +135,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
-    prompt = template.partial(
-        current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction
-    )
+    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction)
 
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
@@ -241,7 +237,6 @@ def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 class ChatbotAgent:
-
     def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
         global _cached
@@ -294,7 +289,6 @@ class ChatbotAgent:
 
 
 if __name__ == "__main__":
-
     # 環境変数のチェック
     is_valid, missing_vars = check_environment_variables()
     if not is_valid:

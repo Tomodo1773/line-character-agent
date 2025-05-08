@@ -24,14 +24,12 @@ def firecrawl_search(url: str) -> Document:
     docs = loader.load()
     return docs[0]
 
-def google_search(query: str) -> list:
 
+def google_search(query: str) -> list:
     client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
     model_id = "gemini-2.0-flash-exp"
 
-    google_search_tool = Tool(
-        google_search = GoogleSearch()
-    )
+    google_search_tool = Tool(google_search=GoogleSearch())
 
     response = client.models.generate_content(
         model=model_id,
@@ -39,12 +37,13 @@ def google_search(query: str) -> list:
         config=GenerateContentConfig(
             tools=[google_search_tool],
             response_modalities=["TEXT"],
-        )
+        ),
     )
 
     results = [each.text for each in response.candidates[0].content.parts]
     documents = [{"web_contents": results}]
     return documents
+
 
 class AzureAISearchInput(BaseModel):
     query: str = Field(description="search query")
@@ -57,6 +56,7 @@ def azure_ai_search(query: str) -> str:
     docs = retriever.invoke(query)
     documents = [{"diary_contents": [doc.page_content for doc in docs]}]
     return documents  # Return formatted diary entries as a string
+
 
 if __name__ == "__main__":
     # firecrawl_search(url="https://www.example.com")
