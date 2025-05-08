@@ -27,9 +27,9 @@ class GoogleDriveHandler:
         try:
             self.creds = service_account.Credentials.from_service_account_file(credentials_file, scopes=self.SCOPES)
             self.service = build("drive", "v3", credentials=self.creds)
-            logger.info("Google Drive APIクライアントを初期化しました")
+            logger.info("Initialized Google Drive API client.")
         except Exception as e:
-            logger.error(f"Google Drive APIクライアントの初期化に失敗しました: {e}")
+            logger.error(f"Failed to initialize Google Drive API client: {e}")
             raise
 
     def list_files(self, folder_id: str) -> List[Dict]:
@@ -49,10 +49,10 @@ class GoogleDriveHandler:
             )
 
             files = results.get("files", [])
-            logger.info(f"{len(files)}個のファイルを取得しました")
+            logger.info(f"Retrieved {len(files)} files.")
             return files
         except HttpError as error:
-            logger.error(f"ファイル一覧の取得中にエラーが発生しました: {error}")
+            logger.error(f"An error occurred while retrieving the file list: {error}")
             return []
 
     def save_markdown(self, content: str, filename: str, folder_id: Optional[str] = None) -> str:
@@ -71,7 +71,7 @@ class GoogleDriveHandler:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
                 if not folder_id:
-                    logger.error("DRIVE_FOLDER_IDが設定されていません")
+                    logger.error("DRIVE_FOLDER_ID is not set.")
                     return ""
 
             file_metadata = {"name": filename, "mimeType": "text/markdown", "parents": [folder_id]}
@@ -81,10 +81,10 @@ class GoogleDriveHandler:
             file = self.service.files().create(body=file_metadata, media_body=media, fields="id").execute()
 
             file_id = file.get("id")
-            logger.info(f"ファイル {filename} をGoogle Driveに保存しました。ID: {file_id}")
+            logger.info(f"Saved file {filename} to Google Drive. ID: {file_id}")
             return file_id
         except HttpError as error:
-            logger.error(f"Google Driveへのファイル保存中にエラーが発生しました: {error}")
+            logger.error(f"An error occurred while saving the file to Google Drive: {error}")
             return ""
 
     def check_file_exists(self, filename: str, folder_id: Optional[str] = None) -> bool:
@@ -102,7 +102,7 @@ class GoogleDriveHandler:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
                 if not folder_id:
-                    logger.error("DRIVE_FOLDER_IDが設定されていません")
+                    logger.error("DRIVE_FOLDER_ID is not set.")
                     return False
 
             query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
@@ -110,5 +110,5 @@ class GoogleDriveHandler:
 
             return len(results.get("files", [])) > 0
         except HttpError as error:
-            logger.error(f"ファイル存在チェック中にエラーが発生しました: {error}")
+            logger.error(f"An error occurred while checking file existence: {error}")
             return False

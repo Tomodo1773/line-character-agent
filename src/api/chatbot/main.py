@@ -2,6 +2,14 @@ import json
 import os
 import sys
 
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from langchain import hub
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import AudioMessage, TextMessage
+from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
+
 from chatbot.agent import ChatbotAgent, get_user_profile
 from chatbot.database.repositories import AgentRepository
 from chatbot.utils.auth import verify_token_ws
@@ -11,21 +19,6 @@ from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
 from chatbot.websocket import ConnectionManager
-from dotenv import load_dotenv
-from fastapi import (
-    BackgroundTasks,
-    FastAPI,
-    Header,
-    HTTPException,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-)
-from langchain import hub
-from linebot.v3 import WebhookHandler
-from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import AudioMessage, TextMessage
-from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 
 load_dotenv()
 
@@ -33,8 +26,8 @@ logger = create_logger(__name__)
 # 環境変数のチェック
 is_valid, missing_vars = check_environment_variables()
 if not is_valid:
-    logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
-    logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
+    logger.error("Required environment variables are not set. Exiting application.")
+    logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
 # アプリの設定
@@ -148,7 +141,7 @@ def handle_audio(event):
 
         saved_filename = save_diary_to_drive(diary_content)
         if saved_filename:
-            logger.info(f"日記をGoogle Driveに保存しました: {saved_filename}")
+            logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
         # キャラクターのコメントを追加
         response = agent.invoke(messages=messages, userid=userid)
@@ -165,7 +158,7 @@ def handle_audio(event):
         reply_messages = [TextMessage(text=diary_content)]  # 日記の内容は常に送信
 
         if saved_filename:
-            save_message = f"日記を「{saved_filename}」としてGoogle Driveに保存しました。"
+            save_message = f"Saved diary to Google Drive as '{saved_filename}'."
             reply_messages.append(TextMessage(text=save_message))
 
         if reaction:
@@ -217,7 +210,7 @@ async def websocket_endpoint(websocket: WebSocket):
             messages = session.full_contents
 
             data = await websocket.receive_text()
-            logger.info(f"[Websocket]メッセージを受信しました: {data}")
+            logger.info(f"[Websocket] Received message: {data}")
 
             # 受信したデータをJSONとしてパース
             data_dict = json.loads(data)
@@ -237,7 +230,7 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
     finally:
         await websocket.close()
-        logger.info("[Websocket]接続を閉じました")
+        logger.info("[Websocket] Connection closed.")
 
 
 if __name__ == "__main__":
