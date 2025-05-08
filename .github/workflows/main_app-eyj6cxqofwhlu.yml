@@ -31,7 +31,7 @@ jobs:
           pip install --no-cache-dir uv
           uv export --format requirements-txt --no-editable > requirements.txt
 
-      - name: Install dependencies with Poetry
+      - name: Install dependencies with Pip
         run: |
           cd src/api
           python -m venv antenv
