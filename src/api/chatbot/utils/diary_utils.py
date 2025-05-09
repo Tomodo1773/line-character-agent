@@ -2,8 +2,10 @@ import datetime
 import os
 from typing import Optional
 
-from chatbot.utils.google_drive import GoogleDriveHandler
+from pytz import timezone
+
 from chatbot.utils.config import create_logger
+from chatbot.utils.google_drive import GoogleDriveHandler
 
 logger = create_logger(__name__)
 
@@ -16,7 +18,9 @@ def generate_diary_filename() -> str:
     Returns:
         前日の日付に基づいたファイル名
     """
-    yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+    jst = timezone("Asia/Tokyo")
+    now = datetime.datetime.now(jst)
+    yesterday = now - datetime.timedelta(days=1)
 
     weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
     weekday = weekday_jp[yesterday.weekday()]

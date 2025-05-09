@@ -158,7 +158,7 @@ def handle_audio(event):
         reply_messages = [TextMessage(text=diary_content)]  # 日記の内容は常に送信
 
         if saved_filename:
-            save_message = f"Saved diary to Google Drive as '{saved_filename}'."
+            save_message = f"日記を'{saved_filename}'に保存したわよ。"
             reply_messages.append(TextMessage(text=save_message))
 
         if reaction:
