@@ -179,7 +179,7 @@ class GoogleDriveHandler:
         try:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
+                
             query = f"name = 'profile.md' and '{folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
