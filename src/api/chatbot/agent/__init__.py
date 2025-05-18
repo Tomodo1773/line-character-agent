@@ -56,16 +56,19 @@ def get_prompt(path: str):
 
 
 def get_user_profile(userid: str) -> dict:
-    """キャッシュされたユーザプロフィール情報を取得、なければDBから取得"""
+    """キャッシュされたユーザプロフィール情報を取得、なければGoogle Driveから取得"""
     global _cached
     if userid not in _cached["profile"]:
-        logger.info(f"Fetching user profile from db as it is not cached: {userid}")
-        cosmos = UserRepository()
-        result = cosmos.fetch_profile(userid)
-        # プロファイルデータを整形
-        if isinstance(result, list) and result:
-            user_profile = result[0].get("profile", {})
-        _cached["profile"][userid] = user_profile["content"]
+        logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
+        from chatbot.utils.google_drive_utils import get_profile_from_drive
+        
+        user_profile = get_profile_from_drive()
+        if user_profile and "content" in user_profile:
+            _cached["profile"][userid] = user_profile["content"]
+        else:
+            logger.error("Failed to get profile content, using empty profile")
+            _cached["profile"][userid] = ""
+            
     return _cached["profile"][userid]
 
 
