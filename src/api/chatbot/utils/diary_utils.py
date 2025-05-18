@@ -2,6 +2,9 @@ import datetime
 import os
 from typing import Optional
 
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pytz import timezone
 
 from chatbot.utils.config import create_logger
@@ -76,10 +79,6 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
         filename = generate_diary_filename()
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
-        if not folder_id:
-            logger.error("DRIVE_FOLDER_IDが設定されていません")
-            return None
-
         filename = check_filename_duplicate(drive_handler, folder_id, filename)
 
         file_id = drive_handler.save_markdown(diary_content, filename, folder_id)
@@ -94,3 +93,69 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
     except Exception as e:
         logger.error(f"Google Driveへの保存中にエラーが発生しました: {e}")
         return None
+
+
+def generate_diary_digest(diary_content: str) -> str:
+    """
+    日記の内容からAIを使ってダイジェスト（要約）を生成する
+
+    Args:
+        diary_content: 日記の内容
+
+    Returns:
+        生成されたダイジェスト
+    """
+    try:
+        template = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """
+                    あなたは日記の内容から、その日に起きた主要な出来事をまとめるダイジェスト生成の専門家です。
+                    与えられた日記の内容から、重要な出来事をまとめた短いダイジェストを作成してください。
+                    感情は不要で出来事だけを「ーだ。ーである」調、もしくは体言止めで端的に表現してください。
+                    箇条書きにはしない。元の日記の内容を尊重し、新しい情報を追加しないでください。
+                    """,
+                ),
+                ("human", "{diary_content}"),
+            ]
+        )
+
+        llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2)
+        chain = template | llm | StrOutputParser()
+
+        return chain.invoke({"diary_content": diary_content})
+    except Exception as e:
+        logger.error(f"ダイジェスト生成中にエラーが発生しました: {e}")
+        return ""
+
+
+def save_digest_to_drive(digest_content: str) -> bool:
+    """
+    日記のダイジェストをGoogle Driveに保存する
+    ファイルが存在しない場合は新規作成し、存在する場合は追記する
+
+    Args:
+        digest_content: 保存するダイジェストのテキスト
+
+    Returns:
+        保存に成功した場合はTrue、失敗した場合はFalse
+    """
+    try:
+        drive_handler = GoogleDriveHandler()
+
+        jst = timezone("Asia/Tokyo")
+        now = datetime.datetime.now(jst)
+        date_str = f"{now.year}-{now.month:02d}-{now.day:02d}"
+
+        filename = "digest.md"
+        folder_id = os.environ.get("DRIVE_FOLDER_ID")
+
+        formatted_digest = f"\n## {date_str}\n{digest_content}\n"
+
+        file_id = drive_handler.append_or_create_markdown(formatted_digest, filename, folder_id)
+
+        return bool(file_id)
+    except Exception as e:
+        logger.error(f"ダイジェストの保存中にエラーが発生しました: {e}")
+        return False
