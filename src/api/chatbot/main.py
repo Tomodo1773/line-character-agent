@@ -180,11 +180,11 @@ def handle_audio(event):
                 if digest:
                     success = save_digest_to_drive(digest)
                     if success:
-                        logger.info(f"ダイジェストを保存しました")
+                        logger.info("Saved digest successfully")
                     else:
-                        logger.error("ダイジェストの保存に失敗しました")
+                        logger.error("Failed to save digest")
         except Exception as e:
-            logger.error(f"ダイジェスト処理中にエラーが発生しました: {e}")
+            logger.error(f"Error occurred during digest processing: {e}")
 
     except Exception as e:
         # メッセージを返信
