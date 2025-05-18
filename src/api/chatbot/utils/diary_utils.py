@@ -79,10 +79,6 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
         filename = generate_diary_filename()
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
-        if not folder_id:
-            logger.error("DRIVE_FOLDER_IDが設定されていません")
-            return None
-
         filename = check_filename_duplicate(drive_handler, folder_id, filename)
 
         file_id = drive_handler.save_markdown(diary_content, filename, folder_id)
@@ -149,10 +145,6 @@ def save_digest_to_drive(digest_content: str) -> bool:
         
         filename = "digest.md"
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
-        
-        if not folder_id:
-            logger.error("DRIVE_FOLDER_IDが設定されていません")
-            return False
         
         formatted_digest = f"\n## {date_str}\n{digest_content}\n"
         

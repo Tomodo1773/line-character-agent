@@ -70,9 +70,6 @@ class GoogleDriveHandler:
         try:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
-                if not folder_id:
-                    logger.error("DRIVE_FOLDER_ID is not set.")
-                    return ""
 
             file_metadata = {"name": filename, "mimeType": "text/markdown", "parents": [folder_id]}
 
@@ -101,9 +98,6 @@ class GoogleDriveHandler:
         try:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
-                if not folder_id:
-                    logger.error("DRIVE_FOLDER_ID is not set.")
-                    return False
 
             query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
@@ -151,9 +145,6 @@ class GoogleDriveHandler:
         try:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
-                if not folder_id:
-                    logger.error("DRIVE_FOLDER_ID is not set.")
-                    return ""
 
             query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
