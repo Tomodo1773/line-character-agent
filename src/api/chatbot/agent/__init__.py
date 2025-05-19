@@ -60,7 +60,7 @@ def get_user_profile(userid: str) -> dict:
     global _cached
     if userid not in _cached["profile"]:
         logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
-        from chatbot.utils.google_drive_utils import get_profile_from_drive
+        from chatbot.utils.google_drive_utils import get_profile_from_drive, get_digest_from_drive
         
         user_profile = get_profile_from_drive()
         if user_profile and "content" in user_profile:
@@ -69,7 +69,20 @@ def get_user_profile(userid: str) -> dict:
             logger.error("Failed to get profile content, using empty profile")
             _cached["profile"][userid] = ""
             
-    return _cached["profile"][userid]
+        if "digest" not in _cached:
+            _cached["digest"] = {}
+        
+        digest = get_digest_from_drive()
+        if digest and "content" in digest:
+            _cached["digest"][userid] = digest["content"]
+        else:
+            logger.error("Failed to get digest content, using empty digest")
+            _cached["digest"][userid] = ""
+            
+    return {
+        "content": _cached["profile"][userid],
+        "digest": _cached["digest"].get(userid, "")
+    }
 
 
 @traceable(run_type="tool", name="Get User Profile")
