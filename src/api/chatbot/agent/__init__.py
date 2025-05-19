@@ -358,4 +358,3 @@ if __name__ == "__main__":
             # history.append({"type": "assistant", "content": value["messages"][-1].content})
 
     asyncio.run(main())
-    asyncio.run(main())
