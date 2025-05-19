@@ -14,9 +14,7 @@ from chatbot.agent import ChatbotAgent, get_user_profile
 from chatbot.database.repositories import AgentRepository
 from chatbot.utils.auth import verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
-from chatbot.utils.diary_utils import (
-    generate_diary_digest, save_diary_to_drive, save_digest_to_drive
-)
+from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
@@ -178,7 +176,7 @@ def handle_audio(event):
             if saved_filename:
                 digest = generate_diary_digest(diary_content)
                 if digest:
-                    success = save_digest_to_drive(digest)
+                    success = save_digest_to_drive(digest, saved_filename)
                     if success:
                         logger.info("Saved digest successfully")
                     else:

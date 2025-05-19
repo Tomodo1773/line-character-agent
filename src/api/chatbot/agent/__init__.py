@@ -15,7 +15,6 @@ from langsmith import traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.tools import azure_ai_search, google_search
-from chatbot.database.repositories import UserRepository
 from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
@@ -39,10 +38,11 @@ class State(TypedDict):
     documents: Annotated[list, add] = []
     query: str = ""
     profile: dict = {}
+    digest: dict = {}
 
 
 # グローバル変数
-_cached = {"profile": {}, "prompts": {}}
+_cached = {"profile": {}, "prompts": {}, "digest": {}}
 
 
 @traceable(run_type="prompt", name="Get Prompt")
@@ -56,17 +56,27 @@ def get_prompt(path: str):
 
 
 def get_user_profile(userid: str) -> dict:
-    """キャッシュされたユーザプロフィール情報を取得、なければDBから取得"""
+    """キャッシュされたユーザプロフィール情報を取得、なければGoogle Driveから取得"""
     global _cached
     if userid not in _cached["profile"]:
-        logger.info(f"Fetching user profile from db as it is not cached: {userid}")
-        cosmos = UserRepository()
-        result = cosmos.fetch_profile(userid)
-        # プロファイルデータを整形
-        if isinstance(result, list) and result:
-            user_profile = result[0].get("profile", {})
-        _cached["profile"][userid] = user_profile["content"]
-    return _cached["profile"][userid]
+        logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
+        from chatbot.utils.google_drive_utils import get_digest_from_drive, get_profile_from_drive
+
+        user_profile = get_profile_from_drive()
+        if user_profile and "content" in user_profile:
+            _cached["profile"][userid] = user_profile["content"]
+        else:
+            logger.error("Failed to get profile content, using empty profile")
+            _cached["profile"][userid] = ""
+
+        digest = get_digest_from_drive()
+        if digest and "content" in digest:
+            _cached["digest"][userid] = digest["content"]
+        else:
+            logger.error("Failed to get digest content, using empty digest")
+            _cached["digest"][userid] = ""
+
+    return {"profile": _cached["profile"][userid], "digest": _cached["digest"].get(userid, "")}
 
 
 @traceable(run_type="tool", name="Get User Profile")
@@ -79,7 +89,8 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
         Command: routerノードへの遷移＆ユーザプロフィール情報
     """
     logger.info("--- Get User Profile Node ---")
-    return Command(goto="router", update={"profile": get_user_profile(state["userid"])})
+    user_info = get_user_profile(state["userid"])
+    return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
 
 
 def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
@@ -129,13 +140,12 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         instruction = "ユーザからの質問に詳しく返答してください。"
     else:
         instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=1.0)
-    # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
+    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
-    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"], instruction=instruction)
+    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"], user_digest=state["digest"], instruction=instruction)
 
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
@@ -346,5 +356,4 @@ if __name__ == "__main__":
             #         print("Assistant:", value["messages"][-1].content)
             # history.append({"type": "assistant", "content": value["messages"][-1].content})
 
-    asyncio.run(main())
     asyncio.run(main())

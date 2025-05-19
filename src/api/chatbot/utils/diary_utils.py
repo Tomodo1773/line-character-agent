@@ -15,11 +15,11 @@ logger = create_logger(__name__)
 
 def generate_diary_filename() -> str:
     """
-    前日の日付に基づいたMarkdownファイル名を生成する
-    フォーマット: YYYY年MM月DD日(曜日).md
+    前日の日付に基づいたMarkdownファイル名（拡張子なし）を生成する
+    フォーマット: YYYY年MM月DD日(曜日)
 
     Returns:
-        前日の日付に基づいたファイル名
+        前日の日付に基づいたファイル名（拡張子なし）
     """
     jst = timezone("Asia/Tokyo")
     now = datetime.datetime.now(jst)
@@ -28,37 +28,37 @@ def generate_diary_filename() -> str:
     weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
     weekday = weekday_jp[yesterday.weekday()]
 
-    filename = f"{yesterday.year}年{yesterday.month:02d}月{yesterday.day:02d}日({weekday}).md"
+    filename = f"{yesterday.year}年{yesterday.month:02d}月{yesterday.day:02d}日({weekday})"
     return filename
 
 
 def check_filename_duplicate(drive_handler: GoogleDriveHandler, folder_id: str, filename: str) -> str:
     """
-    ファイル名が重複している場合にサフィックスを追加する
+    ファイル名が重複している場合にサフィックスを追加する（拡張子なし）
 
     Args:
         drive_handler: GoogleDriveHandlerのインスタンス
         folder_id: フォルダID
-        filename: チェックするファイル名
+        filename: チェックするファイル名（拡張子なし）
 
     Returns:
-        重複を避けた新しいファイル名
+        重複を避けた新しいファイル名（拡張子なし）
     """
-    name_without_ext = filename.rsplit(".", 1)[0]
-    extension = filename.rsplit(".", 1)[1] if "." in filename else ""
+    name_without_ext = filename
+    extension = "md"
 
     files = drive_handler.list_files(folder_id)
-    existing_filenames = [file["name"] for file in files]
+    existing_filenames = [file["name"].rsplit(".", 1)[0] for file in files if file["name"].endswith(f".{extension}")]
 
     if filename not in existing_filenames:
         return filename
 
     counter = 1
-    new_filename = f"{name_without_ext}_{counter}.{extension}"
+    new_filename = f"{name_without_ext}_{counter}"
 
     while new_filename in existing_filenames:
         counter += 1
-        new_filename = f"{name_without_ext}_{counter}.{extension}"
+        new_filename = f"{name_without_ext}_{counter}"
 
     return new_filename
 
@@ -71,7 +71,7 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
         diary_content: 保存する日記のテキスト
 
     Returns:
-        保存に成功した場合はファイル名、失敗した場合はNone
+        保存に成功した場合はファイル名（拡張子なし）、失敗した場合はNone
     """
     try:
         drive_handler = GoogleDriveHandler()
@@ -80,8 +80,9 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
         filename = check_filename_duplicate(drive_handler, folder_id, filename)
+        filename_with_ext = f"{filename}.md"
 
-        file_id = drive_handler.save_markdown(diary_content, filename, folder_id)
+        file_id = drive_handler.save_markdown(diary_content, filename_with_ext, folder_id)
 
         if file_id:
             logger.info(f"日記をGoogle Driveに保存しました: {filename}")
@@ -133,13 +134,14 @@ def generate_diary_digest(diary_content: str) -> str:
         return ""
 
 
-def save_digest_to_drive(digest_content: str) -> bool:
+def save_digest_to_drive(digest_content: str, diary_filename: str) -> bool:
     """
     日記のダイジェストをGoogle Driveに保存する
     ファイルが存在しない場合は新規作成し、存在する場合は追記する
 
     Args:
         digest_content: 保存するダイジェストのテキスト
+        diary_filename: 日記ファイル名（拡張子なし、日付）
 
     Returns:
         保存に成功した場合はTrue、失敗した場合はFalse
@@ -147,9 +149,8 @@ def save_digest_to_drive(digest_content: str) -> bool:
     try:
         drive_handler = GoogleDriveHandler()
 
-        jst = timezone("Asia/Tokyo")
-        now = datetime.datetime.now(jst)
-        date_str = f"{now.year}-{now.month:02d}-{now.day:02d}"
+        # digest.mdに追記する日付としてdiary_filenameをそのまま使う
+        date_str = diary_filename
 
         filename = "digest.md"
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
