@@ -140,8 +140,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         instruction = "ユーザからの質問に詳しく返答してください。"
     else:
         instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=1.0)
-    # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
+    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
