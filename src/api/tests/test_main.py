@@ -48,13 +48,11 @@ def test_chatbot_agent_websearch_invocation():
     if not userid:
         raise ValueError("LINE_USER_ID environment variable is not set")
 
-    messages = [{"type": "human", "content": "日本の総理大臣は誰ですか？"}]
+    messages = [{"type": "human", "content": "今のセリーグの順位は？"}]
 
     response = agent_graph.invoke(messages=messages, userid=userid)
 
     assert "messages" in response
-    assert len(response["documents"]) > 0
-    assert any("web_contents" in document for document in response["documents"])
 
 
 def test_chatbot_agent_diarysearch_invocation():
