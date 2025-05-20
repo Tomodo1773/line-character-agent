@@ -106,7 +106,7 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while checking file existence: {error}")
             return False
-            
+
     def get_file_content(self, file_id: str) -> str:
         """
         指定されたファイルの内容を取得する
@@ -124,7 +124,7 @@ class GoogleDriveHandler:
             done = False
             while not done:
                 _, done = downloader.next_chunk()
-            
+
             return fh.getvalue().decode("utf-8")
         except HttpError as error:
             logger.error(f"An error occurred while getting file content: {error}")
@@ -155,8 +155,10 @@ class GoogleDriveHandler:
                 file_id = files[0]["id"]
                 existing_content = self.get_file_content(file_id)
                 updated_content = existing_content + "\n" + content
-                
-                media = MediaIoBaseUpload(io.BytesIO(updated_content.encode("utf-8")), mimetype="text/markdown", resumable=True)
+
+                media = MediaIoBaseUpload(
+                    io.BytesIO(updated_content.encode("utf-8")), mimetype="text/markdown", resumable=True
+                )
                 self.service.files().update(fileId=file_id, media_body=media).execute()
                 logger.info(f"Updated file {filename} in Google Drive. ID: {file_id}")
                 return file_id
@@ -165,7 +167,7 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while appending to file: {error}")
             return ""
-            
+
     def get_profile_md(self, folder_id: Optional[str] = None) -> str:
         """
         profile.mdファイルの内容を取得する
@@ -179,7 +181,7 @@ class GoogleDriveHandler:
         try:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
-                
+
             query = f"name = 'profile.md' and '{folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
@@ -193,7 +195,7 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting profile.md: {error}")
             return ""
-            
+
     def get_digest_md(self, folder_id: Optional[str] = None) -> str:
         """
         digest.mdファイルの内容を取得する
@@ -207,7 +209,7 @@ class GoogleDriveHandler:
         try:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
-                
+
             query = f"name = 'digest.md' and '{folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])

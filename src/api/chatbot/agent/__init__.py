@@ -14,7 +14,7 @@ from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
 
-from chatbot.agent.tools import azure_ai_search, google_search
+from chatbot.agent.tools import azure_ai_search
 from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
@@ -93,7 +93,7 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
 
 
-def router_node(state: State) -> Command[Literal["create_web_query", "create_diary_query", "url_fetcher", "chatbot"]]:
+def router_node(state: State) -> Command[Literal["create_diary_query", "url_fetcher", "chatbot"]]:
     """
     現在の状態に基づいて次に遷移するノードを決定します。
     Args:
@@ -117,8 +117,6 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
     goto = response["next"]
     if goto == "FINISH":
         goto = "chatbot"
-    elif goto == "web_searcher":
-        goto = "create_web_query"
     elif goto == "diary_searcher":
         goto = "create_diary_query"
 
@@ -127,7 +125,7 @@ def router_node(state: State) -> Command[Literal["create_web_query", "create_dia
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     """
-    ユーザーのメッセージに対して応答を生成します。
+    ユーザーのメッセージに対して応答を生成します。必要に応じてWeb検索も実行します。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
     Returns:
@@ -135,62 +133,29 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     """
     logger.info("--- Chatbot Node ---")
 
-    # 検索結果があるときは詳細に、それ以外は簡潔に回答する
-    if state["documents"] and any("web_contents" in doc for doc in state["documents"]):
-        instruction = "ユーザからの質問に詳しく返答してください。"
-    else:
-        instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
-    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
-
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
-    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"], user_digest=state["digest"], instruction=instruction)
 
-    chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
-    content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
+    instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
+
+    prompt = template.partial(
+        current_datetime=get_japan_datetime(),
+        user_profile=state["profile"],
+        user_digest=state["digest"],
+        instruction=instruction,
+    )
+
+    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+    tool = {"type": "web_search_preview"}
+    llm_with_tools = llm.bind_tools([tool])
+
+    chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
+    content = chatbot_chain.invoke({"messages": state["messages"], "documents": state.get("documents", [])})
+
     return Command(
         goto="__end__",
         update={"messages": [AIMessage(content=content)]},
-    )
-
-
-def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
-    """
-    ウェブ検索用のクエリを生成します。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-    Returns:
-        Command: web_searcherノードへの遷移＆作成したクエリ
-    """
-    logger.info("--- Create Web Query Node ---")
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
-
-    # プロンプトはLangchain Hubから取得
-    # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
-    template = get_prompt("tomodo1773/create_web_search_query")
-    prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
-    create_web_query_chain = prompt | llm | StrOutputParser()
-
-    created_query = create_web_query_chain.invoke({"messages": messages_to_dict(state["messages"])})
-    return Command(
-        goto="web_searcher",
-        update={"query": created_query},
-    )
-
-
-def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
-    """
-    生成されたクエリを使用してウェブ検索を実行します。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-    Returns:
-        Command: chatbotノードへの遷移＆検索結果
-    """
-    logger.info("--- Web Searcher Node ---")
-    return Command(
-        goto="chatbot",
-        update={"documents": google_search(state["query"])},
     )
 
 
@@ -258,8 +223,6 @@ class ChatbotAgent:
         graph_builder.add_node("get_user_profile", get_user_profile_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
-        graph_builder.add_node("create_web_query", create_web_query_node)
-        graph_builder.add_node("web_searcher", web_searcher_node)
         graph_builder.add_node("url_fetcher", url_fetcher_node)
         graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)

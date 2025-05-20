@@ -15,5 +15,8 @@
 	"ruff.lineLength": 127,
 	"[toml]": {
 		"editor.defaultFormatter": "tamasfe.even-better-toml"
-	}
+	},
+	"python.testing.pytestArgs": ["src"],
+	"python.testing.unittestEnabled": false,
+	"python.testing.pytestEnabled": true
 }
