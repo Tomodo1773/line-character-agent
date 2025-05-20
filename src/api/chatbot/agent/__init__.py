@@ -35,7 +35,6 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
-    documents: Annotated[list, add] = []
     query: str = ""
     profile: dict = {}
     digest: dict = {}
@@ -143,11 +142,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
     
-    # 検索結果があるときは詳細に、それ以外は簡潔に回答する
-    if state["documents"] and any("web_contents" in doc for doc in state["documents"]):
-        instruction = "ユーザからの質問に詳しく返答してください。"
-    else:
-        instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
+    instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
     
     prompt = template.partial(
         current_datetime=get_japan_datetime(), 
@@ -169,7 +164,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
     
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
-    content = chatbot_chain.invoke({"messages": state["messages"], "documents": state["documents"]})
+    content = chatbot_chain.invoke({"messages": state["messages"]})
     
     return Command(
         goto="__end__",
@@ -177,43 +172,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     )
 
 
-# def create_web_query_node(state: State) -> Command[Literal["web_searcher"]]:
-#     """
-#     ウェブ検索用のクエリを生成します。
-#     Args:
-#         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-#     Returns:
-#         Command: web_searcherノードへの遷移＆作成したクエリ
-#     """
-#     logger.info("--- Create Web Query Node ---")
-#     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
-# 
-#     # プロンプトはLangchain Hubから取得
-#     # https://smith.langchain.com/hub/tomodo1773/create_web_search_query
-#     template = get_prompt("tomodo1773/create_web_search_query")
-#     prompt = template.partial(current_datetime=get_japan_datetime(), user_profile=state["profile"])
-#     create_web_query_chain = prompt | llm | StrOutputParser()
-# 
-#     created_query = create_web_query_chain.invoke({"messages": messages_to_dict(state["messages"])})
-#     return Command(
-#         goto="web_searcher",
-#         update={"query": created_query},
-#     )
-# 
-# 
-# def web_searcher_node(state: State) -> Command[Literal["chatbot"]]:
-#     """
-#     生成されたクエリを使用してウェブ検索を実行します。
-#     Args:
-#         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-#     Returns:
-#         Command: chatbotノードへの遷移＆検索結果
-#     """
-#     logger.info("--- Web Searcher Node ---")
-#     return Command(
-#         goto="chatbot",
-#         update={"documents": google_search(state["query"])},
-#     )
+
 
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
@@ -244,12 +203,11 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
     Returns:
-        Command: chatbotノードへの遷移＆検索結果
+        Command: chatbotノードへの遷移
     """
     logger.info("--- Diary Searcher Node ---")
     return Command(
         goto="chatbot",
-        update={"documents": azure_ai_search(state["query"])},
     )
 
 
@@ -264,7 +222,6 @@ def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
     logger.info("--- URL Fetcher Node ---")
     return Command(
         goto="chatbot",
-        update={"documents": []},
     )
 
 
@@ -280,8 +237,6 @@ class ChatbotAgent:
         graph_builder.add_node("get_user_profile", get_user_profile_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
-        # graph_builder.add_node("create_web_query", create_web_query_node)
-        # graph_builder.add_node("web_searcher", web_searcher_node)
         graph_builder.add_node("url_fetcher", url_fetcher_node)
         graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)
