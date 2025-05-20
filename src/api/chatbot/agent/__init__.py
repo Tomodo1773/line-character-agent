@@ -35,6 +35,7 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
+    documents: Annotated[list, add] = []
     query: str = ""
     profile: dict = {}
     digest: dict = {}
@@ -164,7 +165,7 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
     
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
-    content = chatbot_chain.invoke({"messages": state["messages"]})
+    content = chatbot_chain.invoke({"messages": state["messages"], "documents": state.get("documents", [])})
     
     return Command(
         goto="__end__",
@@ -203,11 +204,12 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
     Returns:
-        Command: chatbotノードへの遷移
+        Command: chatbotノードへの遷移＆検索結果
     """
     logger.info("--- Diary Searcher Node ---")
     return Command(
         goto="chatbot",
+        update={"documents": azure_ai_search(state["query"])},
     )
 
 
@@ -222,6 +224,7 @@ def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
     logger.info("--- URL Fetcher Node ---")
     return Command(
         goto="chatbot",
+        update={"documents": []},
     )
 
 
