@@ -137,13 +137,10 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
 
-    instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
-
     prompt = template.partial(
         current_datetime=get_japan_datetime(),
         user_profile=state["profile"],
         user_digest=state["digest"],
-        instruction=instruction,
     )
 
     llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
