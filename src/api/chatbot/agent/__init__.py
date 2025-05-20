@@ -152,17 +152,12 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         instruction=instruction
     )
     
+    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+    
     if need_web_search:
         logger.info("Using Response API for web search")
-        llm = ChatOpenAI(
-            model="gpt-4.1", 
-            temperature=1.0,
-            tools=[{
-                "type": "web_search",
-            }]
-        )
-    else:
-        llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+        tool = {"type": "web_search_preview"}
+        llm = llm.bind_tools([tool])
     
     chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state.get("documents", [])})
