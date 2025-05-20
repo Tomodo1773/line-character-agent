@@ -14,7 +14,7 @@ from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
 
-from chatbot.agent.tools import azure_ai_search, google_search
+from chatbot.agent.tools import azure_ai_search
 from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
@@ -132,34 +132,31 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         Command: Endへの遷移＆AIの応答メッセージ
     """
     logger.info("--- Chatbot Node ---")
-    
+
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
-    
+
     instruction = "ユーザと1～3文の返答でテンポよく雑談してください。"
-    
+
     prompt = template.partial(
-        current_datetime=get_japan_datetime(), 
-        user_profile=state["profile"], 
-        user_digest=state["digest"], 
-        instruction=instruction
+        current_datetime=get_japan_datetime(),
+        user_profile=state["profile"],
+        user_digest=state["digest"],
+        instruction=instruction,
     )
-    
+
     llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
     tool = {"type": "web_search_preview"}
     llm_with_tools = llm.bind_tools([tool])
-    
+
     chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state.get("documents", [])})
-    
+
     return Command(
         goto="__end__",
         update={"messages": [AIMessage(content=content)]},
     )
-
-
-
 
 
 def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
