@@ -39,7 +39,6 @@ class State(TypedDict):
     query: str = ""
     profile: dict = {}
     digest: dict = {}
-    need_web_search: bool = False
 
 
 # グローバル変数
@@ -118,9 +117,6 @@ def router_node(state: State) -> Command[Literal["create_diary_query", "url_fetc
     goto = response["next"]
     if goto == "FINISH":
         goto = "chatbot"
-    elif goto == "web_searcher":
-        goto = "chatbot"
-        return Command(goto=goto, update={"need_web_search": True})
     elif goto == "diary_searcher":
         goto = "create_diary_query"
 
@@ -136,8 +132,6 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         Command: Endへの遷移＆AIの応答メッセージ
     """
     logger.info("--- Chatbot Node ---")
-
-    need_web_search = state.get("need_web_search", False)
     
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
@@ -153,13 +147,10 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     )
     
     llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+    tool = {"type": "web_search_preview"}
+    llm_with_tools = llm.bind_tools([tool])
     
-    if need_web_search:
-        logger.info("Using Response API for web search")
-        tool = {"type": "web_search_preview"}
-        llm = llm.bind_tools([tool])
-    
-    chatbot_chain = prompt | llm | StrOutputParser() | remove_trailing_newline
+    chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
     content = chatbot_chain.invoke({"messages": state["messages"], "documents": state.get("documents", [])})
     
     return Command(
