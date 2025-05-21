@@ -245,5 +245,130 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("[Websocket] Connection closed.")
 
 
+import time
+import uuid
+from typing import List
+
+from fastapi import Depends, HTTPException, Request, Response, Security, status
+from fastapi.security.api_key import APIKeyHeader
+from langchain_core.messages import HumanMessage
+
+from chatbot.models import (
+    ChatCompletionRequest,
+    ChatCompletionStreamResponse,
+    ChatCompletionStreamResponseChoice,
+    ChatCompletionStreamResponseChoiceDelta,
+    Message,
+)
+from chatbot.utils.auth import verify_api_key
+
+api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
+
+
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    if not api_key_header or not api_key_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API Key",
+        )
+    
+    api_key = api_key_header.replace("Bearer ", "")
+    if not verify_api_key(api_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
+    
+    return api_key
+
+
+@app.post("/v1/chat/completions")
+async def create_chat_completion(
+    request: ChatCompletionRequest,
+    api_key: str = Depends(get_api_key),
+):
+    """OpenAI互換のチャット補完APIエンドポイント"""
+    if not request.stream:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This endpoint only supports streaming responses. Please set stream=true.",
+        )
+    
+    response = Response(
+        content_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked",
+        },
+    )
+    
+    messages = []
+    for msg in request.messages:
+        messages.append({"type": msg.role.value, "content": msg.content})
+    
+    userid = "openai-compatible-api-user"
+    
+    agent = ChatbotAgent()
+    
+    async def generate_stream():
+        stream_id = f"chatcmpl-{str(uuid.uuid4())}"
+        created = int(time.time())
+        
+        start_response = ChatCompletionStreamResponse(
+            id=stream_id,
+            created=created,
+            model=request.model,
+            choices=[
+                ChatCompletionStreamResponseChoice(
+                    index=0,
+                    delta=ChatCompletionStreamResponseChoiceDelta(role="assistant"),
+                    finish_reason=None,
+                )
+            ],
+        )
+        yield f"data: {start_response.model_dump_json()}\n\n"
+        
+        try:
+            async for msg, metadata in agent.astream(messages=messages, userid=userid):
+                if msg.content and not isinstance(msg, HumanMessage):
+                    chunk_response = ChatCompletionStreamResponse(
+                        id=stream_id,
+                        created=created,
+                        model=request.model,
+                        choices=[
+                            ChatCompletionStreamResponseChoice(
+                                index=0,
+                                delta=ChatCompletionStreamResponseChoiceDelta(content=msg.content),
+                                finish_reason=None,
+                            )
+                        ],
+                    )
+                    yield f"data: {chunk_response.model_dump_json()}\n\n"
+            
+            end_response = ChatCompletionStreamResponse(
+                id=stream_id,
+                created=created,
+                model=request.model,
+                choices=[
+                    ChatCompletionStreamResponseChoice(
+                        index=0,
+                        delta=ChatCompletionStreamResponseChoiceDelta(),
+                        finish_reason="stop",
+                    )
+                ],
+            )
+            yield f"data: {end_response.model_dump_json()}\n\n"
+            
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}")
+            yield f"data: [ERROR] {str(e)}\n\n"
+            yield "data: [DONE]\n\n"
+    
+    response.body_iterator = generate_stream()
+    return response
+
+
 if __name__ == "__main__":
     app.run()
