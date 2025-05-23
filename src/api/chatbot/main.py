@@ -1,9 +1,24 @@
 import json
 import os
 import sys
+import time
+import uuid
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    Security,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from fastapi.responses import StreamingResponse
+from fastapi.security.api_key import APIKeyHeader
 from langchain import hub
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -12,7 +27,13 @@ from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageCo
 
 from chatbot.agent import ChatbotAgent, get_user_profile
 from chatbot.database.repositories import AgentRepository
-from chatbot.utils.auth import verify_token_ws
+from chatbot.models import (
+    ChatCompletionRequest,
+    ChatCompletionStreamResponse,
+    ChatCompletionStreamResponseChoice,
+    ChatCompletionStreamResponseChoiceDelta,
+)
+from chatbot.utils.auth import verify_api_key, verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.line import LineMessenger
@@ -243,6 +264,118 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await websocket.close()
         logger.info("[Websocket] Connection closed.")
+
+
+api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
+
+
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    if not api_key_header or not api_key_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API Key",
+        )
+
+    api_key = api_key_header.replace("Bearer ", "")
+    if not verify_api_key(api_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
+
+    return api_key
+
+
+@app.post("/v1/chat/completions")
+async def create_chat_completion(
+    request: ChatCompletionRequest,
+    api_key: str = Depends(get_api_key),
+):
+    """OpenAI互換のチャット補完APIエンドポイント"""
+
+    # CosmosDBから直近の会話履歴を取得
+    cosmos = AgentRepository()
+    session = cosmos.fetch_messages()
+    db_history = session.full_contents.copy() if session.full_contents else []
+
+    # request.messagesをdict形式に変換
+    req_msgs = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
+
+    # 履歴に新規分をappend
+    messages = db_history + req_msgs
+
+    userid = "openai-compatible-api-user"
+    agent = ChatbotAgent()
+
+    async def generate_stream():
+        stream_id = f"chatcmpl-{str(uuid.uuid4())}"
+        created = int(time.time())
+
+        start_response = ChatCompletionStreamResponse(
+            id=stream_id,
+            created=created,
+            choices=[
+                ChatCompletionStreamResponseChoice(
+                    index=0,
+                    delta=ChatCompletionStreamResponseChoiceDelta(role="assistant"),
+                    finish_reason=None,
+                )
+            ],
+        )
+        yield f"data: {start_response.model_dump_json()}\n\n"
+
+        ai_response_content = ""
+        try:
+            async for msg, metadata in agent.astream(messages=messages, userid=userid):
+                if msg.content and metadata["langgraph_node"] == "chatbot":
+                    ai_response_content += msg.content[0]["text"]
+                    chunk_response = ChatCompletionStreamResponse(
+                        id=stream_id,
+                        created=created,
+                        choices=[
+                            ChatCompletionStreamResponseChoice(
+                                index=0,
+                                delta=ChatCompletionStreamResponseChoiceDelta(content=msg.content[0]["text"]),
+                                finish_reason=None,
+                            )
+                        ],
+                    )
+                    yield f"data: {chunk_response.model_dump_json()}\n\n"
+
+            end_response = ChatCompletionStreamResponse(
+                id=stream_id,
+                created=created,
+                choices=[
+                    ChatCompletionStreamResponseChoice(
+                        index=0,
+                        delta=ChatCompletionStreamResponseChoiceDelta(),
+                        finish_reason="stop",
+                    )
+                ],
+            )
+            yield f"data: {end_response.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}")
+            yield f"data: [ERROR] {str(e)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        # 新規分+AIレスポンスだけを保存
+        save_msgs = req_msgs.copy()
+        if ai_response_content:
+            save_msgs.append({"type": "ai", "content": ai_response_content})
+        if save_msgs:
+            cosmos.add_messages(userid, save_msgs)
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked",
+        },
+    )
 
 
 if __name__ == "__main__":

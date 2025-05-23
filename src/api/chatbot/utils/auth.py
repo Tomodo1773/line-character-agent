@@ -81,6 +81,24 @@ def create_jwt_token(userid: str) -> str:
     return token
 
 
+def verify_api_key(api_key: str) -> bool:
+    """APIキーを検証する
+
+    Args:
+        api_key (str): 検証するAPIキー
+
+    Returns:
+        bool: 検証結果（Trueなら有効）
+    """
+    valid_api_key = os.environ.get("OPENAI_COMPATIBLE_API_KEY", "")
+    
+    if not valid_api_key:
+        logger.error("OPENAI_COMPATIBLE_API_KEYが設定されていません")
+        return False
+    
+    return api_key == valid_api_key
+
+
 if __name__ == "__main__":
     userid = os.environ.get("LINE_USER_ID")
     print(userid)
