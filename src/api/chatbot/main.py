@@ -292,11 +292,17 @@ async def create_chat_completion(
     api_key: str = Depends(get_api_key),
 ):
     """OpenAI互換のチャット補完APIエンドポイント"""
-    if not request.stream:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint only supports streaming responses. Please set stream=true.",
-        )
+
+    # CosmosDBから直近の会話履歴を取得
+    cosmos = AgentRepository()
+    session = cosmos.fetch_messages()
+    db_history = session.full_contents.copy() if session.full_contents else []
+
+    # request.messagesをdict形式に変換
+    req_msgs = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
+
+    # 履歴に新規分をappend
+    messages = db_history + req_msgs
 
     userid = "openai-compatible-api-user"
     agent = ChatbotAgent()
@@ -308,7 +314,6 @@ async def create_chat_completion(
         start_response = ChatCompletionStreamResponse(
             id=stream_id,
             created=created,
-            model=request.model,
             choices=[
                 ChatCompletionStreamResponseChoice(
                     index=0,
@@ -319,17 +324,14 @@ async def create_chat_completion(
         )
         yield f"data: {start_response.model_dump_json()}\n\n"
 
-        messages = []
-        for msg in request.messages:
-            messages.append({"type": msg.role.value, "content": msg.content})
-
+        ai_response_content = ""
         try:
             async for msg, metadata in agent.astream(messages=messages, userid=userid):
                 if msg.content and metadata["langgraph_node"] == "chatbot":
+                    ai_response_content += msg.content[0]["text"]
                     chunk_response = ChatCompletionStreamResponse(
                         id=stream_id,
                         created=created,
-                        model=request.model,
                         choices=[
                             ChatCompletionStreamResponseChoice(
                                 index=0,
@@ -343,7 +345,6 @@ async def create_chat_completion(
             end_response = ChatCompletionStreamResponse(
                 id=stream_id,
                 created=created,
-                model=request.model,
                 choices=[
                     ChatCompletionStreamResponseChoice(
                         index=0,
@@ -353,12 +354,18 @@ async def create_chat_completion(
                 ],
             )
             yield f"data: {end_response.model_dump_json()}\n\n"
-
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Error during streaming: {e}")
             yield f"data: [ERROR] {str(e)}\n\n"
             yield "data: [DONE]\n\n"
+
+        # 新規分+AIレスポンスだけを保存
+        save_msgs = req_msgs.copy()
+        if ai_response_content:
+            save_msgs.append({"type": "ai", "content": ai_response_content})
+        if save_msgs:
+            cosmos.add_messages(userid, save_msgs)
 
     return StreamingResponse(
         generate_stream(),
