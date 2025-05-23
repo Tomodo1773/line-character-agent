@@ -75,8 +75,7 @@ def get_user_profile(userid: str) -> dict:
         else:
             logger.error("Failed to get digest content, using empty digest")
             _cached["digest"][userid] = ""
-
-    return {"profile": _cached["profile"][userid], "digest": _cached["digest"].get(userid, "")}
+    return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
 
 
 @traceable(run_type="tool", name="Get User Profile")
@@ -213,6 +212,10 @@ class ChatbotAgent:
         """Initialize agent with cached prompts"""
         global _cached
         if cached:
+            # 3キーがdictで存在するように補完
+            for k in ("profile", "prompts", "digest"):
+                if k not in cached or not isinstance(cached[k], dict):
+                    cached[k] = {}
             _cached = cached
 
         graph_builder = StateGraph(State)
