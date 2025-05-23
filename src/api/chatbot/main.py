@@ -1,9 +1,24 @@
 import json
 import os
 import sys
+import time
+import uuid
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    Security,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from fastapi.responses import StreamingResponse
+from fastapi.security.api_key import APIKeyHeader
 from langchain import hub
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -12,7 +27,13 @@ from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageCo
 
 from chatbot.agent import ChatbotAgent, get_user_profile
 from chatbot.database.repositories import AgentRepository
-from chatbot.utils.auth import verify_token_ws
+from chatbot.models import (
+    ChatCompletionRequest,
+    ChatCompletionStreamResponse,
+    ChatCompletionStreamResponseChoice,
+    ChatCompletionStreamResponseChoiceDelta,
+)
+from chatbot.utils.auth import verify_api_key, verify_token_ws
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.line import LineMessenger
@@ -245,23 +266,6 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("[Websocket] Connection closed.")
 
 
-import time
-import uuid
-from typing import List
-
-from fastapi import Depends, HTTPException, Request, Response, Security, status
-from fastapi.security.api_key import APIKeyHeader
-from langchain_core.messages import HumanMessage
-
-from chatbot.models import (
-    ChatCompletionRequest,
-    ChatCompletionStreamResponse,
-    ChatCompletionStreamResponseChoice,
-    ChatCompletionStreamResponseChoiceDelta,
-    Message,
-)
-from chatbot.utils.auth import verify_api_key
-
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
 
 
@@ -271,14 +275,14 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API Key",
         )
-    
+
     api_key = api_key_header.replace("Bearer ", "")
     if not verify_api_key(api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API Key",
         )
-    
+
     return api_key
 
 
@@ -293,28 +297,14 @@ async def create_chat_completion(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This endpoint only supports streaming responses. Please set stream=true.",
         )
-    
-    response = Response(
-        content_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Transfer-Encoding": "chunked",
-        },
-    )
-    
-    messages = []
-    for msg in request.messages:
-        messages.append({"type": msg.role.value, "content": msg.content})
-    
+
     userid = "openai-compatible-api-user"
-    
     agent = ChatbotAgent()
-    
+
     async def generate_stream():
         stream_id = f"chatcmpl-{str(uuid.uuid4())}"
         created = int(time.time())
-        
+
         start_response = ChatCompletionStreamResponse(
             id=stream_id,
             created=created,
@@ -328,10 +318,14 @@ async def create_chat_completion(
             ],
         )
         yield f"data: {start_response.model_dump_json()}\n\n"
-        
+
+        messages = []
+        for msg in request.messages:
+            messages.append({"type": msg.role.value, "content": msg.content})
+
         try:
             async for msg, metadata in agent.astream(messages=messages, userid=userid):
-                if msg.content and not isinstance(msg, HumanMessage):
+                if msg.content and metadata["langgraph_node"] == "chatbot":
                     chunk_response = ChatCompletionStreamResponse(
                         id=stream_id,
                         created=created,
@@ -339,13 +333,13 @@ async def create_chat_completion(
                         choices=[
                             ChatCompletionStreamResponseChoice(
                                 index=0,
-                                delta=ChatCompletionStreamResponseChoiceDelta(content=msg.content),
+                                delta=ChatCompletionStreamResponseChoiceDelta(content=msg.content[0]["text"]),
                                 finish_reason=None,
                             )
                         ],
                     )
                     yield f"data: {chunk_response.model_dump_json()}\n\n"
-            
+
             end_response = ChatCompletionStreamResponse(
                 id=stream_id,
                 created=created,
@@ -359,15 +353,22 @@ async def create_chat_completion(
                 ],
             )
             yield f"data: {end_response.model_dump_json()}\n\n"
-            
+
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Error during streaming: {e}")
             yield f"data: [ERROR] {str(e)}\n\n"
             yield "data: [DONE]\n\n"
-    
-    response.body_iterator = generate_stream()
-    return response
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked",
+        },
+    )
 
 
 if __name__ == "__main__":
