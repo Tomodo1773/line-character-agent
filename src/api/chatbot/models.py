@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class MessageRole(str, Enum):
@@ -18,13 +18,12 @@ class Message(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str
     messages: List[Message]
     temperature: Optional[float] = 1.0
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
     max_tokens: Optional[int] = None
-    stream: Optional[bool] = False
+    stream: bool = True
     stop: Optional[Union[str, List[str]]] = None
     presence_penalty: Optional[float] = 0
     frequency_penalty: Optional[float] = 0
@@ -46,7 +45,7 @@ class ChatCompletionResponse(BaseModel):
     id: str
     object: str = "chat.completion"
     created: int
-    model: str
+    model: str = "chatbot-agent"
     choices: List[ChatCompletionResponseChoice]
     usage: Dict[str, int]
 
@@ -66,6 +65,6 @@ class ChatCompletionStreamResponse(BaseModel):
     id: str
     object: str = "chat.completion.chunk"
     created: int
-    model: str
+    model: str = "chatbot-agent"
     choices: List[ChatCompletionStreamResponseChoice]
     usage: Optional[Dict[str, int]] = None
