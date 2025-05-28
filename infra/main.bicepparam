@@ -11,6 +11,7 @@ param appSettings = {
   GOOGLE_API_KEY: readEnvironmentVariable('GOOGLE_API_KEY', 'default-google-api-key')
   TAVILY_API_KEY: readEnvironmentVariable('TAVILY_API_KEY', 'default-tavily-api-key')
   OPENAI_API_KEY: readEnvironmentVariable('OPENAI_API_KEY', 'default-openai-api-key')
+  OPENAI_COMPATIBLE_API_KEY: readEnvironmentVariable('OPENAI_COMPATIBLE_API_KEY', 'default-openai-compatible-api-key')
   GROQ_API_KEY: readEnvironmentVariable('GROQ_API_KEY', 'default-groq-api-key')
   FIRECRAWL_API_KEY: readEnvironmentVariable('FIRECRAWL_API_KEY', 'default-firecrawl-api-key')
   COSMOS_DB_DATABASE_NAME: readEnvironmentVariable('COSMOS_DB_DATABASE_NAME', 'DEMO')

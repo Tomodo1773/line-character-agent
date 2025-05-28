@@ -106,6 +106,7 @@ module AppService './app/api.bicep' = {
       GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY
       TAVILY_API_KEY: appSettings.TAVILY_API_KEY
       OPENAI_API_KEY: appSettings.OPENAI_API_KEY
+      OPENAI_COMPATIBLE_API_KEY: appSettings.OPENAI_COMPATIBLE_API_KEY
       GROQ_API_KEY: appSettings.GROQ_API_KEY
       FIRECRAWL_API_KEY:appSettings.FIRECRAWL_API_KEY
       COSMOS_DB_DATABASE_NAME: appSettings.COSMOS_DB_DATABASE_NAME
