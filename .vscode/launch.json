@@ -15,11 +15,16 @@
 			}
 		},
 		{
-			"name": "Python: test_chat",
+			"name": "Python: Run Agent",
 			"type": "debugpy",
 			"request": "launch",
-			"cwd": "${workspaceFolder}/api", // 'cwd' を '${workspaceFolder}' から '${workspaceFolder}/api' へ変更
-			"module": "tests.utils.test_chat"
+			"program": "${workspaceFolder}/src/api/chatbot/agent/__init__.py",
+			"console": "integratedTerminal",
+			"cwd": "${workspaceFolder}/src/api",
+			"envFile": "${workspaceFolder}/src/api/.env",
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}/src/api"
+			}
 		}
 	]
 }
