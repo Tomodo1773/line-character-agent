@@ -92,7 +92,7 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
 
 
-def router_node(state: State) -> Command[Literal["create_diary_query", "url_fetcher", "chatbot"]]:
+def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot"]]:
     """
     現在の状態に基づいて次に遷移するノードを決定します。
     Args:
@@ -106,7 +106,7 @@ def router_node(state: State) -> Command[Literal["create_diary_query", "url_fetc
     class Router(TypedDict):
         """Worker to route to next. If no workers needed, route to FINISH."""
 
-        next: Literal["web_searcher", "diary_searcher", "url_fetcher", "FINISH"]
+        next: Literal["web_searcher", "diary_searcher", "FINISH"]
 
     # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
     llm = ChatOpenAI(temperature=0, model="gpt-4o")
@@ -192,19 +192,6 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     )
 
 
-def url_fetcher_node(state: State) -> Command[Literal["chatbot"]]:
-    """
-    URLから情報を取得します。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-    Returns:
-        Command: chatbotノードへの遷移（主要機能は未実装）
-    """
-    logger.info("--- URL Fetcher Node ---")
-    return Command(
-        goto="chatbot",
-        update={"documents": []},
-    )
 
 
 class ChatbotAgent:
@@ -223,7 +210,6 @@ class ChatbotAgent:
         graph_builder.add_node("get_user_profile", get_user_profile_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
-        graph_builder.add_node("url_fetcher", url_fetcher_node)
         graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)
         self.graph = graph_builder.compile()
