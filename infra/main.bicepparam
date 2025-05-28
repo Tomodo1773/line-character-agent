@@ -13,13 +13,11 @@ param appSettings = {
   OPENAI_API_KEY: readEnvironmentVariable('OPENAI_API_KEY', 'default-openai-api-key')
   OPENAI_COMPATIBLE_API_KEY: readEnvironmentVariable('OPENAI_COMPATIBLE_API_KEY', 'default-openai-compatible-api-key')
   GROQ_API_KEY: readEnvironmentVariable('GROQ_API_KEY', 'default-groq-api-key')
-  FIRECRAWL_API_KEY: readEnvironmentVariable('FIRECRAWL_API_KEY', 'default-firecrawl-api-key')
   COSMOS_DB_DATABASE_NAME: readEnvironmentVariable('COSMOS_DB_DATABASE_NAME', 'DEMO')
   ANTHROPIC_API_KEY: readEnvironmentVariable('ANTHROPIC_API_KEY', 'default-anthropic-api-key')
   AZURE_AI_SEARCH_SERVICE_NAME: readEnvironmentVariable('AZURE_AI_SEARCH_SERVICE_NAME', 'default-azure-search-service-name')
   AZURE_AI_SEARCH_API_KEY: readEnvironmentVariable('AZURE_AI_SEARCH_API_KEY', 'default-azure-search-admin-key')
   NIJIVOICE_API_KEY: readEnvironmentVariable('NIJIVOICE_API_KEY', 'default-nijivoice-api-key')
-  JWT_SECRET_KEY: readEnvironmentVariable('JWT_SECRET_KEY', 'default-jwt-token')
   DRIVE_FOLDER_ID: readEnvironmentVariable('DRIVE_FOLDER_ID', 'default-drive-folder-id')
 }
 
