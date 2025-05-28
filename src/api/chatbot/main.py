@@ -1,29 +1,21 @@
-import json
 import os
 import sys
 import time
 import uuid
 
+# Azure Application Insights imports
+from azure.monitor.opentelemetry import configure_azure_monitor
 from dotenv import load_dotenv
-from fastapi import (
-    BackgroundTasks,
-    Depends,
-    FastAPI,
-    Header,
-    HTTPException,
-    Request,
-    Security,
-    status,
-)
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
-from langchain import hub
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import AudioMessage, TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-from chatbot.agent import ChatbotAgent, get_user_profile
+from chatbot.agent import ChatbotAgent
 from chatbot.database.repositories import AgentRepository
 from chatbot.models import (
     ChatCompletionRequest,
@@ -55,6 +47,12 @@ app = FastAPI(
     title="LINEBOT-AI-AGENT",
     description="LINEBOT-AI-AGENT by FastAPI.",
 )
+
+# Azure Application Insightsの初期化
+APPLICATIONINSIGHTS_CONNECTION_STRING = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+if APPLICATIONINSIGHTS_CONNECTION_STRING:
+    configure_azure_monitor(connection_string=APPLICATIONINSIGHTS_CONNECTION_STRING)
+    FastAPIInstrumentor.instrument_app(app)
 
 
 @app.get("/")
@@ -207,8 +205,6 @@ def handle_audio(event):
         error_message = f"Error: {e}"
         line_messennger.reply_message([error_message])
         logger.error(f"Returned error message to the user: {e}")
-
-
 
 
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
