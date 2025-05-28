@@ -114,7 +114,6 @@ module AppService './app/api.bicep' = {
       AZURE_AI_SEARCH_SERVICE_NAME:appSettings.AZURE_AI_SEARCH_SERVICE_NAME
       AZURE_AI_SEARCH_API_KEY:appSettings.AZURE_AI_SEARCH_API_KEY
       NIJIVOICE_API_KEY:appSettings.NIJIVOICE_API_KEY
-      JWT_SECRET_KEY:appSettings.JWT_SECRET_KEY
       DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
     }
   }
