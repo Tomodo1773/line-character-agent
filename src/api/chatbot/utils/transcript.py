@@ -2,7 +2,7 @@ import getpass
 import os
 import tempfile
 
-from chatbot.database.repositories import NameRepository
+from chatbot.utils.google_drive_utils import get_dictionary_from_drive
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import create_logger
 from langchain_core.output_parsers import StrOutputParser
@@ -103,8 +103,7 @@ class DiaryTranscription:
         return configured_chain
 
     def _read_dictionary(self) -> str:
-        cosmos = NameRepository()
-        return cosmos.fetch_names()
+        return get_dictionary_from_drive()
 
     def transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)

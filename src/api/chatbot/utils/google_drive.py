@@ -223,3 +223,31 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting digest.md: {error}")
             return ""
+
+    def get_dictionary_md(self, folder_id: Optional[str] = None) -> str:
+        """
+        dictionary.mdファイルの内容を取得する
+
+        Args:
+            folder_id: フォルダID（指定がない場合は環境変数から取得）
+
+        Returns:
+            ファイルの内容
+        """
+        try:
+            if folder_id is None:
+                folder_id = os.environ.get("DRIVE_FOLDER_ID")
+
+            query = f"name = 'dictionary.md' and '{folder_id}' in parents and trashed = false"
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+            files = results.get("files", [])
+
+            if files:
+                file_id = files[0]["id"]
+                return self.get_file_content(file_id)
+            else:
+                logger.error("dictionary.md file not found in Google Drive.")
+                return ""
+        except HttpError as error:
+            logger.error(f"An error occurred while getting dictionary.md: {error}")
+            return ""

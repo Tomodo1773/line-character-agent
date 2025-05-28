@@ -30,24 +30,6 @@ class UserRepository(BaseRepository):
         return self.fetch(query, parameters)
 
 
-class NameRepository(BaseRepository):
-    def __init__(self):
-        self._core = CosmosCore("NAMES")
-
-    def save(self, data: Dict[str, Any]) -> None:
-        self._core.save(data)
-
-    def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._core.fetch(query, parameters)
-
-    def save_names(self, userid: str, name_info: dict) -> None:
-        data = {"userid": userid, "content": name_info}
-        self.save(data)
-
-    def fetch_names(self) -> List[Dict[str, Any]]:
-        query = "SELECT c.content FROM c"
-        return self.fetch(query, parameters=[])
-
 
 class AgentRepository(BaseRepository):
     def __init__(self):
