@@ -13,8 +13,6 @@ from fastapi import (
     HTTPException,
     Request,
     Security,
-    WebSocket,
-    WebSocketDisconnect,
     status,
 )
 from fastapi.responses import StreamingResponse
@@ -33,13 +31,12 @@ from chatbot.models import (
     ChatCompletionStreamResponseChoice,
     ChatCompletionStreamResponseChoiceDelta,
 )
-from chatbot.utils.auth import verify_api_key, verify_token_ws
+from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
-from chatbot.websocket import ConnectionManager
 
 load_dotenv()
 
@@ -212,58 +209,6 @@ def handle_audio(event):
         logger.error(f"Returned error message to the user: {e}")
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    # JWT認証を実行
-    is_valid, token, userid = await verify_token_ws(websocket)
-    if not is_valid:
-        return
-
-    # 事前にキャッシュ
-    cached = {
-        "prompts": {
-            "tomodo1773/character-agent-router": hub.pull("tomodo1773/character-agent-router"),
-            "tomodo1773/sister_edinet": hub.pull("tomodo1773/sister_edinet"),
-            "tomodo1773/create_web_search_query": hub.pull("tomodo1773/create_web_search_query"),
-            "tomodo1773/create_diary_search_query": hub.pull("tomodo1773/create_diary_search_query"),
-        },
-        "profile": {userid: get_user_profile(userid)},
-    }
-
-    cosmos = AgentRepository()
-    agent = ChatbotAgent(cached=cached)
-    manager = ConnectionManager(agent=agent, cosmos_repository=cosmos)
-
-    # 検証済みトークンをサブプロトコルとして使用
-    await manager.connect(websocket, subprotocol=token)
-    try:
-        while True:
-            # CosmosDBから直近の会話履歴を取得
-            session = cosmos.fetch_messages()
-            messages = session.full_contents
-
-            data = await websocket.receive_text()
-            logger.info(f"[Websocket] Received message: {data}")
-
-            # 受信したデータをJSONとしてパース
-            data_dict = json.loads(data)
-            logger.info(f"[Websocket]user_prompt: {data_dict['content']}")
-            messages.append({"type": "human", "content": data_dict["content"]})
-
-            # LLMでレスポンスメッセージを作成
-            response = await agent.ainvoke(messages=messages, userid=userid)
-            content = response["messages"][-1].content
-
-            await manager.process_and_send_messages(content, websocket, data_dict["type"])
-
-            # 会話履歴を保存
-            add_messages = [{"type": "human", "content": data_dict["content"]}, {"type": "ai", "content": content}]
-            cosmos.add_messages(userid, add_messages)
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-    finally:
-        await websocket.close()
-        logger.info("[Websocket] Connection closed.")
 
 
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
