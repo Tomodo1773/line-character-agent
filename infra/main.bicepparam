@@ -19,6 +19,7 @@ param appSettings = {
   AZURE_AI_SEARCH_API_KEY: readEnvironmentVariable('AZURE_AI_SEARCH_API_KEY', 'default-azure-search-admin-key')
   NIJIVOICE_API_KEY: readEnvironmentVariable('NIJIVOICE_API_KEY', 'default-nijivoice-api-key')
   DRIVE_FOLDER_ID: readEnvironmentVariable('DRIVE_FOLDER_ID', 'default-drive-folder-id')
+  APPLICATIONINSIGHTS_CONNECTION_STRING: readEnvironmentVariable('APPLICATIONINSIGHTS_CONNECTION_STRING', 'default-appinsights-connection-string')
 }
 
 param funcappSettings = {

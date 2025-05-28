@@ -27,6 +27,8 @@ dependencies = [
     "google-genai>=0.3.0,<0.4",
     "python-jose[cryptography]>=3.3.0,<4",
     "google-api-python-client>=2.169.0",
+    "azure-monitor-opentelemetry>=1.0.0,<2",
+    "opentelemetry-instrumentation-fastapi>=0.40b0,<1",
 ]
 
 [tool.uv]
