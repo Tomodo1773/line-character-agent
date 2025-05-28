@@ -101,25 +101,25 @@ def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot"
         Command: 次に遷移するノード。
     """
     logger.info("--- Router Node ---")
-    prompt = get_prompt("tomodo1773/character-agent-router")
+    # prompt = get_prompt("tomodo1773/character-agent-router")
 
-    class Router(TypedDict):
-        """Worker to route to next. If no workers needed, route to FINISH."""
+    # class Router(TypedDict):
+    #     """Worker to route to next. If no workers needed, route to FINISH."""
 
-        next: Literal["web_searcher", "diary_searcher", "FINISH"]
+    #     next: Literal["web_searcher", "diary_searcher", "FINISH"]
 
-    # llm = ChatAnthropic(model="claude-3-5-sonnet-latest")
-    llm = ChatOpenAI(temperature=0, model="gpt-4o")
-    structured_llm = llm.with_structured_output(Router)
-    chain = prompt | structured_llm
-    response = chain.invoke({"messages": state["messages"]})
-    goto = response["next"]
-    if goto == "FINISH":
-        goto = "chatbot"
-    elif goto == "diary_searcher":
-        goto = "create_diary_query"
+    # llm = ChatOpenAI(temperature=0, model="gpt-4o")
+    # structured_llm = llm.with_structured_output(Router)
+    # chain = prompt | structured_llm
+    # response = chain.invoke({"messages": state["messages"]})
+    # goto = response["next"]
+    # if goto == "FINISH":
+    #     goto = "chatbot"
+    # elif goto == "diary_searcher":
+    #     goto = "create_diary_query"
 
-    return Command(goto=goto)
+    # return Command(goto=goto)
+    return Command(goto="chatbot")
 
 
 def chatbot_node(state: State) -> Command[Literal["__end__"]]:
