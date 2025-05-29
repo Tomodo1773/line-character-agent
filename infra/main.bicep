@@ -9,8 +9,6 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
-@description('Location for azure functions')
-param locationFunc string ='Australia East'
 
 param resourceGroupName string = ''
 
@@ -139,7 +137,7 @@ module storageAccount 'core/storage/storage-account.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.storageStorageAccounts}${resourceToken}'
-    location: locationFunc
+    location: location
     tags: tags
     containers: [
       {
@@ -167,7 +165,7 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.webServerFarms}func-${resourceToken}'
-    location: locationFunc
+    location: location
     tags: tags
     sku: {
       name: 'FC1'
@@ -181,7 +179,7 @@ module functionApp 'app/func.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.webSitesFunctions}${resourceToken}'
-    location: locationFunc
+    location: location
     tags: union(tags, { 'azd-service-name': 'func' })
     alwaysOn: false
     appSettings: {
@@ -208,7 +206,7 @@ module mcpSpotifyFunctionApp 'app/mcp-spotify.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.webSitesFunctions}mcp-spotify-${resourceToken}'
-    location: locationFunc
+    location: location
     tags: union(tags, { 'azd-service-name': 'mcp-spotify' })
     alwaysOn: false
     appSettings: {
