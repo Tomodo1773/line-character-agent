@@ -145,7 +145,7 @@ module storageAccount 'core/storage/storage-account.bicep' = {
         publicAccess: 'None'
       }
       {
-        name: 'app-package-mcp-spotify-${resourceToken}'
+        name: 'app-package-mcp-${resourceToken}'
         publicAccess: 'None'
       }
       {
@@ -201,13 +201,13 @@ module functionApp 'app/func.bicep' = {
   }
 }
 
-module mcpSpotifyFunctionApp 'app/mcp-spotify.bicep' = {
-  name: 'mcp-spotify-function'
+module mcpFunctionApp 'app/mcp.bicep' = {
+  name: 'mcp-function'
   scope: rg
   params: {
-    name: '${abbrs.webSitesFunctions}mcp-spotify-${resourceToken}'
+    name: '${abbrs.webSitesFunctions}mcp-${resourceToken}'
     location: location
-    tags: union(tags, { 'azd-service-name': 'mcp-spotify' })
+    tags: union(tags, { 'azd-service-name': 'mcp' })
     alwaysOn: false
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
@@ -220,7 +220,7 @@ module mcpSpotifyFunctionApp 'app/mcp-spotify.bicep' = {
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
-    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-mcp-spotify-${resourceToken}'
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-mcp-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
   }
@@ -236,11 +236,11 @@ module diagnostics 'core/host/app-diagnostics.bicep' = {
   }
 }
 
-module mcpSpotifyDiagnostics 'core/host/app-diagnostics.bicep' = {
-  name: 'mcp-spotify-diagnostics'
+module mcpDiagnostics 'core/host/app-diagnostics.bicep' = {
+  name: 'mcp-diagnostics'
   scope: rg
   params: {
-    appName: mcpSpotifyFunctionApp.outputs.name
+    appName: mcpFunctionApp.outputs.name
     kind: 'functionapp'
     diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
   }
