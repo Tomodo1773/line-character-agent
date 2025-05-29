@@ -22,6 +22,9 @@ param appSettings = {
 
 param funcappSettings = {
   DRIVE_FOLDER_ID: readEnvironmentVariable('DRIVE_FOLDER_ID', 'default-drive-folder-id')
+  SPOTIFY_CLIENT_ID: readEnvironmentVariable('SPOTIFY_CLIENT_ID', 'default-spotify-client-id')
+  SPOTIFY_CLIENT_SECRET: readEnvironmentVariable('SPOTIFY_CLIENT_SECRET', 'default-spotify-client-secret')
+  SPOTIFY_REDIRECT_URI: readEnvironmentVariable('SPOTIFY_REDIRECT_URI', 'default-spotify-redirect-uri')
 }
 
 param cosmosDbAccountName = readEnvironmentVariable('AZURE_COSMOSDB_NAME', '')
