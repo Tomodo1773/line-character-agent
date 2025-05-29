@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 import spotipy
 from dotenv import load_dotenv
-from spotipy.cache_handler import CacheFileHandler
+from spotipy.cache_handler import CacheHandler
 from spotipy.oauth2 import SpotifyOAuth
 
 import utils
@@ -14,6 +14,23 @@ load_dotenv()
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
+
+
+class MemoryCacheHandler(CacheHandler):
+    """
+    In-memory cache handler for Azure Functions environment.
+    Stores tokens in memory instead of files.
+    """
+    def __init__(self, token_cache):
+        self.token_cache = token_cache
+
+    def get_cached_token(self):
+        """Get token from memory cache."""
+        return self.token_cache.get('token')
+
+    def save_token_to_cache(self, token_info):
+        """Save token to memory cache."""
+        self.token_cache['token'] = token_info
 
 print(f"CLIENT_ID: {CLIENT_ID}")
 SCOPES = [
@@ -36,22 +53,28 @@ SCOPES = [
 
 
 class Client:
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: logging.Logger, token_cache=None):
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
+        self.token_cache = token_cache or {}
 
         # Required scopes for playlist creation, playback control, and library modification
         scope = ",".join(SCOPES)
 
         try:
-            self.sp = spotipy.Spotify(
-                auth_manager=SpotifyOAuth(
-                    scope=scope, client_id=CLIENT_ID, client_secret=CLIENT_SECRET, redirect_uri=REDIRECT_URI
-                )
+            # Use memory cache handler for Azure Functions
+            cache_handler = MemoryCacheHandler(self.token_cache)
+            
+            self.auth_manager = SpotifyOAuth(
+                scope=scope, 
+                client_id=CLIENT_ID, 
+                client_secret=CLIENT_SECRET, 
+                redirect_uri=REDIRECT_URI,
+                cache_handler=cache_handler
             )
-
-            self.auth_manager: SpotifyOAuth = self.sp.auth_manager
-            self.cache_handler: CacheFileHandler = self.auth_manager.cache_handler
+            
+            self.sp = spotipy.Spotify(auth_manager=self.auth_manager)
+            self.cache_handler = cache_handler
         except Exception as e:
             self.logger.error(f"Failed to initialize Spotify client: {str(e)}")
             raise
