@@ -1,251 +1,335 @@
 import json
+import logging
 import sys
 from typing import Optional
 
-import mcp.server.stdio
-import mcp.types as types
-from mcp.server import Server  # , stdio_server
-from pydantic import BaseModel, Field
+import azure.functions as func
 from spotipy import SpotifyException
 
-from spotify_mcp import spotify_api
+from spotify_api import Client
+
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
 def setup_logger():
     class Logger:
         def info(self, message):
-            print(f"[INFO] {message}", file=sys.stderr)
+            logging.info(message)
 
         def error(self, message):
-            print(f"[ERROR] {message}", file=sys.stderr)
+            logging.error(message)
 
     return Logger()
 
 
 logger = setup_logger()
-spotify_client = spotify_api.Client(logger)
+spotify_client = Client(logger)
 
 
-server = Server("spotify-mcp")
+class ToolProperty:
+    def __init__(self, property_name: str, property_type: str, description: str):
+        self.propertyName = property_name
+        self.propertyType = property_type
+        self.description = description
+
+    def to_dict(self):
+        return {
+            "propertyName": self.propertyName,
+            "propertyType": self.propertyType,
+            "description": self.description,
+        }
 
 
-# options =
-class ToolModel(BaseModel):
-    @classmethod
-    def as_tool(cls):
-        return types.Tool(name="Spotify" + cls.__name__, description=cls.__doc__, inputSchema=cls.model_json_schema())
+# Define tool properties for each MCP tool
+playback_properties = [
+    ToolProperty("action", "string", "Action to perform: 'get', 'start', 'pause' or 'skip'"),
+    ToolProperty("spotify_uri", "string", "Spotify URI of item to play for 'start' action (optional)"),
+    ToolProperty("num_skips", "number", "Number of tracks to skip for 'skip' action (default: 1)"),
+]
+
+search_properties = [
+    ToolProperty("query", "string", "Search query term"),
+    ToolProperty("qtype", "string", "Type of items to search for (track, album, artist, playlist, or comma-separated combination) (default: track)"),
+    ToolProperty("limit", "number", "Maximum number of items to return (default: 10)"),
+]
+
+queue_properties = [
+    ToolProperty("action", "string", "Action to perform: 'add' or 'get'"),
+    ToolProperty("track_id", "string", "Track ID to add to queue (required for add action)"),
+]
+
+get_info_properties = [
+    ToolProperty("item_uri", "string", "URI of the item to get information about"),
+]
+
+create_playlist_properties = [
+    ToolProperty("name", "string", "Name of the playlist to create"),
+    ToolProperty("public", "boolean", "Whether the playlist should be public (default: false)"),
+    ToolProperty("description", "string", "Description for the playlist (optional)"),
+]
+
+add_tracks_to_playlist_properties = [
+    ToolProperty("playlist_id", "string", "ID of the playlist to add tracks to"),
+    ToolProperty("track_ids", "array", "List of track IDs to add (up to 100)"),
+    ToolProperty("position", "number", "Position to insert tracks (optional, default is end)"),
+]
+
+add_track_to_liked_songs_properties = [
+    ToolProperty("track_id", "string", "ID of the track to add to liked songs"),
+]
+
+# Convert tool properties to JSON
+playback_properties_json = json.dumps([prop.to_dict() for prop in playback_properties])
+search_properties_json = json.dumps([prop.to_dict() for prop in search_properties])
+queue_properties_json = json.dumps([prop.to_dict() for prop in queue_properties])
+get_info_properties_json = json.dumps([prop.to_dict() for prop in get_info_properties])
+create_playlist_properties_json = json.dumps([prop.to_dict() for prop in create_playlist_properties])
+add_tracks_to_playlist_properties_json = json.dumps([prop.to_dict() for prop in add_tracks_to_playlist_properties])
+add_track_to_liked_songs_properties_json = json.dumps([prop.to_dict() for prop in add_track_to_liked_songs_properties])
 
 
-class Playback(ToolModel):
-    """Manages the current playback with the following actions:
-    - get: Get information about user's current track.
-    - start: Starts playing new item or resumes current playback if called with no uri.
-    - pause: Pauses current playback.
-    - skip: Skips current track.
-    """
-
-    action: str = Field(description="Action to perform: 'get', 'start', 'pause' or 'skip'.")
-    spotify_uri: Optional[str] = Field(
-        default=None, description="Spotify uri of item to play for 'start' action. " + "If omitted, resumes current playback."
-    )
-    num_skips: Optional[int] = Field(default=1, description="Number of tracks to skip for `skip` action.")
-
-
-class Queue(ToolModel):
-    """Manage the playback queue - get the queue or add tracks."""
-
-    action: str = Field(description="Action to perform: 'add' or 'get'.")
-    track_id: Optional[str] = Field(default=None, description="Track ID to add to queue (required for add action)")
-
-
-class GetInfo(ToolModel):
-    """Get detailed information about a Spotify item (track, album, artist, or playlist)."""
-
-    item_uri: str = Field(
-        description="URI of the item to get information about. "
-        + "If 'playlist' or 'album', returns its tracks. "
-        + "If 'artist', returns albums and top tracks."
-    )
-    # qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
-    #                                                 )
-
-
-class Search(ToolModel):
-    """Search for tracks, albums, artists, or playlists on Spotify."""
-
-    query: str = Field(description="query term")
-    qtype: Optional[str] = Field(
-        default="track",
-        description="Type of items to search for (track, album, artist, playlist, " + "or comma-separated combination)",
-    )
-    limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
-
-
-class CreatePlaylist(ToolModel):
-    """Create a new Spotify playlist."""
-
-    name: str = Field(description="Name of the playlist to create")
-    public: Optional[bool] = Field(default=False, description="Whether the playlist should be public (default is private)")
-    description: Optional[str] = Field(default="", description="Description for the playlist")
-
-
-class AddTracksToPlaylist(ToolModel):
-    """Tool for adding tracks to a specified playlist"""
-
-    playlist_id: str = Field(description="ID of the playlist to add tracks to")
-    track_ids: list[str] = Field(description="List of track IDs to add (up to 100)")
-    position: Optional[int] = Field(default=None, description="Position to insert tracks (optional, default is end)")
-
-
-class AddTrackToLikedSongs(ToolModel):
-    """Add a track to the user's Liked Songs (library)."""
-
-    track_id: str = Field(description="ID of the track to add to liked songs")
-
-
-@server.list_prompts()
-async def handle_list_prompts() -> list[types.Prompt]:
-    return []
-
-
-@server.list_resources()
-async def handle_list_resources() -> list[types.Resource]:
-    return []
-
-
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    """List available tools."""
-    logger.info("Listing available tools")
-    # await server.request_context.session.send_notification("are you recieving this notification?")
-    tools = [
-        Playback.as_tool(),
-        Search.as_tool(),
-        Queue.as_tool(),
-        GetInfo.as_tool(),
-        CreatePlaylist.as_tool(),
-        AddTracksToPlaylist.as_tool(),
-        AddTrackToLikedSongs.as_tool(),
-    ]
-    logger.info(f"Available tools: {[tool.name for tool in tools]}")
-    return tools
-
-
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-    """Handle tool execution requests."""
-    logger.info(f"Tool called: {name} with arguments: {arguments}")
-    assert name[:7] == "Spotify", f"Unknown tool: {name}"
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_playback",
+    description="Manages the current playback with actions: get (current track info), start (play new item or resume), pause, skip",
+    toolProperties=playback_properties_json,
+)
+def spotify_playback(context) -> str:
+    """Handle Spotify playback control."""
     try:
-        match name[7:]:
-            case "Playback":
-                action = arguments.get("action")
-                match action:
-                    case "get":
-                        logger.info("Attempting to get current track")
-                        curr_track = spotify_client.get_current_track()
-                        if curr_track:
-                            logger.info(f"Current track retrieved: {curr_track.get('name', 'Unknown')}")
-                            return [types.TextContent(type="text", text=json.dumps(curr_track, indent=2))]
-                        logger.info("No track currently playing")
-                        return [types.TextContent(type="text", text="No track playing.")]
-                    case "start":
-                        logger.info(f"Starting playback with arguments: {arguments}")
-                        spotify_client.start_playback(spotify_uri=arguments.get("spotify_uri"))
-                        logger.info("Playback started successfully")
-                        return [types.TextContent(type="text", text="Playback starting.")]
-                    case "pause":
-                        logger.info("Attempting to pause playback")
-                        spotify_client.pause_playback()
-                        logger.info("Playback paused successfully")
-                        return [types.TextContent(type="text", text="Playback paused.")]
-                    case "skip":
-                        num_skips = int(arguments.get("num_skips", 1))
-                        logger.info(f"Skipping {num_skips} tracks.")
-                        spotify_client.skip_track(n=num_skips)
-                        return [types.TextContent(type="text", text="Skipped to next track.")]
-
-            case "Search":
-                logger.info(f"Performing search with arguments: {arguments}")
-                search_results = spotify_client.search(
-                    query=arguments.get("query", ""), qtype=arguments.get("qtype", "track"), limit=arguments.get("limit", 10)
-                )
-                logger.info("Search completed successfully.")
-                return [types.TextContent(type="text", text=json.dumps(search_results, indent=2))]
-
-            case "Queue":
-                logger.info(f"Queue operation with arguments: {arguments}")
-                action = arguments.get("action")
-
-                match action:
-                    case "add":
-                        track_id = arguments.get("track_id")
-                        if not track_id:
-                            logger.error("track_id is required for add to queue.")
-                            return [types.TextContent(type="text", text="track_id is required for add action")]
-                        spotify_client.add_to_queue(track_id)
-                        return [types.TextContent(type="text", text="Track added to queue.")]
-
-                    case "get":
-                        queue = spotify_client.get_queue()
-                        return [types.TextContent(type="text", text=json.dumps(queue, indent=2))]
-
-                    case _:
-                        return [
-                            types.TextContent(
-                                type="text",
-                                text=f"Unknown queue action: {action}. Supported actions are: add, remove, and get.",
-                            )
-                        ]
-
-            case "GetInfo":
-                logger.info(f"Getting item info with arguments: {arguments}")
-                item_info = spotify_client.get_info(item_uri=arguments.get("item_uri"))
-                return [types.TextContent(type="text", text=json.dumps(item_info, indent=2))]
-
-            case "CreatePlaylist":
-                logger.info(f"Creating playlist with arguments: {arguments}")
-                playlist = spotify_client.create_playlist(
-                    name=arguments.get("name"),
-                    public=arguments.get("public", False),
-                    description=arguments.get("description", ""),
-                )
-                return [types.TextContent(type="text", text=json.dumps(playlist, indent=2))]
-
-            case "AddTracksToPlaylist":
-                logger.info(f"Adding tracks to playlist with arguments: {arguments}")
-                playlist_id = arguments.get("playlist_id")
-                track_ids = arguments.get("track_ids")
-                position = arguments.get("position")
-                result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=track_ids, position=position)
-                return [types.TextContent(type="text", text=f"トラック追加完了！: {result}")]
-
-            case "AddTrackToLikedSongs":
-                logger.info(f"Adding track to liked songs with arguments: {arguments}")
-                track_id = arguments.get("track_id")
-                result = spotify_client.add_track_to_liked_songs(track_id=track_id)
-                return [types.TextContent(type="text", text=f"Added to liked songs! {result}")]
-
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        action = arguments.get("action")
+        
+        logger.info(f"Spotify playback called with action: {action}")
+        
+        match action:
+            case "get":
+                logger.info("Attempting to get current track")
+                curr_track = spotify_client.get_current_track()
+                if curr_track:
+                    logger.info(f"Current track retrieved: {curr_track.get('name', 'Unknown')}")
+                    return json.dumps(curr_track, indent=2)
+                logger.info("No track currently playing")
+                return "No track playing."
+                
+            case "start":
+                logger.info(f"Starting playback with arguments: {arguments}")
+                spotify_client.start_playback(spotify_uri=arguments.get("spotify_uri"))
+                logger.info("Playback started successfully")
+                return "Playback starting."
+                
+            case "pause":
+                logger.info("Attempting to pause playback")
+                spotify_client.pause_playback()
+                logger.info("Playback paused successfully")
+                return "Playback paused."
+                
+            case "skip":
+                num_skips = int(arguments.get("num_skips", 1))
+                logger.info(f"Skipping {num_skips} tracks.")
+                spotify_client.skip_track(n=num_skips)
+                return "Skipped to next track."
+                
             case _:
-                error_msg = f"Unknown tool: {name}"
-                logger.error(error_msg)
-                return [types.TextContent(type="text", text=error_msg)]
+                return f"Unknown playback action: {action}. Supported actions are: get, start, pause, skip."
+                
     except SpotifyException as se:
         error_msg = f"Spotify Client error occurred: {str(se)}"
         logger.error(error_msg)
-        return [types.TextContent(type="text", text=f"An error occurred with the Spotify Client: {str(se)}")]
+        return f"An error occurred with the Spotify Client: {str(se)}"
     except Exception as e:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
-        return [types.TextContent(type="text", text=error_msg)]
+        return "An internal server error occurred. Please try again later."
 
 
-async def main():
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_search",
+    description="Search for tracks, albums, artists, or playlists on Spotify",
+    toolProperties=search_properties_json,
+)
+def spotify_search(context) -> str:
+    """Handle Spotify search."""
     try:
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream, server.create_initialization_options())
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        
+        logger.info(f"Performing search with arguments: {arguments}")
+        search_results = spotify_client.search(
+            query=arguments.get("query", ""),
+            qtype=arguments.get("qtype", "track"),
+            limit=arguments.get("limit", 10)
+        )
+        logger.info("Search completed successfully.")
+        return json.dumps(search_results, indent=2)
+        
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
     except Exception as e:
-        logger.error(f"Server error occurred: {str(e)}")
-        raise
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_queue",
+    description="Manage the playback queue - get the queue or add tracks",
+    toolProperties=queue_properties_json,
+)
+def spotify_queue(context) -> str:
+    """Handle Spotify queue management."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        action = arguments.get("action")
+        
+        logger.info(f"Queue operation with arguments: {arguments}")
+        
+        match action:
+            case "add":
+                track_id = arguments.get("track_id")
+                if not track_id:
+                    logger.error("track_id is required for add to queue.")
+                    return "track_id is required for add action"
+                spotify_client.add_to_queue(track_id)
+                return "Track added to queue."
+                
+            case "get":
+                queue = spotify_client.get_queue()
+                return json.dumps(queue, indent=2)
+                
+            case _:
+                return f"Unknown queue action: {action}. Supported actions are: add, get."
+                
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_get_info",
+    description="Get detailed information about a Spotify item (track, album, artist, or playlist)",
+    toolProperties=get_info_properties_json,
+)
+def spotify_get_info(context) -> str:
+    """Handle getting detailed Spotify item information."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        
+        logger.info(f"Getting item info with arguments: {arguments}")
+        item_info = spotify_client.get_info(item_uri=arguments.get("item_uri"))
+        return json.dumps(item_info, indent=2)
+        
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_create_playlist",
+    description="Create a new Spotify playlist",
+    toolProperties=create_playlist_properties_json,
+)
+def spotify_create_playlist(context) -> str:
+    """Handle creating a new Spotify playlist."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        
+        logger.info(f"Creating playlist with arguments: {arguments}")
+        playlist = spotify_client.create_playlist(
+            name=arguments.get("name"),
+            public=arguments.get("public", False),
+            description=arguments.get("description", ""),
+        )
+        return json.dumps(playlist, indent=2)
+        
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_add_tracks_to_playlist",
+    description="Add tracks to a specified playlist",
+    toolProperties=add_tracks_to_playlist_properties_json,
+)
+def spotify_add_tracks_to_playlist(context) -> str:
+    """Handle adding tracks to a playlist."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        
+        logger.info(f"Adding tracks to playlist with arguments: {arguments}")
+        playlist_id = arguments.get("playlist_id")
+        track_ids = arguments.get("track_ids")
+        position = arguments.get("position")
+        result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=track_ids, position=position)
+        return f"トラック追加完了！: {result}"
+        
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_add_track_to_liked_songs",
+    description="Add a track to the user's Liked Songs (library)",
+    toolProperties=add_track_to_liked_songs_properties_json,
+)
+def spotify_add_track_to_liked_songs(context) -> str:
+    """Handle adding a track to liked songs."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        
+        logger.info(f"Adding track to liked songs with arguments: {arguments}")
+        track_id = arguments.get("track_id")
+        result = spotify_client.add_track_to_liked_songs(track_id=track_id)
+        return f"Added to liked songs! {result}"
+        
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
