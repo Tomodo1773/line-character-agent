@@ -3,17 +3,17 @@ import os
 from typing import Dict, List, Optional
 
 import spotipy
+import utils
 from dotenv import load_dotenv
 from spotipy.cache_handler import CacheHandler
 from spotipy.oauth2 import SpotifyOAuth
-
-import utils
 
 load_dotenv()
 
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
+REFRESH_TOKEN = os.getenv("SPOTIFY_REFRESH_TOKEN")
 
 
 class MemoryCacheHandler(CacheHandler):
@@ -21,16 +21,18 @@ class MemoryCacheHandler(CacheHandler):
     In-memory cache handler for Azure Functions environment.
     Stores tokens in memory instead of files.
     """
+
     def __init__(self, token_cache):
         self.token_cache = token_cache
 
     def get_cached_token(self):
         """Get token from memory cache."""
-        return self.token_cache.get('token')
+        return self.token_cache.get("token")
 
     def save_token_to_cache(self, token_info):
         """Save token to memory cache."""
-        self.token_cache['token'] = token_info
+        self.token_cache["token"] = token_info
+
 
 print(f"CLIENT_ID: {CLIENT_ID}")
 SCOPES = [
@@ -61,23 +63,22 @@ class Client:
         # Required scopes for playlist creation, playback control, and library modification
         scope = ",".join(SCOPES)
 
-        try:
-            # Use memory cache handler for Azure Functions
-            cache_handler = MemoryCacheHandler(self.token_cache)
-            
-            self.auth_manager = SpotifyOAuth(
-                scope=scope, 
-                client_id=CLIENT_ID, 
-                client_secret=CLIENT_SECRET, 
-                redirect_uri=REDIRECT_URI,
-                cache_handler=cache_handler
-            )
-            
-            self.sp = spotipy.Spotify(auth_manager=self.auth_manager)
-            self.cache_handler = cache_handler
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Spotify client: {str(e)}")
-            raise
+        # Use memory cache handler for Azure Functions
+        cache_handler = MemoryCacheHandler(self.token_cache)
+        self.cache_handler = cache_handler
+        self.auth_manager = SpotifyOAuth(
+            scope=scope,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            redirect_uri=REDIRECT_URI,
+            cache_handler=cache_handler,
+        )
+        # --- ここからリフレッシュトークン対応 ---
+        if REFRESH_TOKEN:
+            # すでにリフレッシュトークンがある場合は、アクセストークンを取得してキャッシュ
+            token_info = self.auth_manager.refresh_access_token(REFRESH_TOKEN)
+            self.cache_handler.save_token_to_cache(token_info)
+        self.sp = spotipy.Spotify(auth_manager=self.auth_manager)
 
         self.username = None
 

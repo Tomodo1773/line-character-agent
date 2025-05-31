@@ -36,7 +36,6 @@ param clientAffinityEnabled bool = false
 param functionAppScaleLimit int = -1
 param minimumElasticInstanceCount int = -1
 param numberOfWorkers int = -1
-param use32BitWorkerProcess bool = false
 param healthCheckPath string = ''
 
 param functionAppContainer string = ''
@@ -69,7 +68,6 @@ module functions '../core/host/function.bicep' = {
     numberOfWorkers: numberOfWorkers
     runtimeName: runtimeName
     runtimeVersion: runtimeVersion
-    use32BitWorkerProcess: use32BitWorkerProcess
     functionAppContainer: functionAppContainer
   }
 }

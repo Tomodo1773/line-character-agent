@@ -202,7 +202,7 @@ module functionApp 'app/func.bicep' = {
 }
 
 module mcpFunctionApp 'app/mcp.bicep' = {
-  name: 'mcp-function'
+  name: 'mcp'
   scope: rg
   params: {
     name: '${abbrs.webSitesFunctions}mcp-${resourceToken}'
@@ -213,7 +213,8 @@ module mcpFunctionApp 'app/mcp.bicep' = {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
       SPOTIFY_CLIENT_ID: funcappSettings.SPOTIFY_CLIENT_ID
       SPOTIFY_CLIENT_SECRET: funcappSettings.SPOTIFY_CLIENT_SECRET
-      SPOTIFY_REDIRECT_URI: funcappSettings.SPOTIFY_REDIRECT_URI
+      SPOTIFY_REDIRECT_URI: 'https://${abbrs.webSitesFunctions}mcp-${resourceToken}'
+      SPOTIFY_REFRESH_TOKEN: funcappSettings.SPOTIFY_REFRESH_TOKEN
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
