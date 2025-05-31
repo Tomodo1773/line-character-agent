@@ -2,6 +2,7 @@ import json
 import logging
 import sys
 from typing import Optional
+import urllib.parse
 
 import azure.functions as func
 from spotipy import SpotifyException
@@ -10,6 +11,8 @@ from spotify_api import Client
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
+# In-memory token storage (simple approach for demo)
+_access_token_cache = {}
 
 def setup_logger():
     class Logger:
@@ -23,7 +26,7 @@ def setup_logger():
 
 
 logger = setup_logger()
-spotify_client = Client(logger)
+spotify_client = Client(logger, _access_token_cache)
 
 
 class ToolProperty:
@@ -145,6 +148,104 @@ def spotify_playback(context) -> str:
         return "An internal server error occurred. Please try again later."
 
 
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )
+
+
+@app.route(route="spotify_auth_status", auth_level=func.AuthLevel.FUNCTION)
+def spotify_auth_status(req: func.HttpRequest) -> func.HttpResponse:
+    """Check Spotify authentication status."""
+    try:
+        is_authenticated = spotify_client.auth_ok()
+        logger.info(f"Auth status check: {is_authenticated}")
+        
+        return func.HttpResponse(
+            json.dumps({
+                "authenticated": is_authenticated,
+                "auth_url": f"{req.url.replace('/spotify_auth_status', '/spotify_auth')}" if not is_authenticated else None
+            }),
+            status_code=200,
+            mimetype="application/json"
+        )
+    except Exception as e:
+        logger.error(f"Error checking auth status: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"error": "認証状態の確認でエラーが発生しました"}),
+            status_code=500,
+            mimetype="application/json"
+        )
+
+
 @app.generic_trigger(
     arg_name="context",
     type="mcpToolTrigger",
@@ -175,6 +276,80 @@ def spotify_search(context) -> str:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
         return "An internal server error occurred. Please try again later."
+
+
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )
 
 
 @app.generic_trigger(
@@ -219,6 +394,80 @@ def spotify_queue(context) -> str:
         return "An internal server error occurred. Please try again later."
 
 
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )
+
+
 @app.generic_trigger(
     arg_name="context",
     type="mcpToolTrigger",
@@ -244,6 +493,80 @@ def spotify_get_info(context) -> str:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
         return "An internal server error occurred. Please try again later."
+
+
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )
 
 
 @app.generic_trigger(
@@ -277,6 +600,80 @@ def spotify_create_playlist(context) -> str:
         return "An internal server error occurred. Please try again later."
 
 
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )
+
+
 @app.generic_trigger(
     arg_name="context",
     type="mcpToolTrigger",
@@ -307,6 +704,80 @@ def spotify_add_tracks_to_playlist(context) -> str:
         return "An internal server error occurred. Please try again later."
 
 
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )
+
+
 @app.generic_trigger(
     arg_name="context",
     type="mcpToolTrigger",
@@ -333,3 +804,77 @@ def spotify_add_track_to_liked_songs(context) -> str:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
         return "An internal server error occurred. Please try again later."
+
+
+@app.route(route="spotify_auth", auth_level=func.AuthLevel.ANONYMOUS)
+def spotify_auth(req: func.HttpRequest) -> func.HttpResponse:
+    """Handle Spotify OAuth authentication flow."""
+    try:
+        # Check if this is a callback with authorization code
+        code = req.params.get('code')
+        error = req.params.get('error')
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return func.HttpResponse(
+                f"認証エラー: {error}",
+                status_code=400,
+                mimetype="text/html; charset=utf-8"
+            )
+        
+        if code:
+            # Handle callback - exchange code for token
+            try:
+                logger.info("Handling OAuth callback with authorization code")
+                token_info = spotify_client.auth_manager.get_access_token(code)
+                
+                # Store token in memory cache
+                _access_token_cache['token'] = token_info
+                logger.info("OAuth token successfully stored in memory cache")
+                
+                return func.HttpResponse(
+                    """
+                    <html>
+                    <body>
+                        <h2>Spotify認証完了！</h2>
+                        <p>認証が正常に完了しました。このウィンドウを閉じてください。</p>
+                        <script>window.close();</script>
+                    </body>
+                    </html>
+                    """,
+                    status_code=200,
+                    mimetype="text/html; charset=utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Error exchanging authorization code: {str(e)}")
+                return func.HttpResponse(
+                    f"トークン交換エラー: {str(e)}",
+                    status_code=400,
+                    mimetype="text/html; charset=utf-8"
+                )
+        else:
+            # Generate authorization URL
+            logger.info("Generating Spotify authorization URL")
+            auth_url = spotify_client.auth_manager.get_authorize_url()
+            
+            return func.HttpResponse(
+                f"""
+                <html>
+                <body>
+                    <h2>Spotify認証</h2>
+                    <p>以下のリンクをクリックしてSpotifyにログインしてください：</p>
+                    <a href="{auth_url}" target="_blank">Spotifyで認証</a>
+                    <p>認証後、自動的にリダイレクトされます。</p>
+                </body>
+                </html>
+                """,
+                status_code=200,
+                mimetype="text/html; charset=utf-8"
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error in spotify_auth: {str(e)}")
+        return func.HttpResponse(
+            "認証処理でエラーが発生しました。",
+            status_code=500,
+            mimetype="text/html; charset=utf-8"
+        )

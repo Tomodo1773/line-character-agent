@@ -1,132 +1,134 @@
-# MCP Azure Function
+# MCP Spotify Azure Function
 
-This Azure Function provides a sample implementation for Spotify integration using the Model Context Protocol (MCP).
+This Azure Function provides Spotify integration using the Model Context Protocol (MCP) with OAuth authentication support.
 
 ## Features
 
-- **Playlist Management**: Get user playlists and create new ones
-- **Track Search**: Search for tracks by query
-- **Daily Sync**: Timer-triggered function for daily Spotify data synchronization
+- **OAuth Authentication**: Complete Spotify OAuth flow for remote environments
+- **Playback Control**: Get current track, start/pause/skip playback
+- **Search**: Search for tracks, albums, artists, and playlists
+- **Queue Management**: Add tracks to queue and view current queue
+- **Playlist Management**: Create playlists and add tracks
+- **Library Management**: Add tracks to liked songs
+- **Track Information**: Get detailed track/album/artist/playlist information
 
-## Endpoints
+## Authentication
 
-### GET /api/playlists
-Returns a list of user playlists.
+### OAuth Authentication Endpoints
+
+#### GET /api/spotify_auth
+Initiates or handles the Spotify OAuth authentication flow.
+
+**初回アクセス (Initial Access):**
+- Returns HTML page with Spotify login link
+- User clicks link to authenticate with Spotify
+- After authentication, user is redirected back to this endpoint
+
+**コールバック (Callback):**
+- Receives authorization code from Spotify
+- Exchanges code for access token
+- Stores token in memory for MCP tools to use
+- Returns success page
+
+#### GET /api/spotify_auth_status
+Check current authentication status.
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "data": [
-    {
-      "id": "37i9dQZF1DX0XUsuxWHRQd",
-      "name": "RapCaviar",
-      "description": "New music from hip-hop's finest",
-      "external_urls": {
-        "spotify": "https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd"
-      },
-      "tracks": {
-        "total": 50
-      }
-    }
-  ]
+  "authenticated": true,
+  "auth_url": null
 }
 ```
 
-### GET /api/search?q={query}
-Search for tracks by query parameter.
+or
+
+```json
+{
+  "authenticated": false,
+  "auth_url": "https://your-function.azurewebsites.net/api/spotify_auth"
+}
+```
+
+### Setup Instructions
+
+1. **Spotify Developer Console Settings:**
+   - Redirect URI: `https://your-function.azurewebsites.net/api/spotify_auth`
+   
+2. **Environment Variables:**
+   - `SPOTIFY_CLIENT_ID`: Your Spotify app client ID
+   - `SPOTIFY_CLIENT_SECRET`: Your Spotify app client secret  
+   - `SPOTIFY_REDIRECT_URI`: `https://your-function.azurewebsites.net/api/spotify_auth`
+
+3. **Authentication Flow:**
+   - Navigate to `/api/spotify_auth` in browser
+   - Click the Spotify authentication link
+   - Complete Spotify login
+   - Token will be stored for MCP tools
+
+## MCP Tools
+
+The following MCP tools are available via the `mcpToolTrigger` system:
+
+### spotify_playback
+Manages the current playback with actions: get, start, pause, skip
 
 **Parameters:**
-- `q` (required): Search query string
+- `action` (string): Action to perform: 'get', 'start', 'pause' or 'skip'
+- `spotify_uri` (string, optional): Spotify URI for 'start' action
+- `num_skips` (number, optional): Number of tracks to skip for 'skip' action (default: 1)
 
-**Response:**
-```json
-{
-  "status": "success",
-  "query": "your search query",
-  "data": [
-    {
-      "id": "4iV5W9uYEdYUVa79Axb7Rh",
-      "name": "Sample Track for 'your search query'",
-      "artists": [
-        {
-          "id": "1uNFoZAHBGtllmzznpCI3s",
-          "name": "Sample Artist"
-        }
-      ],
-      "album": {
-        "id": "4aawyAB9vmqN3uQ7FjRGTy",
-        "name": "Sample Album"
-      },
-      "duration_ms": 240000,
-      "external_urls": {
-        "spotify": "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh"
-      }
-    }
-  ]
-}
-```
+### spotify_search
+Search for tracks, albums, artists, or playlists on Spotify
 
-### POST /api/playlists
-Create a new playlist.
+**Parameters:**
+- `query` (string): Search query term
+- `qtype` (string, optional): Type to search for - track, album, artist, playlist (default: track)
+- `limit` (number, optional): Maximum number of items to return (default: 10)
 
-**Request Body:**
-```json
-{
-  "name": "My New Playlist",
-  "description": "Optional description"
-}
-```
+### spotify_queue
+Manage the playback queue - get the queue or add tracks
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Playlist 'My New Playlist' created successfully",
-  "data": {
-    "id": "37i9dQZF1DX0XUsuxWHRQd",
-    "name": "My New Playlist",
-    "description": "Optional description",
-    "external_urls": {
-      "spotify": "https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd"
-    },
-    "tracks": {
-      "total": 0
-    },
-    "created": true
-  }
-}
-```
+**Parameters:**
+- `action` (string): Action to perform: 'add' or 'get'
+- `track_id` (string): Track ID to add to queue (required for add action)
 
-## Timer Function
+### spotify_get_info
+Get detailed information about a Spotify item (track, album, artist, or playlist)
 
-The `daily_spotify_sync` function runs daily at midnight (UTC) and can be used for:
-- Synchronizing playlist data
-- Analyzing music trends
-- Updating recommendations
-- Backing up user data
+**Parameters:**
+- `item_uri` (string): URI of the item to get information about
 
-## Environment Variables
+### spotify_create_playlist
+Create a new Spotify playlist
 
-The following environment variables need to be configured:
+**Parameters:**
+- `name` (string): Name of the playlist to create
+- `public` (boolean, optional): Whether the playlist should be public (default: false)
+- `description` (string, optional): Description for the playlist
 
-- `SPOTIFY_CLIENT_ID`: Your Spotify app client ID
-- `SPOTIFY_CLIENT_SECRET`: Your Spotify app client secret
-- `SPOTIFY_REDIRECT_URI`: Your Spotify app redirect URI
+### spotify_add_tracks_to_playlist
+Add tracks to a specified playlist
 
-## Development
+**Parameters:**
+- `playlist_id` (string): ID of the playlist to add tracks to
+- `track_ids` (array): List of track IDs to add (up to 100)
+- `position` (number, optional): Position to insert tracks (default: end)
 
-This is sample code that provides the basic structure for a Spotify MCP integration. To implement real Spotify functionality, you would need to:
+### spotify_add_track_to_liked_songs
+Add a track to the user's Liked Songs (library)
 
-1. Register your application with Spotify Developer Dashboard
-2. Implement OAuth2 authentication flow
-3. Use the Spotify Web API to interact with real data
-4. Add proper error handling and validation
-5. Implement user session management
+**Parameters:**
+- `track_id` (string): ID of the track to add to liked songs
+
+## Token Management
+
+- **Memory Storage**: Tokens are stored in memory for simplicity
+- **Auto Re-authentication**: Functions restart will require re-authentication
+- **Security**: Tokens are not persisted to disk or database
 
 ## Dependencies
 
 - `azure-functions`: Azure Functions Python SDK
-- `requests`: HTTP library for API calls
-- `azure-identity`: Azure authentication
-- `spotipy`: Spotify Web API Python library (for future implementation)
+- `spotipy`: Spotify Web API Python library
+- `python-dotenv`: Environment variable management
