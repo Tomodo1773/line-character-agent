@@ -29,8 +29,6 @@ param clientAffinityEnabled bool = false
 param functionAppScaleLimit int = -1
 param minimumElasticInstanceCount int = -1
 param numberOfWorkers int = -1
-param use32BitWorkerProcess bool = false
-param ftpsState string = 'FtpsOnly'
 param healthCheckPath string = ''
 
 param maximumInstanceCount int = 100
@@ -47,12 +45,10 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: appServicePlanId
     siteConfig: {
       alwaysOn: alwaysOn
-      ftpsState: ftpsState
       minTlsVersion: '1.2'
       appCommandLine: appCommandLine
       numberOfWorkers: numberOfWorkers != -1 ? numberOfWorkers : null
       minimumElasticInstanceCount: minimumElasticInstanceCount != -1 ? minimumElasticInstanceCount : null
-      use32BitWorkerProcess: use32BitWorkerProcess
       functionAppScaleLimit: functionAppScaleLimit != -1 ? functionAppScaleLimit : null
       healthCheckPath: healthCheckPath
       cors: {

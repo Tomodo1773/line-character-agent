@@ -1,4 +1,4 @@
-metadata description = 'Creates an Azure Function in an existing Azure App Service plan.'
+metadata description = 'Creates an Azure Function for MCP in an existing Azure App Service plan.'
 param name string
 param location string = resourceGroup().location
 param tags object = {}
@@ -40,7 +40,7 @@ param healthCheckPath string = ''
 
 param functionAppContainer string = ''
 
-param serviceName string = 'func'
+param serviceName string = 'mcp'
 
 module functions '../core/host/function.bicep' = {
   name: '${name}-functions'
