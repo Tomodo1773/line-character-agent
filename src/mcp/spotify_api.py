@@ -238,7 +238,7 @@ class Client:
         """
         self.logger.info(f"Adding track {track_id} to liked songs.")
         result = self.sp.current_user_saved_tracks_add(tracks=[track_id])
-        self.logger.info(f"Add to liked songs result: {result}")
+        self.logger.info("Add to liked songs result")
         return result
 
     def is_track_playing(self) -> bool:
