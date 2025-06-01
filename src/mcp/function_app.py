@@ -74,7 +74,7 @@ create_playlist_properties = [
 
 add_tracks_to_playlist_properties = [
     ToolProperty("playlist_id", "string", "ID of the playlist to add tracks to"),
-    ToolProperty("track_ids", "array", "List of track IDs to add (up to 100)"),
+    ToolProperty("track_id", "string", "ID of the track to add to the playlist"),
     ToolProperty("position", "number", "Position to insert tracks (optional, default is end)"),
 ]
 
@@ -292,11 +292,12 @@ def spotify_add_tracks_to_playlist(context) -> str:
         content = json.loads(context)
         arguments = content.get("arguments", {})
 
-        logger.info(f"Adding tracks to playlist with arguments: {arguments}")
+        logger.info(f"Adding track to playlist with arguments: {arguments}")
         playlist_id = arguments.get("playlist_id")
-        track_ids = arguments.get("track_ids")
+        track_id = arguments.get("track_id")
         position = arguments.get("position")
-        result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=track_ids, position=position)
+        # track_idをリストにして渡す（API互換のため）
+        result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=[track_id], position=position)
         return f"トラック追加完了！: {result}"
 
     except SpotifyException as se:
