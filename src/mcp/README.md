@@ -58,7 +58,6 @@ or
 2. **Environment Variables:**
    - `SPOTIFY_CLIENT_ID`: Your Spotify app client ID
    - `SPOTIFY_CLIENT_SECRET`: Your Spotify app client secret  
-   - `SPOTIFY_REDIRECT_URI`: `https://your-function.azurewebsites.net/api/spotify_auth`
 
 3. **Authentication Flow:**
    - Navigate to `/api/spotify_auth` in browser

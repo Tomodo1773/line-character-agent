@@ -11,6 +11,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
@@ -116,7 +117,7 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
 
 
-def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot"]]:
+def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot", "spotify_agent"]]:
     """
     現在の状態に基づいて次に遷移するノードを決定します。
     Args:
@@ -125,25 +126,24 @@ def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot"
         Command: 次に遷移するノード。
     """
     logger.info("--- Router Node ---")
-    # prompt = get_prompt("tomodo1773/character-agent-router")
+    prompt = get_prompt("tomodo1773/character-agent-router")
 
-    # class Router(TypedDict):
-    #     """Worker to route to next. If no workers needed, route to FINISH."""
+    class Router(TypedDict):
+        """Worker to route to next. If no workers needed, route to FINISH."""
 
-    #     next: Literal["web_searcher", "diary_searcher", "FINISH"]
+        next: Literal["spotify_agent", "diary_searcher", "FINISH"]
 
-    # llm = ChatOpenAI(temperature=0, model="gpt-4o")
-    # structured_llm = llm.with_structured_output(Router)
-    # chain = prompt | structured_llm
-    # response = chain.invoke({"messages": state["messages"]})
-    # goto = response["next"]
-    # if goto == "FINISH":
-    #     goto = "chatbot"
-    # elif goto == "diary_searcher":
-    #     goto = "create_diary_query"
+    llm = ChatOpenAI(temperature=0, model="gpt-4.1")
+    structured_llm = llm.with_structured_output(Router)
+    chain = prompt | structured_llm
+    response = chain.invoke({"messages": state["messages"]})
+    goto = response["next"]
+    if goto == "FINISH":
+        goto = "chatbot"
+    elif goto == "diary_searcher":
+        goto = "create_diary_query"
 
-    # return Command(goto=goto)
-    return Command(goto="chatbot")
+    return Command(goto=goto)
 
 
 async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
@@ -167,16 +167,7 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     )
 
     llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
-
-    # 既存のツール
-    existing_tools = [{"type": "web_search_preview"}]
-
-    # MCPツールを取得
-    mcp_tools = await get_mcp_tools()
-
-    # 全てのツールを結合
-    all_tools = existing_tools + mcp_tools
-    llm_with_tools = llm.bind_tools(all_tools)
+    llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
 
     chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
     content = await chatbot_chain.ainvoke({"messages": state["messages"], "documents": state.get("documents", [])})
@@ -184,6 +175,31 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     return Command(
         goto="__end__",
         update={"messages": [AIMessage(content=content)]},
+    )
+
+
+async def spotify_agent_node(state: State) -> Command[Literal["chatbot"]]:
+    """
+    Spotify関連のリクエストに対してMCPツールを使って応答を生成するノード。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: Chatbotへの遷移＆AIの応答メッセージ
+    """
+    logger.info("--- Spotify Agent Node ---")
+    prompt = "ユーザからの問いかけにしたがって最適なspotifyの処理をしてください。"
+    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+    # MCPツール取得
+    mcp_tools = await get_mcp_tools()
+    agent = create_react_agent(
+        llm,
+        tools=mcp_tools,
+        prompt=prompt,
+    )
+    content = await agent.ainvoke({"messages": state["messages"], "documents": state.get("documents", [])})
+    return Command(
+        goto="chatbot",
+        update={"messages": [AIMessage(content=content["messages"][-1].content)]},
     )
 
 
@@ -225,6 +241,8 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 class ChatbotAgent:
+    RECURSION_LIMIT = 8
+
     def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
         global _cached
@@ -240,32 +258,30 @@ class ChatbotAgent:
         graph_builder.add_node("get_user_profile", get_user_profile_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
+        graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)
         self.graph = graph_builder.compile()
 
     async def ainvoke(self, messages: list, userid: str):
-        recursion_limit = 8
-        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
+        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": self.RECURSION_LIMIT})
 
     async def astream(self, messages: list, userid: str):
-        recursion_limit = 8
         async for msg, metadata in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": recursion_limit},
+            {"recursion_limit": self.RECURSION_LIMIT},
             stream_mode="messages",
             # stream_mode=["messages", "values"],
         ):
             yield msg, metadata
 
-    async def astream_events(self, messages: list, userid: str):
-        recursion_limit = 8
-        async for event in self.graph.astream_events(
+    async def astream_updates(self, messages: list, userid: str):
+        async for msg in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": recursion_limit},
-            version="v1",
+            {"recursion_limit": self.RECURSION_LIMIT},
+            stream_mode="updates",
         ):
-            yield event
+            yield msg
 
     def create_image(self):
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
@@ -315,15 +331,17 @@ if __name__ == "__main__":
             # print("Assistant:", response["messages"][-1].content)
 
             # astream(stream_mode=["messages"])
-            async for msg, metadata in agent_graph.astream(messages=history, userid=userid):
-                # print(f"msg: {msg}")
-                # print(f"metadata: {metadata}")
-                if msg.content and not isinstance(msg, HumanMessage):
-                    print(msg.content, end="", flush=True)
+            # async for msg in agent_graph.astream(messages=history, userid=userid, stream_mode="updates"):
+            # print(f"msg: {msg}")
+            # print("\n")
+            # print(f"metadata: {metadata}")
+            # if msg.content and not isinstance(msg, HumanMessage):
+            # print(msg.content, end="", flush=True)
 
-            # astream_events
-            # async for msg in agent_graph.astream_events(messages=history, userid=userid):
-            # print(f"event: {msg}")
+            # astream_updates
+            async for msg in agent_graph.astream_updates(messages=history, userid=userid):
+                print(f"msg: {msg}")
+                print("\n")
 
             # print(event)
             # for value in event.values():

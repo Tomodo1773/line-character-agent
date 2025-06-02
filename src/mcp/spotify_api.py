@@ -12,7 +12,6 @@ load_dotenv()
 
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 REFRESH_TOKEN = os.getenv("SPOTIFY_REFRESH_TOKEN")
 
 
@@ -70,7 +69,6 @@ class Client:
             scope=scope,
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
-            redirect_uri=REDIRECT_URI,
             cache_handler=cache_handler,
         )
         # --- ここからリフレッシュトークン対応 ---
