@@ -7,6 +7,7 @@ from langchain import hub
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
@@ -43,6 +44,29 @@ class State(TypedDict):
 
 # グローバル変数
 _cached = {"profile": {}, "prompts": {}, "digest": {}}
+_mcp_client = None
+
+
+async def get_mcp_client():
+    """MCPクライアントのシングルトンインスタンスを取得"""
+    global _mcp_client
+    if _mcp_client is None:
+        # MCP serverの設定
+        connections = {"spotify": {"url": os.getenv("MCP_SPOTIFY_URL", "http://localhost:7000/mcp"), "transport": "sse"}}
+        _mcp_client = MultiServerMCPClient(connections)
+    return _mcp_client
+
+
+async def get_mcp_tools():
+    """MCPツールを取得"""
+    try:
+        client = await get_mcp_client()
+        tools = await client.get_tools()
+        logger.info(f"Retrieved {len(tools)} MCP tools")
+        return tools
+    except Exception as e:
+        logger.warning(f"Failed to retrieve MCP tools: {e}")
+        return []
 
 
 @traceable(run_type="prompt", name="Get Prompt")
@@ -122,7 +146,7 @@ def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot"
     return Command(goto="chatbot")
 
 
-def chatbot_node(state: State) -> Command[Literal["__end__"]]:
+async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     """
     ユーザーのメッセージに対して応答を生成します。必要に応じてWeb検索も実行します。
     Args:
@@ -143,11 +167,19 @@ def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     )
 
     llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
-    tool = {"type": "web_search_preview"}
-    llm_with_tools = llm.bind_tools([tool])
+
+    # 既存のツール
+    existing_tools = [{"type": "web_search_preview"}]
+
+    # MCPツールを取得
+    mcp_tools = await get_mcp_tools()
+
+    # 全てのツールを結合
+    all_tools = existing_tools + mcp_tools
+    llm_with_tools = llm.bind_tools(all_tools)
 
     chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
-    content = chatbot_chain.invoke({"messages": state["messages"], "documents": state.get("documents", [])})
+    content = await chatbot_chain.ainvoke({"messages": state["messages"], "documents": state.get("documents", [])})
 
     return Command(
         goto="__end__",
@@ -192,8 +224,6 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
     )
 
 
-
-
 class ChatbotAgent:
     def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
@@ -213,10 +243,6 @@ class ChatbotAgent:
         graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)
         self.graph = graph_builder.compile()
-
-    def invoke(self, messages: list, userid: str):
-        recursion_limit = 8
-        return self.graph.invoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
 
     async def ainvoke(self, messages: list, userid: str):
         recursion_limit = 8

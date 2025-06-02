@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 import time
@@ -80,8 +81,7 @@ async def callback(
     return "ok"
 
 
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_text(event):
+async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messennger = LineMessenger(event)
     cosmos = AgentRepository()
@@ -101,7 +101,7 @@ def handle_text(event):
 
     try:
         # LLMでレスポンスメッセージを作成
-        response = agent.invoke(messages=messages, userid=userid)
+        response = await agent.ainvoke(messages=messages, userid=userid)
         content = response["messages"][-1].content
         logger.info(f"Generated text response: {content}")
 
@@ -124,9 +124,17 @@ def handle_text(event):
 
     except Exception as e:
         # メッセージを返信
-        error_message = f"Error {e.status_code}: {e.detail}"
-        line_messennger.reply_message([error_message])
+        if hasattr(e, 'status_code') and hasattr(e, 'detail'):
+            error_message = f"Error {e.status_code}: {e.detail}"
+        else:
+            error_message = f"Error: {str(e)}"
+        line_messennger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
+
+
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_text(event):
+    asyncio.run(handle_text_async(event))
 
 
 @handler.add(MessageEvent, message=AudioMessageContent)

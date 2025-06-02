@@ -9,8 +9,6 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
-@description('Location for azure functions')
-param locationFunc string ='Australia East'
 
 param resourceGroupName string = ''
 
@@ -112,6 +110,8 @@ module AppService './app/api.bicep' = {
       AZURE_AI_SEARCH_API_KEY:appSettings.AZURE_AI_SEARCH_API_KEY
       NIJIVOICE_API_KEY:appSettings.NIJIVOICE_API_KEY
       DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
+      MCP_FUNCTION_SYSTEM_KEY: mcpFunctionApp.outputs.systemKey
+      MCP_FUNCTION_URL: mcpFunctionApp.outputs.uri
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
   }
@@ -139,11 +139,15 @@ module storageAccount 'core/storage/storage-account.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.storageStorageAccounts}${resourceToken}'
-    location: locationFunc
+    location: location
     tags: tags
     containers: [
       {
         name: 'app-package-${resourceToken}'
+        publicAccess: 'None'
+      }
+      {
+        name: 'app-package-mcp-${resourceToken}'
         publicAccess: 'None'
       }
       {
@@ -163,7 +167,7 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.webServerFarms}func-${resourceToken}'
-    location: locationFunc
+    location: location
     tags: tags
     sku: {
       name: 'FC1'
@@ -177,7 +181,7 @@ module functionApp 'app/func.bicep' = {
   scope: rg
   params: {
     name: '${abbrs.webSitesFunctions}${resourceToken}'
-    location: locationFunc
+    location: location
     tags: union(tags, { 'azd-service-name': 'func' })
     alwaysOn: false
     appSettings: {
@@ -199,11 +203,47 @@ module functionApp 'app/func.bicep' = {
   }
 }
 
+module mcpFunctionApp 'app/mcp.bicep' = {
+  name: 'mcp'
+  scope: rg
+  params: {
+    name: '${abbrs.webSitesFunctions}mcp-${resourceToken}'
+    location: location
+    tags: union(tags, { 'azd-service-name': 'mcp' })
+    alwaysOn: false
+    appSettings: {
+      AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
+      SPOTIFY_CLIENT_ID: funcappSettings.SPOTIFY_CLIENT_ID
+      SPOTIFY_CLIENT_SECRET: funcappSettings.SPOTIFY_CLIENT_SECRET
+      SPOTIFY_REDIRECT_URI: 'https://${abbrs.webSitesFunctions}mcp-${resourceToken}'
+      SPOTIFY_REFRESH_TOKEN: funcappSettings.SPOTIFY_REFRESH_TOKEN
+    }
+    applicationInsightsName: monitoring.outputs.applicationInsightsName
+    appServicePlanId: appServicePlan.outputs.id
+    runtimeName: 'python'
+    runtimeVersion: '3.11'
+    storageAccountName: storageAccount.outputs.name
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-mcp-${resourceToken}'
+    functionAppScaleLimit: 100
+    minimumElasticInstanceCount: 0
+  }
+}
+
 module diagnostics 'core/host/app-diagnostics.bicep' = {
   name: 'functions-diagnostics'
   scope: rg
   params: {
     appName: functionApp.outputs.name
+    kind: 'functionapp'
+    diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+  }
+}
+
+module mcpDiagnostics 'core/host/app-diagnostics.bicep' = {
+  name: 'mcp-diagnostics'
+  scope: rg
+  params: {
+    appName: mcpFunctionApp.outputs.name
     kind: 'functionapp'
     diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
   }
