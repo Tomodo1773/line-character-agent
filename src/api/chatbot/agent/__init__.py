@@ -11,10 +11,11 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
-from langgraph.prebuilt import create_react_agent
+
 from chatbot.agent.tools import azure_ai_search
 from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
@@ -240,6 +241,8 @@ def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
 
 
 class ChatbotAgent:
+    RECURSION_LIMIT = 8
+
     def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
         global _cached
@@ -261,27 +264,24 @@ class ChatbotAgent:
         self.graph = graph_builder.compile()
 
     async def ainvoke(self, messages: list, userid: str):
-        recursion_limit = 8
-        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": recursion_limit})
+        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": self.RECURSION_LIMIT})
 
     async def astream(self, messages: list, userid: str):
-        recursion_limit = 8
         async for msg, metadata in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": recursion_limit},
+            {"recursion_limit": self.RECURSION_LIMIT},
             stream_mode="messages",
             # stream_mode=["messages", "values"],
         ):
             yield msg, metadata
 
-    async def astream_events(self, messages: list, userid: str):
-        recursion_limit = 8
-        async for event in self.graph.astream_events(
+    async def astream_updates(self, messages: list, userid: str):
+        async for msg in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": recursion_limit},
-            version="v1",
+            {"recursion_limit": self.RECURSION_LIMIT},
+            stream_mode="updates",
         ):
-            yield event
+            yield msg
 
     def create_image(self):
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
@@ -331,15 +331,17 @@ if __name__ == "__main__":
             # print("Assistant:", response["messages"][-1].content)
 
             # astream(stream_mode=["messages"])
-            async for msg, metadata in agent_graph.astream(messages=history, userid=userid):
-                # print(f"msg: {msg}")
-                # print(f"metadata: {metadata}")
-                if msg.content and not isinstance(msg, HumanMessage):
-                    print(msg.content, end="", flush=True)
+            # async for msg in agent_graph.astream(messages=history, userid=userid, stream_mode="updates"):
+            # print(f"msg: {msg}")
+            # print("\n")
+            # print(f"metadata: {metadata}")
+            # if msg.content and not isinstance(msg, HumanMessage):
+            # print(msg.content, end="", flush=True)
 
-            # astream_events
-            # async for msg in agent_graph.astream_events(messages=history, userid=userid):
-            # print(f"event: {msg}")
+            # astream_updates
+            async for msg in agent_graph.astream_updates(messages=history, userid=userid):
+                print(f"msg: {msg}")
+                print("\n")
 
             # print(event)
             # for value in event.values():
