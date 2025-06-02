@@ -69,6 +69,7 @@ class Client:
             scope=scope,
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
+            redirect_uri="http://localhost:8080/callback",  # ダミー値（リフレッシュトークン使用時は不要）
             cache_handler=cache_handler,
         )
         # --- ここからリフレッシュトークン対応 ---
