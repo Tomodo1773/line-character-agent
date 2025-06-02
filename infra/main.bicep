@@ -110,8 +110,7 @@ module AppService './app/api.bicep' = {
       AZURE_AI_SEARCH_API_KEY:appSettings.AZURE_AI_SEARCH_API_KEY
       NIJIVOICE_API_KEY:appSettings.NIJIVOICE_API_KEY
       DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
-      MCP_FUNCTION_SYSTEM_KEY: mcpFunctionApp.outputs.systemKey
-      MCP_FUNCTION_URL: mcpFunctionApp.outputs.uri
+      MCP_FUNCTION_URL: '${mcpFunctionApp.outputs.uri}/runtime/webhooks/mcp/sse?code=${mcpFunctionApp.outputs.systemKey}'
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
   }
