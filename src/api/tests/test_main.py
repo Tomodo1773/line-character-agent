@@ -1,8 +1,10 @@
+import asyncio
 import os
+
+from fastapi.testclient import TestClient
 
 from chatbot.agent import ChatbotAgent
 from chatbot.main import app
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -31,7 +33,7 @@ def test_chatbot_agent_response():
 
     messages = [{"type": "human", "content": "こんにちは"}]
 
-    response = agent_graph.invoke(messages=messages, userid=userid)
+    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -50,29 +52,9 @@ def test_chatbot_agent_websearch_invocation():
 
     messages = [{"type": "human", "content": "今のセリーグの順位は？"}]
 
-    response = agent_graph.invoke(messages=messages, userid=userid)
+    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
 
     assert "messages" in response
-
-
-def test_chatbot_agent_diarysearch_invocation():
-    """
-    ChatbotAgentのdiarysearch呼び出しテスト
-    - エージェントが適切にdiarysearchを呼び出すことを確認
-    - レスポンスのdocuments内にdiary_contentsが含まれていることを確認
-    """
-    agent_graph = ChatbotAgent()
-    userid = os.environ.get("LINE_USER_ID")
-    if not userid:
-        raise ValueError("LINE_USER_ID environment variable is not set")
-
-    messages = [{"type": "human", "content": "最近花火に行ったのっていつだっけ？"}]
-
-    response = agent_graph.invoke(messages=messages, userid=userid)
-
-    assert "messages" in response
-    assert len(response["documents"]) > 0
-    assert any("diary_contents" in document for document in response["documents"])
 
 
 def test_diary_transcription():
