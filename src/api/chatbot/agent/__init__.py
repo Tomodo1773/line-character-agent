@@ -187,8 +187,11 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
         Command: Endへの遷移＆AIの応答メッセージ
     """
     logger.info("--- Spotify Agent Node ---")
-    prompt = "ユーザからの問いかけにしたがって最適なspotifyの処理をしてください。"
-    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+    # プロンプトはLangchain Hubから取得
+    # https://smith.langchain.com/hub/tomodo1773/sister_edinet_short
+    prompt = get_prompt("tomodo1773/sister_edinet_short")
+
+    llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
     # MCPツール取得
     mcp_tools = await get_mcp_tools()
     agent = create_react_agent(
@@ -196,7 +199,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
         tools=mcp_tools,
         prompt=prompt,
     )
-    content = await agent.ainvoke({"messages": state["messages"], "documents": state.get("documents", [])})
+    content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
         goto="__end__",
         update={"messages": [AIMessage(content=content["messages"][-1].content)]},
