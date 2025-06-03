@@ -56,7 +56,7 @@ sequenceDiagram
 
 ## AIエージェントグラフ
 
-![urlの出力](./images/agent_graph.png)
+![urlの出力](./src/api/images/agent_graph.png)
 
 リクエストは最初にchatbotで処理されます。
 

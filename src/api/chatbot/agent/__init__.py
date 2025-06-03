@@ -287,8 +287,14 @@ class ChatbotAgent:
             yield msg
 
     def create_image(self):
+        # imagesフォルダがなければ作成
+        images_dir = "images"
+        if not os.path.exists(images_dir):
+            os.makedirs(images_dir)
+        
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
-        with open("agent_graph.png", "wb") as f:
+        # imagesフォルダに保存
+        with open(os.path.join(images_dir, "agent_graph.png"), "wb") as f:
             f.write(graph_image)
 
 
