@@ -215,6 +215,7 @@ module mcpFunctionApp 'app/mcp.bicep' = {
       SPOTIFY_CLIENT_ID: funcappSettings.SPOTIFY_CLIENT_ID
       SPOTIFY_CLIENT_SECRET: funcappSettings.SPOTIFY_CLIENT_SECRET
       SPOTIFY_REFRESH_TOKEN: funcappSettings.SPOTIFY_REFRESH_TOKEN
+      PERPLEXITY_API_KEY: funcappSettings.PERPLEXITY_API_KEY
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id

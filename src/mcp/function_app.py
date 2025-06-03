@@ -336,3 +336,50 @@ def spotify_add_track_to_liked_songs(context) -> str:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
         return "An internal server error occurred. Please try again later."
+
+
+# Perplexity Web Search Tool
+perplexity_search_properties = [
+    ToolProperty("query", "string", "A search request in sentence form (make it as specific as possible and include context)."),
+]
+perplexity_search_properties_json = json.dumps([prop.to_dict() for prop in perplexity_search_properties])
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="perplexity_web_search",
+    description="MCP tool that uses Perplexity API to perform web searches. Submit a query to retrieve the latest information from the web.",
+    toolProperties=perplexity_search_properties_json,
+)
+def perplexity_web_search(context) -> str:
+    """MCP tool for web search using Perplexity API."""
+    try:
+        import os
+        from openai import OpenAI
+
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        query = arguments.get("query", "")
+        api_key = os.getenv("PERPLEXITY_API_KEY")
+        if not api_key:
+            return "PERPLEXITY_API_KEYが環境変数にセットされていません。APIキーをセットしてから利用してください。"
+        client = OpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
+        system = """
+You are a helpful AI assistant.
+
+Rules:
+1. Provide only the final answer. It is important that you do not include any explanation on the steps below.
+2. Do not show the intermediate steps information.
+
+Steps:
+1. Decide if the answer should be a brief sentence or a list of suggestions.
+2. If it is a list of suggestions, first, write a brief and natural introduction based on the original query.
+3. Followed by a list of suggestions, each suggestion should be split by two newlines.
+"""
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": query}]
+        response = client.chat.completions.create(model="sonar", messages=messages)
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Perplexity Web検索でエラー: {str(e)}")
+        return f"Perplexity Web検索でエラーが発生しました: {str(e)}"
