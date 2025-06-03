@@ -124,7 +124,7 @@ async def handle_text_async(event):
 
     except Exception as e:
         # メッセージを返信
-        if hasattr(e, 'status_code') and hasattr(e, 'detail'):
+        if hasattr(e, "status_code") and hasattr(e, "detail"):
             error_message = f"Error {e.status_code}: {e.detail}"
         else:
             error_message = f"Error: {str(e)}"
@@ -137,8 +137,7 @@ def handle_text(event):
     asyncio.run(handle_text_async(event))
 
 
-@handler.add(MessageEvent, message=AudioMessageContent)
-def handle_audio(event):
+async def handle_audio_async(event):
     logger.info(f"Start handling audio message: {event.message.id}")
     line_messennger = LineMessenger(event)
     cosmos = AgentRepository()
@@ -167,8 +166,8 @@ def handle_audio(event):
         if saved_filename:
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
-        # キャラクターのコメントを追加
-        response = agent.invoke(messages=messages, userid=userid)
+        # キャラクターのコメントを追加（非同期化）
+        response = await agent.ainvoke(messages=messages, userid=userid)
         reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
@@ -213,6 +212,11 @@ def handle_audio(event):
         error_message = f"Error: {e}"
         line_messennger.reply_message([error_message])
         logger.error(f"Returned error message to the user: {e}")
+
+
+@handler.add(MessageEvent, message=AudioMessageContent)
+def handle_audio(event):
+    asyncio.run(handle_audio_async(event))
 
 
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
