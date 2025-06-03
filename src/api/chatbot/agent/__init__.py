@@ -178,13 +178,13 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     )
 
 
-async def spotify_agent_node(state: State) -> Command[Literal["chatbot"]]:
+async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     """
     Spotify関連のリクエストに対してMCPツールを使って応答を生成するノード。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
     Returns:
-        Command: Chatbotへの遷移＆AIの応答メッセージ
+        Command: Endへの遷移＆AIの応答メッセージ
     """
     logger.info("--- Spotify Agent Node ---")
     prompt = "ユーザからの問いかけにしたがって最適なspotifyの処理をしてください。"
@@ -198,7 +198,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["chatbot"]]:
     )
     content = await agent.ainvoke({"messages": state["messages"], "documents": state.get("documents", [])})
     return Command(
-        goto="chatbot",
+        goto="__end__",
         update={"messages": [AIMessage(content=content["messages"][-1].content)]},
     )
 
