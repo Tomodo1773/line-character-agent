@@ -25,6 +25,7 @@ param funcappSettings = {
   SPOTIFY_CLIENT_ID: readEnvironmentVariable('SPOTIFY_CLIENT_ID', 'default-spotify-client-id')
   SPOTIFY_CLIENT_SECRET: readEnvironmentVariable('SPOTIFY_CLIENT_SECRET', 'default-spotify-client-secret')
   SPOTIFY_REFRESH_TOKEN: readEnvironmentVariable('SPOTIFY_REFRESH_TOKEN', 'default-spotify-refresh-token')
+  PERPLEXITY_API_KEY: readEnvironmentVariable('PERPLEXITY_API_KEY', 'default-perplexity-api-key')
 }
 
 param cosmosDbAccountName = readEnvironmentVariable('AZURE_COSMOSDB_NAME', '')
