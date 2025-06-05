@@ -210,7 +210,7 @@ async def handle_audio_async(event):
     except Exception as e:
         # メッセージを返信
         error_message = f"Error: {e}"
-        line_messennger.reply_message([error_message])
+        line_messennger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
 
 
