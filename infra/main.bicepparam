@@ -8,7 +8,6 @@ param appSettings = {
   LANGCHAIN_API_KEY: readEnvironmentVariable('LANGCHAIN_API_KEY', 'default-langchain-key')
   LINE_CHANNEL_ACCESS_TOKEN: readEnvironmentVariable('LINE_CHANNEL_ACCESS_TOKEN', 'default-access-token')
   LINE_CHANNEL_SECRET: readEnvironmentVariable('LINE_CHANNEL_SECRET', 'default-channel-secret')
-  GOOGLE_API_KEY: readEnvironmentVariable('GOOGLE_API_KEY', 'default-google-api-key')
   OPENAI_API_KEY: readEnvironmentVariable('OPENAI_API_KEY', 'default-openai-api-key')
   OPENAI_COMPATIBLE_API_KEY: readEnvironmentVariable('OPENAI_COMPATIBLE_API_KEY', 'default-openai-compatible-api-key')
   GROQ_API_KEY: readEnvironmentVariable('GROQ_API_KEY', 'default-groq-api-key')
