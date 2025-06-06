@@ -58,11 +58,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.13"
+
       - name: Create requirements.txt from uv.lock
         run: |
           cd src/api
-          python -m pip install --upgrade pip
-          pip install --no-cache-dir uv
           uv export --format requirements-txt --no-editable > requirements.txt
 
       - name: create-json
