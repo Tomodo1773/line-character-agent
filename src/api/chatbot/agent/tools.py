@@ -1,4 +1,3 @@
-
 from dotenv import load_dotenv
 from langchain_community.document_loaders import FireCrawlLoader
 from langchain_community.retrievers import AzureAISearchRetriever
@@ -19,8 +18,6 @@ def firecrawl_search(url: str) -> Document:
     loader = FireCrawlLoader(url=url, mode="scrape")
     docs = loader.load()
     return docs[0]
-
-
 
 
 class AzureAISearchInput(BaseModel):

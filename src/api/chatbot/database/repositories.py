@@ -30,7 +30,6 @@ class UserRepository(BaseRepository):
         return self.fetch(query, parameters)
 
 
-
 class AgentRepository(BaseRepository):
     def __init__(self):
         self._core = CosmosCore("CHAT")

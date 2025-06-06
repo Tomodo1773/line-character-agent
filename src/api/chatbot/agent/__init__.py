@@ -290,7 +290,7 @@ class ChatbotAgent:
         images_dir = "images"
         if not os.path.exists(images_dir):
             os.makedirs(images_dir)
-        
+
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
         # imagesフォルダに保存
         with open(os.path.join(images_dir, "agent_graph.png"), "wb") as f:
