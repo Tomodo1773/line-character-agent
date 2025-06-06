@@ -4,9 +4,8 @@ from operator import add
 from typing import Annotated, Literal
 
 from langchain import hub
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
@@ -215,7 +214,7 @@ def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
         Command: diary_searcherノードへの遷移＆作成したクエリ
     """
     logger.info("--- Create Diary Query Node ---")
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
+    llm = ChatOpenAI(model="gpt-4.1")
 
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/create_diary_search_query
@@ -291,7 +290,7 @@ class ChatbotAgent:
         images_dir = "images"
         if not os.path.exists(images_dir):
             os.makedirs(images_dir)
-        
+
         graph_image = self.graph.get_graph(xray=True).draw_mermaid_png()
         # imagesフォルダに保存
         with open(os.path.join(images_dir, "agent_graph.png"), "wb") as f:

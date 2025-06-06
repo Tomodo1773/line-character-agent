@@ -4,7 +4,7 @@ from typing import Optional
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from pytz import timezone
 
 from chatbot.utils.config import create_logger
@@ -125,7 +125,7 @@ def generate_diary_digest(diary_content: str) -> str:
             ]
         )
 
-        llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2)
+        llm = ChatOpenAI(model="gpt-4.1", temperature=0.2)
         chain = template | llm | StrOutputParser()
 
         return chain.invoke({"diary_content": diary_content})

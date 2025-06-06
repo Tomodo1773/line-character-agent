@@ -101,7 +101,6 @@ module AppService './app/api.bicep' = {
       LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
       LINE_CHANNEL_ACCESS_TOKEN: appSettings.LINE_CHANNEL_ACCESS_TOKEN
       LINE_CHANNEL_SECRET: appSettings.LINE_CHANNEL_SECRET
-      GOOGLE_API_KEY: appSettings.GOOGLE_API_KEY
       OPENAI_API_KEY: appSettings.OPENAI_API_KEY
       OPENAI_COMPATIBLE_API_KEY: appSettings.OPENAI_COMPATIBLE_API_KEY
       GROQ_API_KEY: appSettings.GROQ_API_KEY
@@ -186,8 +185,6 @@ module functionApp 'app/func.bicep' = {
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
       OPENAI_API_KEY: appSettings.OPENAI_API_KEY
-      AZURE_SEARCH_ENDPOINT:'https://${appSettings.AZURE_AI_SEARCH_SERVICE_NAME}.search.windows.net'
-      AZURE_SEARCH_ADMIN_KEY: appSettings.AZURE_AI_SEARCH_API_KEY
       SPAN_DAYS: 1
       DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
     }

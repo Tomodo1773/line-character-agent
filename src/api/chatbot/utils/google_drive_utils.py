@@ -5,6 +5,7 @@ from chatbot.utils.google_drive import GoogleDriveHandler
 
 logger = create_logger(__name__)
 
+
 def get_profile_from_drive() -> Dict:
     """
     Google Driveからprofile.mdを取得する
@@ -15,7 +16,7 @@ def get_profile_from_drive() -> Dict:
     try:
         handler = GoogleDriveHandler(credentials_file="credentials.json")
         content = handler.get_profile_md()
-        
+
         if content:
             return {"content": content}
         else:
@@ -24,7 +25,8 @@ def get_profile_from_drive() -> Dict:
     except Exception as e:
         logger.error(f"Error while getting profile from Google Drive: {e}")
         return {"content": ""}
-        
+
+
 def get_digest_from_drive() -> Dict:
     """
     Google Driveからdigest.mdを取得する
@@ -35,7 +37,7 @@ def get_digest_from_drive() -> Dict:
     try:
         handler = GoogleDriveHandler(credentials_file="credentials.json")
         content = handler.get_digest_md()
-        
+
         if content:
             return {"content": content}
         else:
@@ -44,6 +46,7 @@ def get_digest_from_drive() -> Dict:
     except Exception as e:
         logger.error(f"Error while getting digest from Google Drive: {e}")
         return {"content": ""}
+
 
 def get_dictionary_from_drive() -> str:
     """
@@ -55,7 +58,7 @@ def get_dictionary_from_drive() -> str:
     try:
         handler = GoogleDriveHandler(credentials_file="credentials.json")
         content = handler.get_dictionary_md()
-        
+
         if content:
             return content
         else:
