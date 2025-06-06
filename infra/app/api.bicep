@@ -10,6 +10,7 @@ param serviceName string = 'api'
 
 param cosmosDbAccountName string
 param cosmosDbResourceGroupName string
+param keyVaultName string = ''
 
 param alwaysOn bool
 module api '../core/host/appservice.bicep' = {
@@ -20,6 +21,8 @@ module api '../core/host/appservice.bicep' = {
     tags: union(tags, { 'azd-service-name': serviceName })
     appCommandLine: appCommandLine
     appServicePlanId: appServicePlanId
+    keyVaultName: keyVaultName
+    managedIdentity: !empty(keyVaultName)
     appSettings: union(appSettings,
       {
         COSMOS_DB_ACCOUNT_KEY: CosmosAccounts.listKeys().primaryMasterKey
@@ -35,3 +38,7 @@ resource CosmosAccounts 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-previe
   name: cosmosDbAccountName
   scope: resourceGroup(cosmosDbResourceGroupName)
 }
+
+output identityPrincipalId string = !empty(keyVaultName) ? api.outputs.identityPrincipalId : ''
+output name string = api.outputs.name
+output uri string = api.outputs.uri
