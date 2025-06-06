@@ -16,7 +16,7 @@ on:
       - ".github/workflows/**"
   workflow_dispatch:
 
- # Set up permissions for deploying with secretless Azure federated credentials
+  # Set up permissions for deploying with secretless Azure federated credentials
 # https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
 permissions:
   id-token: write
@@ -75,7 +75,7 @@ jobs:
       - name: ls src/api
         run: |
           cd src/api
-          ls -la 
+          ls -la
 
       - name: Install azd
         uses: Azure/setup-azd@v2
@@ -91,4 +91,7 @@ jobs:
         run: azd provision --no-prompt
 
       - name: Deploy Application
-        run: azd deploy --no-prompt
+        run: |
+          azd deploy mcp --no-prompt &
+          azd deploy api --no-prompt &
+          wait
