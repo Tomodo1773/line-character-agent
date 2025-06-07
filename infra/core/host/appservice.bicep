@@ -5,6 +5,8 @@ param tags object = {}
 
 // Reference Properties
 param appServicePlanId string
+param keyVaultName string = ''
+param managedIdentity bool = !empty(keyVaultName)
 
 // Runtime Properties
 @allowed([
@@ -54,6 +56,8 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
     httpsOnly: true
   }
 
+  identity: { type: managedIdentity ? 'SystemAssigned' : 'None' }
+
   resource basicPublishingCredentialsPoliciesFtp 'basicPublishingCredentialsPolicies' = {
     name: 'ftp'
     properties: {
@@ -79,7 +83,8 @@ resource appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
         SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
         ENABLE_ORYX_BUILD: string(enableOryxBuild)
     },
-    runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {})
+    runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {},
+    !empty(keyVaultName) ? { AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri } : {})
 }
 
 // sites/web/config 'logs'
@@ -94,3 +99,11 @@ resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
   }
   dependsOn: [appsettings]
 }
+
+resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = if (!(empty(keyVaultName))) {
+  name: keyVaultName
+}
+
+output identityPrincipalId string = managedIdentity ? appService.identity.principalId : ''
+output name string = appService.name
+output uri string = 'https://${appService.properties.defaultHostName}'
