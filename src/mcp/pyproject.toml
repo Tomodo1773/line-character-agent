@@ -1,18 +1,21 @@
-[tool.poetry]
+[project]
 name = "mcp"
 version = "0.1.0"
 description = "MCP Azure Function for music streaming integration"
-authors = ["Your Name <you@example.com>"]
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.11,<3.13"
 readme = "README.md"
+dependencies = [
+    "azure-functions>=1.23.0,<2",
+    "requests>=2.31.0,<3",
+    "azure-identity>=1.16.0,<2",
+    "spotipy>=2.23.0,<3",
+    "python-dotenv>=1.0.0,<2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.11,<3.13"
-azure-functions = "^1.23.0"
-requests = "^2.31.0"
-azure-identity = "^1.16.0"
-spotipy = "^2.23.0"
-python-dotenv = "^1.0.0"
+[tool.uv]
+package = false
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"

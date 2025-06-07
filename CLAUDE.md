@@ -20,11 +20,11 @@ This is a LINE AI chatbot built with Azure services that creates a character-bas
 - **Format code**: `cd src/api && ruff format`
 
 ### Function Service (src/func/)
-- **Install dependencies**: `cd src/func && poetry install`
+- **Install dependencies**: `cd src/func && uv install`
 - **Run locally**: Use Azure Functions Core Tools
 
 ### MCP Service (src/mcp/)
-- **Install dependencies**: `cd src/mcp && poetry install`
+- **Install dependencies**: `cd src/mcp && uv install`
 
 ### Deployment
 - **Deploy all services**: `azd up`
@@ -50,8 +50,8 @@ The chatbot uses LangGraph to create an AI agent with the following flow:
 - **Authentication** (`src/api/chatbot/utils/auth.py`) - API key verification for OpenAI-compatible endpoints
 
 ### Environment Configuration
+- All services use uv for dependency management
 - API service uses `.env` files for local development
-- Function and MCP services use Poetry for dependency management
 - Azure deployment uses bicep templates in `infra/` directory
 
 ### Testing
