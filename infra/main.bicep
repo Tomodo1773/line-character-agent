@@ -111,17 +111,17 @@ module AppService './app/api.bicep' = {
     keyVaultName: keyVaultName
     alwaysOn: true
     appSettings: {
-      LANGCHAIN_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LANGCHAIN-API-KEY)'
-      LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
-      LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-SECRET)'
-      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
-      OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-COMPATIBLE-API-KEY)'
-      GROQ_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GROQ-API-KEY)'
+      LANGCHAIN_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/LANGCHAIN-API-KEY)'
+      LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/LINE-CHANNEL-ACCESS-TOKEN)'
+      LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/LINE-CHANNEL-SECRET)'
+      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/OPENAI-API-KEY)'
+      OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/OPENAI-COMPATIBLE-API-KEY)'
+      GROQ_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/GROQ-API-KEY)'
       COSMOS_DB_DATABASE_NAME: appSettings.COSMOS_DB_DATABASE_NAME
       AZURE_AI_SEARCH_SERVICE_NAME: appSettings.AZURE_AI_SEARCH_SERVICE_NAME
-      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AZURE-AI-SEARCH-API-KEY)'
-      NIJIVOICE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/NIJIVOICE-API-KEY)'
-      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
+      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/AZURE-AI-SEARCH-API-KEY)'
+      NIJIVOICE_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/NIJIVOICE-API-KEY)'
+      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/DRIVE-FOLDER-ID)'
       MCP_FUNCTION_URL: '${mcpFunctionApp.outputs.uri}/runtime/webhooks/mcp/sse?code='
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
@@ -198,9 +198,9 @@ module functionApp 'app/func.bicep' = {
     keyVaultName: keyVaultName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
+      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/OPENAI-API-KEY)'
       SPAN_DAYS: 1
-      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
+      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/DRIVE-FOLDER-ID)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
@@ -224,10 +224,10 @@ module mcpFunctionApp 'app/mcp.bicep' = {
     keyVaultName: keyVaultName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      SPOTIFY_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-ID)'
-      SPOTIFY_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-SECRET)'
-      SPOTIFY_REFRESH_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-REFRESH-TOKEN)'
-      PERPLEXITY_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/PERPLEXITY-API-KEY)'
+      SPOTIFY_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/SPOTIFY-CLIENT-ID)'
+      SPOTIFY_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/SPOTIFY-CLIENT-SECRET)'
+      SPOTIFY_REFRESH_TOKEN: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/SPOTIFY-REFRESH-TOKEN)'
+      PERPLEXITY_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/PERPLEXITY-API-KEY)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
