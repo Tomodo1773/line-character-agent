@@ -14,14 +14,14 @@ param resourceGroupName string = ''
 
 param cosmosDbAccountName string = ''
 param cosmosDbResourceGroupName string = ''
+param cosmosDbDatabaseName string = ''
+param azureAiSearchServiceName string = ''
 param appServicePlanName string = ''
 param appServicePlanResourceGroupName string = ''
 
 param keyVaultName string
-param keyVaultResourceGroupName string = ''
+param keyVaultResourceGroupName string
 
-param appSettings object
-param funcappSettings object
 
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -69,15 +69,6 @@ resource existingAppServicePlan 'Microsoft.Web/serverfarms@2021-02-01' existing 
   scope: resourceGroup(appServicePlanResourceGroupName)
 }
 
-// ****************************************************************
-// Key Vault (existing)
-// ****************************************************************
-
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
-  name: keyVaultName
-  scope: resourceGroup(!empty(keyVaultResourceGroupName) ? keyVaultResourceGroupName : resourceGroupName)
-}
-
 module AppServicePlan 'core/host/appserviceplan.bicep' = if (empty(appServicePlanName)) {
   name: 'AppServicePlan'
   scope: rg
@@ -91,6 +82,15 @@ module AppServicePlan 'core/host/appserviceplan.bicep' = if (empty(appServicePla
     }
     kind: 'linux'
   }
+}
+
+// ****************************************************************
+// Key Vault (existing)
+// ****************************************************************
+
+resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
+  name: keyVaultName
+  scope: resourceGroup(!empty(keyVaultResourceGroupName) ? keyVaultResourceGroupName : resourceGroupName)
 }
 
 // ****************************************************************
@@ -111,18 +111,18 @@ module AppService './app/api.bicep' = {
     keyVaultName: keyVaultName
     alwaysOn: true
     appSettings: {
-      LANGCHAIN_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/LANGCHAIN-API-KEY)'
-      LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/LINE-CHANNEL-ACCESS-TOKEN)'
-      LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/LINE-CHANNEL-SECRET)'
-      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/OPENAI-API-KEY)'
-      OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/OPENAI-COMPATIBLE-API-KEY)'
-      GROQ_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/GROQ-API-KEY)'
-      COSMOS_DB_DATABASE_NAME: appSettings.COSMOS_DB_DATABASE_NAME
-      AZURE_AI_SEARCH_SERVICE_NAME: appSettings.AZURE_AI_SEARCH_SERVICE_NAME
-      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/AZURE-AI-SEARCH-API-KEY)'
-      NIJIVOICE_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/NIJIVOICE-API-KEY)'
-      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/DRIVE-FOLDER-ID)'
-      MCP_FUNCTION_URL: '${mcpFunctionApp.outputs.uri}/runtime/webhooks/mcp/sse?code='
+      LANGCHAIN_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LANGCHAIN-API-KEY)'
+      LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
+      LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-SECRET)'
+      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
+      OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-COMPATIBLE-API-KEY)'
+      GROQ_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GROQ-API-KEY)'
+      COSMOS_DB_DATABASE_NAME: cosmosDbDatabaseName
+      AZURE_AI_SEARCH_SERVICE_NAME: azureAiSearchServiceName
+      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AZURE-AI-SEARCH-API-KEY)'
+      NIJIVOICE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/NIJIVOICE-API-KEY)'
+      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
+      MCP_FUNCTION_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/MCP-FUNCTION-URL)'
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
   }
@@ -198,16 +198,16 @@ module functionApp 'app/func.bicep' = {
     keyVaultName: keyVaultName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/OPENAI-API-KEY)'
+      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
       SPAN_DAYS: 1
-      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/DRIVE-FOLDER-ID)'
+      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
-    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-${resourceToken}'
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.${environment().suffixes.storage}/app-package-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
   }
@@ -224,17 +224,17 @@ module mcpFunctionApp 'app/mcp.bicep' = {
     keyVaultName: keyVaultName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      SPOTIFY_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/SPOTIFY-CLIENT-ID)'
-      SPOTIFY_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/SPOTIFY-CLIENT-SECRET)'
-      SPOTIFY_REFRESH_TOKEN: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/SPOTIFY-REFRESH-TOKEN)'
-      PERPLEXITY_API_KEY: '@Microsoft.KeyVault(SecretUri=${rtrim(keyVault.properties.vaultUri, '/')}/secrets/PERPLEXITY-API-KEY)'
+      SPOTIFY_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-ID)'
+      SPOTIFY_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-SECRET)'
+      SPOTIFY_REFRESH_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-REFRESH-TOKEN)'
+      PERPLEXITY_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/PERPLEXITY-API-KEY)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
-    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-mcp-${resourceToken}'
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.${environment().suffixes.storage}/app-package-mcp-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
   }
@@ -264,35 +264,24 @@ module mcpDiagnostics 'core/host/app-diagnostics.bicep' = {
 // RBAC Role Assignments for Key Vault
 // ****************************************************************
 
-// Key Vault Secrets User role assignment for App Service
-resource appServiceKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(AppService.outputs.identityPrincipalId, keyVault.id, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
-  scope: keyVault
-  properties: {
-    principalId: AppService.outputs.identityPrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7') // Key Vault Secrets User
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Key Vault Secrets User role assignment for Function App
-resource functionAppKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(functionApp.outputs.identityPrincipalId, keyVault.id, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
-  scope: keyVault
-  properties: {
-    principalId: functionApp.outputs.identityPrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7') // Key Vault Secrets User
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Key Vault Secrets User role assignment for MCP Function App
-resource mcpFunctionAppKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(mcpFunctionApp.outputs.identityPrincipalId, keyVault.id, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
-  scope: keyVault
-  properties: {
-    principalId: mcpFunctionApp.outputs.identityPrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7') // Key Vault Secrets User
-    principalType: 'ServicePrincipal'
+module assignKeyVaultRoles 'core/host/assign-keyvault-roles.bicep' = {
+  name: 'assignKeyVaultRoles'
+  scope: resourceGroup(!empty(keyVaultResourceGroupName) ? keyVaultResourceGroupName : resourceGroupName)
+  params: {
+    keyVaultName: keyVaultName
+    principalAssignments: [
+      {
+        name: AppService.name
+        principalId: AppService.outputs.identityPrincipalId
+      }
+      {
+        name: functionApp.name
+        principalId: functionApp.outputs.identityPrincipalId
+      }
+      {
+        name: mcpFunctionApp.name
+        principalId: mcpFunctionApp.outputs.identityPrincipalId
+      }
+    ]
   }
 }
