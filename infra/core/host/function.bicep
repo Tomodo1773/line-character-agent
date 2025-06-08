@@ -57,6 +57,7 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     }
     clientAffinityEnabled: clientAffinityEnabled
     httpsOnly: true
+    keyVaultReferenceIdentity: managedIdentity ? 'SystemAssigned' : null
     functionAppConfig: {
       deployment: {
         storage: {
@@ -103,8 +104,7 @@ resource appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
   parent: appService
   properties: union(appSettings,
     runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {},
-    !empty(applicationInsightsName) ? { APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString } : {},
-    !empty(keyVaultName) ? { AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri } : {})
+    !empty(applicationInsightsName) ? { APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString } : {})
 }
 
 
@@ -119,10 +119,6 @@ resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
     httpLogs: { fileSystem: { enabled: true, retentionInDays: 1, retentionInMb: 35 } }
   }
   dependsOn: [appsettings]
-}
-
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = if (!(empty(keyVaultName))) {
-  name: keyVaultName
 }
 
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = if (!empty(applicationInsightsName)) {

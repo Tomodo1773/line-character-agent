@@ -83,8 +83,7 @@ resource appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
         SCM_DO_BUILD_DURING_DEPLOYMENT: string(scmDoBuildDuringDeployment)
         ENABLE_ORYX_BUILD: string(enableOryxBuild)
     },
-    runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {},
-    !empty(keyVaultName) ? { AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri } : {})
+    runtimeName == 'python' && appCommandLine == '' ? { PYTHON_ENABLE_GUNICORN_MULTIWORKERS: 'true'} : {})
 }
 
 // sites/web/config 'logs'
@@ -98,10 +97,6 @@ resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
     httpLogs: { fileSystem: { enabled: true, retentionInDays: 1, retentionInMb: 35 } }
   }
   dependsOn: [appsettings]
-}
-
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = if (!(empty(keyVaultName))) {
-  name: keyVaultName
 }
 
 output identityPrincipalId string = managedIdentity ? appService.identity.principalId : ''
