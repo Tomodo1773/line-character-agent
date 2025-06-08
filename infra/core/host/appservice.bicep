@@ -5,6 +5,8 @@ param tags object = {}
 
 // Reference Properties
 param appServicePlanId string
+param keyVaultName string = ''
+param managedIdentity bool = !empty(keyVaultName)
 
 // Runtime Properties
 @allowed([
@@ -54,6 +56,8 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
     httpsOnly: true
   }
 
+  identity: { type: managedIdentity ? 'SystemAssigned' : 'None' }
+
   resource basicPublishingCredentialsPoliciesFtp 'basicPublishingCredentialsPolicies' = {
     name: 'ftp'
     properties: {
@@ -94,3 +98,7 @@ resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
   }
   dependsOn: [appsettings]
 }
+
+output identityPrincipalId string = managedIdentity ? appService.identity.principalId : ''
+output name string = appService.name
+output uri string = 'https://${appService.properties.defaultHostName}'

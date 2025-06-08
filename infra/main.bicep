@@ -14,11 +14,14 @@ param resourceGroupName string = ''
 
 param cosmosDbAccountName string = ''
 param cosmosDbResourceGroupName string = ''
+param cosmosDbDatabaseName string = ''
+param azureAiSearchServiceName string = ''
 param appServicePlanName string = ''
 param appServicePlanResourceGroupName string = ''
 
-param appSettings object
-param funcappSettings object
+param keyVaultName string
+param keyVaultResourceGroupName string
+
 
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -82,6 +85,15 @@ module AppServicePlan 'core/host/appserviceplan.bicep' = if (empty(appServicePla
 }
 
 // ****************************************************************
+// Key Vault (existing)
+// ****************************************************************
+
+resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
+  name: keyVaultName
+  scope: resourceGroup(!empty(keyVaultResourceGroupName) ? keyVaultResourceGroupName : resourceGroupName)
+}
+
+// ****************************************************************
 // AppService
 // ****************************************************************
 
@@ -96,20 +108,21 @@ module AppService './app/api.bicep' = {
     appServicePlanId: empty(appServicePlanName) ? AppServicePlan.outputs.id : existingAppServicePlan.id
     cosmosDbAccountName: empty(cosmosDbAccountName) ? CosmosDB.outputs.name : existingCosmosDB.name
     cosmosDbResourceGroupName: empty(cosmosDbResourceGroupName) ? rg.name : cosmosDbResourceGroupName
+    keyVaultName: keyVaultName
     alwaysOn: true
     appSettings: {
-      LANGCHAIN_API_KEY: appSettings.LANGCHAIN_API_KEY
-      LINE_CHANNEL_ACCESS_TOKEN: appSettings.LINE_CHANNEL_ACCESS_TOKEN
-      LINE_CHANNEL_SECRET: appSettings.LINE_CHANNEL_SECRET
-      OPENAI_API_KEY: appSettings.OPENAI_API_KEY
-      OPENAI_COMPATIBLE_API_KEY: appSettings.OPENAI_COMPATIBLE_API_KEY
-      GROQ_API_KEY: appSettings.GROQ_API_KEY
-      COSMOS_DB_DATABASE_NAME: appSettings.COSMOS_DB_DATABASE_NAME
-      AZURE_AI_SEARCH_SERVICE_NAME:appSettings.AZURE_AI_SEARCH_SERVICE_NAME
-      AZURE_AI_SEARCH_API_KEY:appSettings.AZURE_AI_SEARCH_API_KEY
-      NIJIVOICE_API_KEY:appSettings.NIJIVOICE_API_KEY
-      DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
-      MCP_FUNCTION_URL: '${mcpFunctionApp.outputs.uri}/runtime/webhooks/mcp/sse?code='
+      LANGCHAIN_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LANGCHAIN-API-KEY)'
+      LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
+      LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-SECRET)'
+      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
+      OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-COMPATIBLE-API-KEY)'
+      GROQ_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GROQ-API-KEY)'
+      COSMOS_DB_DATABASE_NAME: cosmosDbDatabaseName
+      AZURE_AI_SEARCH_SERVICE_NAME: azureAiSearchServiceName
+      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AZURE-AI-SEARCH-API-KEY)'
+      NIJIVOICE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/NIJIVOICE-API-KEY)'
+      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
+      MCP_FUNCTION_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/MCP-FUNCTION-URL)'
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
   }
@@ -182,18 +195,19 @@ module functionApp 'app/func.bicep' = {
     location: location
     tags: union(tags, { 'azd-service-name': 'func' })
     alwaysOn: false
+    keyVaultName: keyVaultName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      OPENAI_API_KEY: appSettings.OPENAI_API_KEY
+      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
       SPAN_DAYS: 1
-      DRIVE_FOLDER_ID: funcappSettings.DRIVE_FOLDER_ID
+      DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
-    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-${resourceToken}'
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.${environment().suffixes.storage}/app-package-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
   }
@@ -207,19 +221,20 @@ module mcpFunctionApp 'app/mcp.bicep' = {
     location: location
     tags: union(tags, { 'azd-service-name': 'mcp' })
     alwaysOn: false
+    keyVaultName: keyVaultName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      SPOTIFY_CLIENT_ID: funcappSettings.SPOTIFY_CLIENT_ID
-      SPOTIFY_CLIENT_SECRET: funcappSettings.SPOTIFY_CLIENT_SECRET
-      SPOTIFY_REFRESH_TOKEN: funcappSettings.SPOTIFY_REFRESH_TOKEN
-      PERPLEXITY_API_KEY: funcappSettings.PERPLEXITY_API_KEY
+      SPOTIFY_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-ID)'
+      SPOTIFY_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-SECRET)'
+      SPOTIFY_REFRESH_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-REFRESH-TOKEN)'
+      PERPLEXITY_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/PERPLEXITY-API-KEY)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id
     runtimeName: 'python'
     runtimeVersion: '3.11'
     storageAccountName: storageAccount.outputs.name
-    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.core.windows.net/app-package-mcp-${resourceToken}'
+    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.${environment().suffixes.storage}/app-package-mcp-${resourceToken}'
     functionAppScaleLimit: 100
     minimumElasticInstanceCount: 0
   }
@@ -242,5 +257,31 @@ module mcpDiagnostics 'core/host/app-diagnostics.bicep' = {
     appName: mcpFunctionApp.outputs.name
     kind: 'functionapp'
     diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+  }
+}
+
+// ****************************************************************
+// RBAC Role Assignments for Key Vault
+// ****************************************************************
+
+module assignKeyVaultRoles 'core/host/assign-keyvault-roles.bicep' = {
+  name: 'assignKeyVaultRoles'
+  scope: resourceGroup(!empty(keyVaultResourceGroupName) ? keyVaultResourceGroupName : resourceGroupName)
+  params: {
+    keyVaultName: keyVaultName
+    principalAssignments: [
+      {
+        name: AppService.name
+        principalId: AppService.outputs.identityPrincipalId
+      }
+      {
+        name: functionApp.name
+        principalId: functionApp.outputs.identityPrincipalId
+      }
+      {
+        name: mcpFunctionApp.name
+        principalId: mcpFunctionApp.outputs.identityPrincipalId
+      }
+    ]
   }
 }
