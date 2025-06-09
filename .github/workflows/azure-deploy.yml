@@ -63,9 +63,19 @@ jobs:
         with:
           version: "0.5.13"
 
-      - name: Create requirements.txt from uv.lock
+      - name: Create requirements.txt from uv.lock (api)
         run: |
           cd src/api
+          uv export --format requirements-txt --no-editable > requirements.txt
+
+      - name: Create requirements.txt from uv.lock (func)
+        run: |
+          cd src/func
+          uv export --format requirements-txt --no-editable > requirements.txt
+
+      - name: Create requirements.txt from uv.lock (mcp)
+        run: |
+          cd src/mcp
           uv export --format requirements-txt --no-editable > requirements.txt
 
       - name: create-json
@@ -78,6 +88,16 @@ jobs:
       - name: ls src/api
         run: |
           cd src/api
+          ls -la
+
+      - name: ls src/func
+        run: |
+          cd src/func
+          ls -la
+
+      - name: ls src/mcp
+        run: |
+          cd src/mcp
           ls -la
 
       - name: Install azd
