@@ -1,4 +1,3 @@
-import logging
 import os
 
 from azure.search.documents.indexes.models import (
@@ -15,7 +14,6 @@ from logger import logger
 
 
 class AISearchUploader:
-
     def __init__(self):
         self.model: str = "text-embedding-3-small"
         self.index_name = "diary-vector"
@@ -33,9 +31,7 @@ class AISearchUploader:
                 key=True,
                 filterable=True,
             ),
-            SearchableField(
-                name="content", type=SearchFieldDataType.String, searchable=True, analyzer_name="ja.microsoft"
-            ),
+            SearchableField(name="content", type=SearchFieldDataType.String, searchable=True, analyzer_name="ja.microsoft"),
             SearchField(
                 name="content_vector",
                 type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
@@ -43,9 +39,7 @@ class AISearchUploader:
                 vector_search_dimensions=len(self.embeddings.embed_query("Text")),
                 vector_search_profile_name="myHnswProfile",
             ),
-            SearchableField(
-                name="metadata", type=SearchFieldDataType.String, searchable=True, analyzer_name="ja.microsoft"
-            ),
+            SearchableField(name="metadata", type=SearchFieldDataType.String, searchable=True, analyzer_name="ja.microsoft"),
         ]
 
     def _set_embeddings(self):

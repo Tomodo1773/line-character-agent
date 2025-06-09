@@ -7,6 +7,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from langchain_core.documents import Document
 from logger import logger
 
+
 class GoogleDriveHandler:
     SCOPES = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/documents.readonly"]
 
