@@ -340,7 +340,9 @@ def spotify_add_track_to_liked_songs(context) -> str:
 
 # Perplexity Web Search Tool
 perplexity_search_properties = [
-    ToolProperty("query", "string", "A search request in sentence form (make it as specific as possible and include context)."),
+    ToolProperty(
+        "query", "string", "A search request in sentence form (make it as specific as possible and include context)."
+    ),
 ]
 perplexity_search_properties_json = json.dumps([prop.to_dict() for prop in perplexity_search_properties])
 

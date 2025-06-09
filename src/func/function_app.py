@@ -1,5 +1,4 @@
 import datetime
-import logging
 
 import azure.functions as func
 
@@ -10,7 +9,8 @@ from logger import logger
 
 app = func.FunctionApp()
 
-@app.timer_trigger(schedule="0 0 * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False) 
+
+@app.timer_trigger(schedule="0 0 * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False)
 def timer_trigger(myTimer: func.TimerRequest) -> None:
     span_days = int(os.getenv("SPAN_DAYS", 3650))
     upload_recent_diaries(span_days)
@@ -32,7 +32,7 @@ def upload_recent_diaries(span_days: int = 1):
     # Iterate over the files and check their modified time
     documents = []
     for file in files:
-        modified_time = datetime.datetime.strptime(file['modifiedTime'], "%Y-%m-%dT%H:%M:%S.%fZ")
+        modified_time = datetime.datetime.strptime(file["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ")
 
         # Check if the file was modified within the last day
         if (now - modified_time).days < span_days:
@@ -44,6 +44,7 @@ def upload_recent_diaries(span_days: int = 1):
     # Upload the content to Azure AI Search
     uploader.upload(documents)
     logger.info(f"{len(documents)} documents uploaded to Azure AI Search.")
+
 
 if __name__ == "__main__":
     upload_recent_diaries(3650)
