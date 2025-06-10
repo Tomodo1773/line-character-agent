@@ -1,139 +1,270 @@
-# LINE AI Bot
+# LINE AIキャラクターエージェント
 
 ## プロジェクト概要
 
-本プロジェクトはAzureのサービスとLINE Messaging APIを連携させて、ユーザーと自然な会話ができるキャラクターボットを構築するものです。ボットはAIエージェントとなっており、会話内容から検索が必要と判断した際はWeb検索をおこないます。
+LINEとWebフロントエンドの両方に対応したAIキャラクターエージェントシステムです。ユーザーの音声日記を管理し、パーソナライズされた会話を提供します。LangGraphを活用したマルチエージェント構成により、日記管理、音楽再生、Web検索などの多様な機能を実現しています。
 
-Azureの無料枠サービスを最大限に活用し、低コストで実現可能な構成を目指します。
-デプロイにはAzure Developer CLI (azd) を用いてインフラプロビジョニングからアプリをデプロイまでを簡単なコマンドで提供します。
+### 主要サービス構成
 
-## 主な機能
+- **フロントエンド**
+  - LINE Messaging API（メッセージング）
 
-- ユーザーからのLINEメッセージを受信し、LLMが応答を生成
-- 幼馴染のお姉さん風のキャラクターで対応
-- LLMがWeb検索が必要と判断した場合はWeb検索を実施
-- 直近10件かつ過去1時間のチャット履歴を加味した応答を生成
+- **バックエンド**
+  - LangGraph AIエージェントアプリ（Azure App Service）
+  - MCPサーバー（Azure Functions）
+
+- **データベース・ストレージ**
+  - Azure Cosmos DB（会話履歴）
+  - Google Drive（ユーザープロファイル、日記データ）
+
+- **監視・管理**
+  - Application Insights（アプリケーション監視）
+  - Azure Key Vault（シークレット管理）
+  - LangSmith（エージェントトレース・プロンプト管理）
 
 ## 構成図
 
 ![構成図](./images/architecture.png)
 
-## 技術スタック
+## 主な機能
 
-- Python 3.11
-- FastAPI
-- LINE Messaging API
-- Langchain
-- LangGraph
-- Tavily
-- Azure AppService
-- Azure Cosmos DB
-- Docker
-- Azure Developer CLI
-- bicep
+### 1. 音声日記機能
 
-## シーケンス図
+- LINEから音声メッセージを送信すると自動で日記として処理
+- AI音声認識による文字起こし
+- ユーザー辞書による誤字修正
+- Markdown形式でGoogle Driveに自動保存
+- AIエージェントからの感想コメント付きで返信
+- 複数日の内容をまとめた日記ダイジェストの自動作成
 
-```mermaid
-sequenceDiagram
-    participant User as User
-    participant LINE as LINE
-    participant FastAPI as FastAPI
-    participant CosmosDB as CosmosDB
-    participant LLM as LLM(Gemini)
+### 2. マルチチャネル対応
 
-    User->>LINE: メッセージ送信
-    LINE->>FastAPI: POST /callback
-    FastAPI->>LINE: "ok"
-    FastAPI->>User: ローディングアニメーション
-    FastAPI->>CosmosDB: 直近の会話履歴を取得
-    CosmosDB-->>FastAPI: 会話履歴
-    FastAPI->>LLM: レスポンス生成
-    LLM-->>FastAPI: 生成されたレスポンス
-    FastAPI->>User: レスポンス送信
-    FastAPI->>CosmosDB: 会話履歴を保存
-```
+- **LINE**: メッセージング・音声日記登録
+- **OpenAI互換API**: 外部WebUIからの利用が可能
+
+### 3. パーソナライズされた会話
+
+- Google Driveに保存されたユーザープロファイルを参照
+- 日記ダイジェストを活用した文脈理解
+- 幼馴染のお姉さん風キャラクターとしての応答
+
+### 4. 高度なエージェント機能
+
+- **Spotify操作**: MCP経由での音楽再生・検索
+- **Web検索**: Perplexity APIによる最新情報取得
+- **日記検索**: ベクトル化による過去日記の検索（開発中）
 
 ## AIエージェントグラフ
 
-![urlの出力](./src/api/images/agent_graph.png)
+![AIエージェントフロー](./src/api/images/agent_graph.png)
 
-リクエストは最初にchatbotで処理されます。
+### エージェント構成
 
-1. Web検索が不要な場合はユーザへのレスポンスを生成し処理を終了します(__end__)
-2. Web検索が必要な場合は`tools`ノードをcallします。
-   1. `tools`にはWeb検索ツールとしてTavilyが設定されています。
-   2. 検索が終了すると`chatbot`が再度callされます。
-   3. `tools`の結果を踏まえて再度検索が必要かどうかを`chatbot`が判断します。
+1. **router**: ユーザーの発言内容から適切な処理にルーティング
+2. **spotify_agent**: 音楽関連操作（MCPサーバー経由でSpotify API・Perplexity API利用）
+3. **diary_search**: 日記内容のRAG検索（開発中）
+4. **chatbot**: メイン会話処理（ユーザープロファイル・日記ダイジェスト参照、Web検索対応）
 
-## 前提条件
+## 技術スタック
 
-- LINE Developersでチャンネルが作成されていること
-- Langsmithでキーが発行されていること
-- Azureサブスクリプションが作成されていること
-- Google Ai StudioでGemini　APIキーが発行されていること
+### フロントエンド
 
-## インストール方法
+- LINE Messaging API
+- OpenAI互換API（外部WebUI連携用）
 
-GitHubから資材の取得
+### バックエンド
 
-```powershell
-git clone https://github.com/Tomodo1773/line-ai-agent.git
-cd line-ai-agent
+- Python 3.11
+- FastAPI
+- LangGraph（マルチエージェントオーケストレーション）
+- LangChain
+- Azure Functions（MCPサーバー）
+
+### AI・検索
+
+- OpenAI
+- Perplexity API（Web検索）
+- Azure Cosmos DB（ベクトル検索、開発中）
+
+### 外部サービス連携
+
+- Google Drive API（ファイル管理）
+- Spotify Web API（音楽操作）
+- Model Context Protocol（MCP）
+- LangChain Hub（プロンプト管理）
+
+### Azure Services
+
+- Azure App Service
+- Azure Functions
+- Azure Cosmos DB
+- Azure Key Vault
+- Application Insights
+
+### 開発・デプロイ
+
+- Docker
+- Azure Developer CLI（azd）
+- Bicep（Infrastructure as Code）
+- uv（パッケージ管理）
+
+## システムフロー
+
+### 音声日記登録フロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant LINE as LINE
+    participant API as API Service
+    participant GoogleDrive as Google Drive
+    participant LLM as LLM
+
+    User->>LINE: 音声メッセージ送信
+    LINE->>API: 音声データ転送
+    API->>API: AI音声認識・文字起こし
+    API->>GoogleDrive: ユーザー辞書取得
+    GoogleDrive-->>API: 辞書データ
+    API->>API: 誤字修正・Markdown化
+    API->>GoogleDrive: 日記ファイル保存
+    API->>LLM: 感想コメント生成
+    LLM-->>API: 感想文
+    API->>LINE: 日記内容＋感想を返信
+    API->>GoogleDrive: 日記ダイジェスト更新
 ```
 
-Azureログインと環境作成
+### エージェント会話フロー
 
-```powershell
-azd auth login
-azd env new chatbot-demo
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant Frontend as フロントエンド
+    participant API as API Service
+    participant CosmosDB as Cosmos DB
+    participant GoogleDrive as Google Drive
+    participant MCP as MCPサーバー
+    participant External as 外部API
+
+    User->>Frontend: メッセージ送信
+    Frontend->>API: リクエスト
+    API->>CosmosDB: 会話履歴取得
+    API->>GoogleDrive: プロファイル・日記取得
+    API->>API: エージェントルーティング
+    
+    alt Spotify操作の場合
+        API->>MCP: MCP呼び出し
+        MCP->>External: Spotify/Perplexity API
+        External-->>MCP: 結果
+        MCP-->>API: 処理結果
+    end
+    
+    API->>Frontend: 応答返信
+    API->>CosmosDB: 会話履歴保存
 ```
 
-サンプルから`.env`のひな型を作成
+## 事前準備
 
-```powershell
-Get-Content .env.sample | Add-Content .azure/chatbot-demo/.env
+### 必要なアカウント・リソース
+
+- Azureサブスクリプション
+- LINE Developersチャンネル
+- Google Cloud Platform（Drive API有効化）
+- OpenAI APIまたはAzure OpenAI
+- Spotify Developerアカウント
+- Perplexity API（オプション）
+- LangSmithアカウント（オプション）
+
+### Google Drive事前準備ファイル
+
+以下のファイルをGoogle Driveに配置してください：
+
+- `dictionary.md`: ユーザー辞書（音声認識の誤字修正用）
+- `profile.md`: ユーザープロファイル（エージェントの応答パーソナライズ用）
+
+## インストール・デプロイ
+
+> ⚠️ **注意**: インストール・デプロイ手順は現在整備中です。  
+> 現時点では本格的な運用に推奨できる状態ではありません。  
+> 完全な手順書は後日公開予定です。
+
+### 現在の状況
+
+- Azure Bicepテンプレートによるインフラ自動構築
+- 複数の外部サービス連携が必要（LINE、Google Drive、Spotify等）
+- 環境変数の設定が複雑
+- セットアップ手順の簡素化作業中
+
+### 開発者向け情報
+
+開発に参加される方は、以下のドキュメントを参照してください：
+
+- [CLAUDE.md](./CLAUDE.md) - 開発コマンドと環境構築
+- `src/api/README.md` - API Service詳細
+- `src/mcp/README.md` - MCP Service詳細
+
+## 開発コマンド
+
+### API Service（`src/api/`）
+
+```bash
+cd src/api
+uv sync                      # 依存関係インストール
+uvicorn chatbot.main:app --reload  # ローカル実行
+pytest                       # テスト実行
+ruff check                   # リント
+ruff format                  # フォーマット
 ```
 
-`.azure/chatbot-demo/.env`を自分用の設定に書き換える
+### Function Service（`src/func/`）
 
-```env:.env
-~Exsisting Settings~
-
-# 必須項目
-LINE_CHANNEL_ACCESS_TOKEN="YOUR_LINE_CHANNEL_ACCESS_TOKEN"
-LINE_CHANNEL_SECRET="YOUR_LINE_CHANNEL_SECRET"
-LANGCHAIN_API_KEY="YOUR_LANGCHAIN_API_KEY"
-COSMOS_DB_DATABASE_NAME="YOUR_COSMOS_DB_DATABASE_NAME"
-TAVILY_API_KEY="YOUR_TAVILY_API_KEY"
-OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+```bash
+cd src/func
+uv sync                      # 依存関係インストール
+# Azure Functions Core Tools でローカル実行
 ```
 
-Azureへのプロビジョニング＆アプリデプロイ
+### MCP Service（`src/mcp/`）
 
-```powershell
-azd up
+```bash
+cd src/mcp
+uv sync                      # 依存関係インストール
 ```
 
-正常に終了すると構築されたAppServiceのURLが出力される
+## プロジェクト構造
 
-出力例
+```text
+line-character-agent/
+├── src/
+│   ├── api/              # FastAPI アプリケーション
+│   │   ├── chatbot/      # エージェント実装
+│   │   └── tests/        # テストコード
+│   ├── func/             # Azure Functions
+│   └── mcp/              # MCP サーバー
+├── infra/                # Bicep インフラコード
+├── images/               # ドキュメント用画像
+└── tools/                # 開発ツール
+```
 
-![urlの出力](./images/azd_output.png)
+## 活用例
 
-LINE Developersのチャンネル画面でwebhook URLを設定する。
+### 外部WebUIとの連携
 
-LINE Developersのチャンネル画面>Messaging API設定>Webhook設定>Webhook URLで`出力されたURL + /callback`を設定する
+本システムはOpenAI互換APIを提供しているため、以下のようなWebフロントエンドから利用できます：
 
-設定例
+- **AITuberkit**: キャラクター配信向けUI（VRMアバター対応）
+- **Open WebUI**: 汎用的なチャットUI
+- **その他OpenAI互換フロントエンド**: カスタムUI開発
 
-![LINE Dvelopers Webhook url](./images/line_webhook_url.png)
+## 開発中の機能
+
+- **日記ベクトル化**: Cosmos DBを使用した日記内容のベクトル検索
 
 ## リファレンス
 
-- [bicepリファレンス](https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms?pivots=deployment-language-bicep#appserviceplanproperties)
-- [Azure Developer CLI リファレンス](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/reference#azd-hooks)
-- [Azure Developer CLI デモモード](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/manage-environment-variables#enable-demo-mode)
+- [Azure Developer CLI](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/)
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [LINE Messaging API](https://developers.line.biz/ja/docs/messaging-api/)
 
 ## ライセンス
 
