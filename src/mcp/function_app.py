@@ -1,7 +1,9 @@
 import json
 import logging
+import os
 
 import azure.functions as func
+from openai import OpenAI
 from spotify_api import Client
 from spotipy import SpotifyException
 
@@ -357,9 +359,6 @@ perplexity_search_properties_json = json.dumps([prop.to_dict() for prop in perpl
 def perplexity_web_search(context) -> str:
     """MCP tool for web search using Perplexity API."""
     try:
-        import os
-        from openai import OpenAI
-
         content = json.loads(context)
         arguments = content.get("arguments", {})
         query = arguments.get("query", "")
