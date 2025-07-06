@@ -16,7 +16,7 @@
 	"[toml]": {
 		"editor.defaultFormatter": "tamasfe.even-better-toml"
 	},
-	"python.testing.pytestArgs": ["src/api/tests"],
+	"python.testing.pytestArgs": ["src/api/tests", "src/mcp/tests"],
 	"python.testing.unittestEnabled": false,
 	"python.testing.pytestEnabled": true
 }
