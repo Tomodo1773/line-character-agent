@@ -93,4 +93,34 @@ resource roledefinition0102 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefini
   }
 }
 
+// Database
+resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15-preview' = {
+  parent: accounts
+  name: 'diary'
+  properties: {
+    resource: {
+      id: 'diary'
+    }
+  }
+}
+
+// Container for vector search entries
+resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
+  parent: database
+  name: 'entries'
+  properties: {
+    resource: {
+      id: 'entries'
+      partitionKey: {
+        paths: ['/userId']
+        kind: 'Hash'
+      }
+      indexingPolicy: loadJsonContent('./indexing-policy.json')
+      vectorEmbeddingPolicy: loadJsonContent('./vector-embedding-policy.json')
+    }
+  }
+}
+
 output name string = accounts.name
+output databaseName string = database.name
+output entriesContainerName string = entriesContainer.name
