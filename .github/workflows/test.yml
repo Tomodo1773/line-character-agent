@@ -1,0 +1,61 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/api/**"
+      - "src/func/**"
+      - "src/mcp/**"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+      - claude/issue-104-20250705_021258
+    paths:
+      - "src/api/**"
+      - "src/func/**"
+      - "src/mcp/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.13"
+
+      - name: Install dependencies
+        run: |
+          cd src/api
+          uv sync
+
+      - name: Run tests
+        env:
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          AZURE_AI_SEARCH_ENDPOINT: ${{ secrets.AZURE_AI_SEARCH_ENDPOINT }}
+          AZURE_AI_SEARCH_KEY: ${{ secrets.AZURE_AI_SEARCH_KEY }}
+          AZURE_AI_SEARCH_INDEX: ${{ secrets.AZURE_AI_SEARCH_INDEX }}
+          AZURE_COSMOSDB_ENDPOINT: ${{ secrets.AZURE_COSMOSDB_ENDPOINT }}
+          AZURE_COSMOSDB_KEY: ${{ secrets.AZURE_COSMOSDB_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          MCP_FUNCTION_URL: ${{ secrets.MCP_FUNCTION_URL }}
+        run: |
+          cd src/api
+          uv run pytest
