@@ -1,60 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本ドキュメントは、本リポジトリでの開発作業におけるClaude Code (claude.ai/code) 向けのガイドラインです。
 
-## Project Overview
+## プロジェクト概要
 
-This is a LINE AI chatbot built with Azure services that creates a character-based conversational AI agent. The bot uses LangGraph for agent orchestration and can perform web searches when needed. It consists of three main components deployed as Azure services:
+本プロジェクトは、Azureサービス上で構築されたLINE向けAIチャットボットであり、キャラクター型の会話AIエージェントを実現します。LangGraphによるエージェントオーケストレーションを採用し、必要に応じてWeb検索機能も提供します。以下の3つの主要コンポーネントがAzureサービスとしてデプロイされています。
 
-1. **API Service** (`src/api/`) - FastAPI-based LINE webhook handler and chatbot agent
-2. **Function Service** (`src/func/`) - Azure Function for automated diary uploading to AI Search
-3. **MCP Service** (`src/mcp/`) - Model Context Protocol server for Spotify integration
+1. **APIサービス** (`src/api/`) - FastAPIベースのLINE webhookハンドラおよびチャットボットエージェント
+2. **Functionサービス** (`src/func/`) - AI Searchへ日記データを自動アップロードするAzure Functions
+3. **MCPサービス** (`src/mcp/`) - Spotify連携用Model Context Protocolサーバー
 
-## Development Commands
+## 開発コマンド
 
-### API Service (src/api/)
-- **Install dependencies**: `cd src/api && uv install`
-- **Run locally**: `cd src/api && uvicorn chatbot.main:app --reload`
-- **Run tests**: `cd src/api && pytest`
-- **Lint code**: `cd src/api && ruff check`
-- **Format code**: `cd src/api && ruff format`
+### APIサービス (src/api/)
+- **依存関係インストール**: `cd src/api && uv sync`
+- **ローカル実行**: `cd src/api && uvicorn chatbot.main:app --reload`
+- **テスト実行**: `cd src/api && uv run pytest`
+- **Lintチェック**: `cd src/api && uv run ruff check`
+- **コード整形**: `cd src/api && uv run ruff format`
 
-### Function Service (src/func/)
-- **Install dependencies**: `cd src/func && uv install`
-- **Run locally**: Use Azure Functions Core Tools
+### Functionサービス (src/func/)
+- **依存関係インストール**: `cd src/func && uv sync`
+- **ローカル実行**: Azure Functions Core Toolsをご利用ください
 
-### MCP Service (src/mcp/)
-- **Install dependencies**: `cd src/mcp && uv install`
+### MCPサービス (src/mcp/)
+- **依存関係インストール**: `cd src/mcp && uv sync`
+- **テスト実行**: `cd src/mcp && uv run pytest`
 
-### Deployment
-- **Deploy all services**: `azd up`
-- **Deploy specific service**: `azd deploy <service-name>`
+### デプロイ
+- **全サービスのデプロイ**: `azd up`
+- **特定サービスのみデプロイ**: `azd deploy <service-name>`
 
-## Architecture Notes
+## アーキテクチャに関する補足
 
-### Agent System
-The chatbot uses LangGraph to create an AI agent with the following flow:
-1. Messages are processed by the `chatbot` node
-2. If web search is needed, the `tools` node (Tavily) is called
-3. The agent can iterate between chatbot and tools until a final response is generated
+### エージェントシステム
+チャットボットはLangGraphを用いてAIエージェントを構築しており、以下のフローで動作します。
+1. メッセージは`chatbot`ノードで処理されます
+2. Web検索が必要な場合は`tools`ノード（Tavily）が呼び出されます
+3. エージェントはchatbotとtools間で処理を繰り返し、最終的な応答を生成します
 
-### Data Flow
-- LINE messages → FastAPI webhook → Agent processing → Response via LINE API
-- Chat history is stored in Azure Cosmos DB (last 10 messages, 1 hour retention)
-- Diary documents are automatically uploaded to Azure AI Search for RAG
+### データフロー
+- LINEメッセージ → FastAPI webhook → エージェント処理 → LINE API経由で応答
+- チャット履歴はAzure Cosmos DBに保存（直近10件、1時間保持）
+- 日記ドキュメントは自動的にAzure AI Searchへアップロードされ、RAG用途で利用されます
 
-### Key Components
-- **ChatbotAgent** (`src/api/chatbot/agent/`) - LangGraph-based agent implementation
-- **Database layer** (`src/api/chatbot/database/`) - Cosmos DB repositories and models
-- **LINE integration** (`src/api/chatbot/utils/line.py`) - LINE Messaging API wrapper
-- **Authentication** (`src/api/chatbot/utils/auth.py`) - API key verification for OpenAI-compatible endpoints
+### 主な構成要素
+- **ChatbotAgent** (`src/api/chatbot/agent/`) - LangGraphベースのエージェント実装
+- **データベース層** (`src/api/chatbot/database/`) - Cosmos DBリポジトリおよびモデル
+- **LINE連携** (`src/api/chatbot/utils/line.py`) - LINE Messaging APIラッパー
+- **認証** (`src/api/chatbot/utils/auth.py`) - OpenAI互換エンドポイント用APIキー認証
 
-### Environment Configuration
-- All services use uv for dependency management
-- API service uses `.env` files for local development
-- Azure deployment uses bicep templates in `infra/` directory
+### 環境構成
+- すべてのサービスでuvによる依存関係管理を採用
+- APIサービスはローカル開発時に.envファイルを利用
+- Azureへのデプロイは`infra/`ディレクトリ内のbicepテンプレートを使用
 
-### Testing
-- API service has pytest configuration with async support
-- Tests are located in `src/api/tests/`
-- Use `pytest` command in the API directory to run tests
+### テスト
+- APIサービスはpytestによるasync対応済み
+- テストは`src/api/tests/`に配置
+- APIディレクトリで`pytest`コマンドによりテスト実行可能
+- MCPサービスもpytestによるasync対応済み
+- テストは`src/mcp/tests/`に配置
+- MCPディレクトリで`pytest`コマンドによりテスト実行可能
