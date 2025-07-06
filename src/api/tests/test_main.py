@@ -48,7 +48,7 @@ def test_diary_transcription():
     from chatbot.utils.transcript import DiaryTranscription
 
     # サンプル音声ファイルを読み込む
-    with open("src/api/tests/sample.m4a", "rb") as f:
+    with open("tests/sample.m4a", "rb") as f:
         audio_content = f.read()
 
     # DiaryTranscriptionクラスのインスタンスを作成
