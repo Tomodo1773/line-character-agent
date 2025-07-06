@@ -107,13 +107,13 @@ class DiaryTranscription:
 
     def transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)
-        with open(file_path, "rb") as audio_file:
-            # transcript = openai.audio.transcriptions.create(
-            #     model="whisper-1",
-            #     file=audio_file,
-            # )
-            groq = OpenAI(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
-            transcript = groq.audio.transcriptions.create(model="whisper-large-v3", file=audio_file, response_format="text")
+        with open(file_path, "rb") as f:
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            transcript = client.audio.transcriptions.create(
+                model="gpt-4o-transcribe",
+                file=f,
+                response_format="text"
+            )
         return {"transcribed_text": transcript}
 
     def _save_audio(self, audio_file: bytes) -> str:

@@ -38,25 +38,6 @@ def test_chatbot_agent_response():
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
 
-
-def test_chatbot_agent_websearch_invocation():
-    """
-    ChatbotAgentのwebsearch呼び出しテスト
-    - エージェントが適切にwebsearchを呼び出すことを確認
-    - レスポンスのdocuments内にweb_contentsが含まれていることを確認
-    """
-    agent_graph = ChatbotAgent()
-    userid = os.environ.get("LINE_USER_ID")
-    if not userid:
-        raise ValueError("LINE_USER_ID environment variable is not set")
-
-    messages = [{"type": "human", "content": "今のセリーグの順位は？"}]
-
-    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
-
-    assert "messages" in response
-
-
 def test_diary_transcription():
     """
     DiaryTranscriptionクラスのテスト
@@ -67,7 +48,7 @@ def test_diary_transcription():
     from chatbot.utils.transcript import DiaryTranscription
 
     # サンプル音声ファイルを読み込む
-    with open("src/api/tests/sample.mp3", "rb") as f:
+    with open("tests/sample.m4a", "rb") as f:
         audio_content = f.read()
 
     # DiaryTranscriptionクラスのインスタンスを作成

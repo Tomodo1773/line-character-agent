@@ -1,0 +1,70 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/api/**"
+      - "src/func/**"
+      - "src/mcp/**"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/api/**"
+      - "src/func/**"
+      - "src/mcp/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.13"
+
+      - name: Install dependencies
+        run: |
+          cd src/api
+          uv sync
+
+      - name: create-json
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          dir: "src/api"
+
+      - name: Run tests
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: "hogehoge"
+          LINE_CHANNEL_SECRET: "hogehoge"
+          LINE_USER_ID: "hogehoge"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          COSMOS_DB_ACCOUNT_URL: "hogehoge"
+          COSMOS_DB_ACCOUNT_KEY: "hogehoge"
+          COSMOS_DB_DATABASE_NAME: "hogehoge"
+          OPENAI_COMPATIBLE_API_KEY: "hogehoge"
+          AZURE_AI_SEARCH_SERVICE_NAME: "hogehoge"
+          AZURE_AI_SEARCH_API_KEY: "hogehoge"
+          NIJIVOICE_API_KEY: "hogehoge"
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          MCP_FUNCTION_URL: "hogehoge"
+        run: |
+          cd src/api
+          uv run pytest
