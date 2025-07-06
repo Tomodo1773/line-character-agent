@@ -23,7 +23,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,19 +43,29 @@ jobs:
           cd src/api
           uv sync
 
+      - name: create-json
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          dir: "src/api"
+
       - name: Run tests
         env:
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LINE_CHANNEL_ACCESS_TOKEN: "hogehoge"
+          LINE_CHANNEL_SECRET: "hogehoge"
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
-          AZURE_AI_SEARCH_ENDPOINT: ${{ secrets.AZURE_AI_SEARCH_ENDPOINT }}
-          AZURE_AI_SEARCH_KEY: ${{ secrets.AZURE_AI_SEARCH_KEY }}
-          AZURE_AI_SEARCH_INDEX: ${{ secrets.AZURE_AI_SEARCH_INDEX }}
-          AZURE_COSMOSDB_ENDPOINT: ${{ secrets.AZURE_COSMOSDB_ENDPOINT }}
-          AZURE_COSMOSDB_KEY: ${{ secrets.AZURE_COSMOSDB_KEY }}
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          MCP_FUNCTION_URL: ${{ secrets.MCP_FUNCTION_URL }}
+          COSMOS_DB_ACCOUNT_URL: "hogehoge"
+          COSMOS_DB_ACCOUNT_KEY: "hogehoge"
+          COSMOS_DB_DATABASE_NAME: "hogehoge"
+          OPENAI_COMPATIBLE_API_KEY: "hogehoge"
+          AZURE_AI_SEARCH_SERVICE_NAME: "hogehoge"
+          AZURE_AI_SEARCH_API_KEY: "hogehoge"
+          NIJIVOICE_API_KEY: "hogehoge"
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: "hogehoge"
+          MCP_FUNCTION_URL: "hogehoge"
         run: |
           cd src/api
           uv run pytest
