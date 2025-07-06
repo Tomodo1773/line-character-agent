@@ -2,21 +2,16 @@ name: Test
 
 on:
   pull_request:
+    types: [closed]
     branches:
       - main
     paths:
       - "src/api/**"
-      - "src/func/**"
-      - "src/mcp/**"
-      - ".github/workflows/**"
   push:
     branches:
       - main
     paths:
       - "src/api/**"
-      - "src/func/**"
-      - "src/mcp/**"
-      - ".github/workflows/**"
   workflow_dispatch:
 
 jobs:
@@ -67,4 +62,4 @@ jobs:
           MCP_FUNCTION_URL: "hogehoge"
         run: |
           cd src/api
-          uv run pytest
+          uv run pytest -s
