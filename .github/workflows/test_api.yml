@@ -2,12 +2,7 @@ name: Test
 
 on:
   pull_request:
-    types: [closed]
-    branches:
-      - main
-    paths:
-      - "src/api/**"
-  push:
+    types: [opened, synchronize, reopened]
     branches:
       - main
     paths:

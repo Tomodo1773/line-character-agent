@@ -2,12 +2,7 @@ name: Test MCP
 
 on:
   pull_request:
-    types: [closed]
-    branches:
-      - main
-    paths:
-      - "src/mcp/**"
-  push:
+    types: [opened, synchronize, reopened]
     branches:
       - main
     paths:
