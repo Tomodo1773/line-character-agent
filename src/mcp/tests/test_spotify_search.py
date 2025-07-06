@@ -33,6 +33,11 @@ class TestSpotifySearch:
         # Act
         result = spotify_search(mock_context)
         
+        # Output API result for pytest -s
+        print(f"\n=== Spotify API Result ===")
+        print(result)
+        print(f"=== End Spotify API Result ===\n")
+        
         # Assert
         assert result is not None
         assert len(result) > 0

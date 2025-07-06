@@ -6,7 +6,6 @@
 		"source.organizeImports": "explicit",
 		"source.fixAll": "explicit"
 	},
-	"python.defaultInterpreterPath": ".venv/bin/python",
 	"python.terminal.activateEnvironment": false,
 	"[python]": {
 		"editor.tabSize": 4,
@@ -15,8 +14,5 @@
 	"ruff.lineLength": 127,
 	"[toml]": {
 		"editor.defaultFormatter": "tamasfe.even-better-toml"
-	},
-	"python.testing.pytestArgs": ["src/api/tests", "src/mcp/tests"],
-	"python.testing.unittestEnabled": false,
-	"python.testing.pytestEnabled": true
+	}
 }
