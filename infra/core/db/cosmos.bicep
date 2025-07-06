@@ -118,6 +118,9 @@ resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
       indexingPolicy: loadJsonContent('./indexing-policy.json')
       vectorEmbeddingPolicy: loadJsonContent('./vector-embedding-policy.json')
     }
+    options: {
+      throughput: 400
+    }
   }
 }
 
