@@ -104,6 +104,20 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15
   }
 }
 
+// MAIN Database with shared throughput (600 RU/s)
+resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15-preview' = {
+  parent: accounts
+  name: 'MAIN'
+  properties: {
+    resource: {
+      id: 'MAIN'
+    }
+    options: {
+      throughput: 600
+    }
+  }
+}
+
 // Container for vector search entries
 resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
   parent: database
@@ -127,3 +141,4 @@ resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
 output name string = accounts.name
 output databaseName string = database.name
 output entriesContainerName string = entriesContainer.name
+output mainDatabaseName string = mainDatabase.name
