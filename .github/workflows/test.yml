@@ -12,7 +12,6 @@ on:
   push:
     branches:
       - main
-      - claude/issue-104-20250705_021258
     paths:
       - "src/api/**"
       - "src/func/**"
