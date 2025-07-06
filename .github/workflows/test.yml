@@ -64,7 +64,6 @@ jobs:
           AZURE_AI_SEARCH_API_KEY: "hogehoge"
           NIJIVOICE_API_KEY: "hogehoge"
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
-          APPLICATIONINSIGHTS_CONNECTION_STRING: "hogehoge"
           MCP_FUNCTION_URL: "hogehoge"
         run: |
           cd src/api
