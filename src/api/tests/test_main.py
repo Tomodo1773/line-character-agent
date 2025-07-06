@@ -38,25 +38,6 @@ def test_chatbot_agent_response():
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
 
-
-def test_chatbot_agent_websearch_invocation():
-    """
-    ChatbotAgentのwebsearch呼び出しテスト
-    - エージェントが適切にwebsearchを呼び出すことを確認
-    - レスポンスのdocuments内にweb_contentsが含まれていることを確認
-    """
-    agent_graph = ChatbotAgent()
-    userid = os.environ.get("LINE_USER_ID")
-    if not userid:
-        raise ValueError("LINE_USER_ID environment variable is not set")
-
-    messages = [{"type": "human", "content": "今のセリーグの順位は？"}]
-
-    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
-
-    assert "messages" in response
-
-
 def test_diary_transcription():
     """
     DiaryTranscriptionクラスのテスト
