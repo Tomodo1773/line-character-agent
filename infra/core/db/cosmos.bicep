@@ -4,7 +4,7 @@ param enableFreeTier bool
 param totalThroughputLimit int
 param tags object
 
-resource accounts 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' = {
+resource accounts 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: name
   location: location
   tags: tags
@@ -45,10 +45,18 @@ resource accounts 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' = {
     capacity: {
       totalThroughputLimit: totalThroughputLimit
     }
+    capabilities: [
+      {
+        name: 'EnableNoSQLVectorSearch'
+      }
+      {
+        name: 'EnableFullTextSearch'
+      }
+    ]
   }
 }
 
-resource roledefinition01 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2024-02-15-preview' = {
+resource roledefinition01 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2024-11-15' = {
   parent: accounts
   name: '00000000-0000-0000-0000-000000000001'
   properties: {
@@ -71,7 +79,7 @@ resource roledefinition01 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefiniti
   }
 }
 
-resource roledefinition0102 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2024-02-15-preview' = {
+resource roledefinition0102 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2024-11-15' = {
   parent: accounts
   name: '00000000-0000-0000-0000-000000000002'
   properties: {
@@ -94,7 +102,7 @@ resource roledefinition0102 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefini
 }
 
 // Database
-resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15-preview' = {
+resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   parent: accounts
   name: 'diary'
   properties: {
@@ -105,7 +113,7 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15
 }
 
 // MAIN Database with shared throughput (600 RU/s)
-resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15-preview' = {
+resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   parent: accounts
   name: 'MAIN'
   properties: {
@@ -119,7 +127,7 @@ resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-0
 }
 
 // Container for vector search entries
-resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
+resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
   parent: database
   name: 'entries'
   properties: {
