@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "src/api"
+		},
+		{
+			"path": "src/func"
+		},
+		{
+			"path": "src/mcp"
+		}
+	],
+	"settings": {}
+}
