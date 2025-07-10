@@ -32,7 +32,7 @@ class UserRepository(BaseRepository):
 
 class AgentRepository(BaseRepository):
     def __init__(self):
-        self._core = CosmosCore("CHAT")
+        self._core = CosmosCore("chat")
         self.sessionid = None
         self.history = []
         self.filtered_history = []
