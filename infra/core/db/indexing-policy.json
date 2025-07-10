@@ -1,0 +1,32 @@
+{
+	"indexingMode": "consistent",
+	"automatic": true,
+	"includedPaths": [
+		{
+			"path": "/*"
+		}
+	],
+	"excludedPaths": [
+		{
+			"path": "/\"_etag\"/?"
+		},
+		{
+			"path": "/contentVector/*"
+		}
+	],
+	"vectorIndexes": [
+		{
+			"path": "/contentVector",
+			"type": "diskANN"
+		}
+	],
+	"fullTextPolicy": {
+		"defaultLanguage": "ja",
+		"analyzers": [
+			{
+				"path": "/content",
+				"language": "ja"
+			}
+		]
+	}
+}
