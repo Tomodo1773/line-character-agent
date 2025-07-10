@@ -2,7 +2,7 @@ import datetime
 
 import azure.functions as func
 
-from aisearch import AISearchUploader
+from cosmosdb import CosmosDBUploader
 from get_google_drive import GoogleDriveHandler
 import os
 from logger import logger
@@ -26,8 +26,8 @@ def upload_recent_diaries(span_days: int = 1):
     # Get the current time
     now = datetime.datetime.now()
 
-    # Initialize the AISearchUploader
-    uploader = AISearchUploader()
+    # Initialize the CosmosDBUploader
+    uploader = CosmosDBUploader()
 
     # Iterate over the files and check their modified time
     documents = []
@@ -41,9 +41,10 @@ def upload_recent_diaries(span_days: int = 1):
             documents.append(document)
             logger.info(f"Document {document.metadata['source']} added to upload list.")
 
-    # Upload the content to Azure AI Search
-    uploader.upload(documents)
-    logger.info(f"{len(documents)} documents uploaded to Azure AI Search.")
+    # Upload the content to Cosmos DB
+    user_id = os.getenv("USER_ID", "default_user")
+    uploader.upload(documents, user_id=user_id)
+    logger.info(f"{len(documents)} documents uploaded to Cosmos DB.")
 
 
 if __name__ == "__main__":
