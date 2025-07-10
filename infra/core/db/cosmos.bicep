@@ -49,9 +49,6 @@ resource accounts 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
       {
         name: 'EnableNoSQLVectorSearch'
       }
-      {
-        name: 'EnableFullTextSearch'
-      }
     ]
   }
 }
@@ -112,13 +109,13 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15
   }
 }
 
-// MAIN Database with shared throughput (600 RU/s)
+// main Database with shared throughput (600 RU/s)
 resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   parent: accounts
-  name: 'MAIN'
+  name: 'main'
   properties: {
     resource: {
-      id: 'MAIN'
+      id: 'main'
     }
     options: {
       throughput: 600
