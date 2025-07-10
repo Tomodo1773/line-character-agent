@@ -325,4 +325,36 @@ class Client:
         )
         self.logger.info(f"Add tracks result: {result}")
         return result
-        return result
+
+    @utils.validate
+    def has_duplicate_playlist(self, name: str, device=None):
+        """
+        Check if there are duplicate playlists with the same name owned by the user.
+        - name: Name of the playlist to check for duplicates
+        Returns: (bool, str) - (has_duplicate, playlist_id if found)
+        """
+        me_id = self.sp.current_user()["id"]
+        target = name.casefold().strip()
+        limit, offset = 50, 0
+
+        self.logger.info(f"Checking for duplicate playlists with name: {name}")
+        
+        while True:
+            page = self.sp.current_user_playlists(limit=limit, offset=offset)
+            if any(
+                pl["owner"]["id"] == me_id and pl["name"].casefold().strip() == target
+                for pl in page["items"]
+            ):
+                # Find the matching playlist ID
+                playlist_id = next(pl["id"] for pl in page["items"]
+                                  if pl["owner"]["id"] == me_id
+                                  and pl["name"].casefold().strip() == target)
+                self.logger.info(f"Found duplicate playlist: {playlist_id}")
+                return True, playlist_id
+            
+            if not page.get("next"):
+                break
+            offset += limit
+        
+        self.logger.info("No duplicate playlist found")
+        return False, None

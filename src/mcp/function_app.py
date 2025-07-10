@@ -84,6 +84,10 @@ add_track_to_liked_songs_properties = [
     ToolProperty("track_id", "string", "ID of the track to add to liked songs"),
 ]
 
+check_duplicate_playlist_properties = [
+    ToolProperty("name", "string", "Name of the playlist to check for duplicates"),
+]
+
 # Convert tool properties to JSON
 playback_properties_json = json.dumps([prop.to_dict() for prop in playback_properties])
 search_properties_json = json.dumps([prop.to_dict() for prop in search_properties])
@@ -92,6 +96,7 @@ get_info_properties_json = json.dumps([prop.to_dict() for prop in get_info_prope
 create_playlist_properties_json = json.dumps([prop.to_dict() for prop in create_playlist_properties])
 add_tracks_to_playlist_properties_json = json.dumps([prop.to_dict() for prop in add_tracks_to_playlist_properties])
 add_track_to_liked_songs_properties_json = json.dumps([prop.to_dict() for prop in add_track_to_liked_songs_properties])
+check_duplicate_playlist_properties_json = json.dumps([prop.to_dict() for prop in check_duplicate_playlist_properties])
 
 
 @app.generic_trigger(
@@ -329,6 +334,52 @@ def spotify_add_track_to_liked_songs(context) -> str:
         track_id = arguments.get("track_id")
         result = spotify_client.add_track_to_liked_songs(track_id=track_id)
         return f"Added to liked songs! {result}"
+
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"An error occurred with the Spotify Client: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_check_duplicate_playlist",
+    description="Check if there are duplicate playlists with the same name owned by the user",
+    toolProperties=check_duplicate_playlist_properties_json,
+)
+def spotify_check_duplicate_playlist(context) -> str:
+    """Handle checking for duplicate playlists."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+
+        logger.info(f"Checking duplicate playlist with arguments: {arguments}")
+        name = arguments.get("name")
+        if not name:
+            logger.error("Name is required for duplicate playlist check.")
+            return "Name is required for duplicate playlist check."
+        
+        has_duplicate, playlist_id = spotify_client.has_duplicate_playlist(name=name)
+        
+        if has_duplicate:
+            result = {
+                "has_duplicate": True,
+                "playlist_id": playlist_id,
+                "message": f"重複するプレイリストが見つかりました: '{name}' (ID: {playlist_id})"
+            }
+        else:
+            result = {
+                "has_duplicate": False,
+                "playlist_id": None,
+                "message": f"プレイリスト '{name}' の重複は見つかりませんでした"
+            }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     except SpotifyException as se:
         error_msg = f"Spotify Client error occurred: {str(se)}"
