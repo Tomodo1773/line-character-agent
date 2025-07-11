@@ -327,7 +327,7 @@ class Client:
         return result
 
     @utils.validate
-    def search_my_playlists(self, query: str, limit: int = 50, device=None):
+    def search_my_playlists(self, query: str, limit: int = 50):
         """
         Search for playlists owned by the current user.
         - query: Search query to match against playlist names
@@ -365,7 +365,7 @@ class Client:
         # Parse results using existing utility function
         parsed_results = {
             "playlists": {
-                "href": f"search?q={query}&type=playlist&limit={limit}",
+                "href": f"search?q={query.replace(' ', '%20')}&type=playlist&limit={limit}",
                 "items": matching_playlists,  # 生のプレイリストデータをそのまま渡す
                 "limit": limit,
                 "next": None,
@@ -378,7 +378,7 @@ class Client:
         return utils.parse_search_results(parsed_results, "playlist", self.username)
 
     @utils.validate
-    def has_duplicate_playlist(self, name: str, device=None):
+    def has_duplicate_playlist(self, name: str):
         """
         Check if a playlist with the given name already exists in user's playlists.
         Returns tuple of (has_duplicate: bool, playlist_id: str or None)

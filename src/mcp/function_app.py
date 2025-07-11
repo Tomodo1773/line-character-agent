@@ -387,11 +387,11 @@ def spotify_search_my_playlists(context) -> str:
 
         if not query:
             logger.error("Search query is required")
-            return "検索クエリが必要です。プレイリスト名を入力してください。"
+            return "検索クエリが必要です。検索クエリを入力してください。"
 
         search_results = spotify_client.search_my_playlists(query=query, limit=limit)
 
-        if not search_results.get("playlists"):
+        if not search_results.get("playlists") or len(search_results["playlists"]) == 0:
             logger.info("No playlists found for the search query")
             return f"検索クエリ '{query}' に一致するプレイリストが見つかりませんでした。"
 
