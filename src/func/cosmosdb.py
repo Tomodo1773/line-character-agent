@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from datetime import datetime
 from typing import List
@@ -51,7 +52,6 @@ class CosmosDBUploader:
         source = metadata.get('source', '')
         
         # 日付パターンを探す（例：2024-01-01のような形式）
-        import re
         date_pattern = r'(\d{4}-\d{2}-\d{2})'
         match = re.search(date_pattern, source)
         
@@ -103,9 +103,3 @@ class CosmosDBUploader:
             )
         
         logger.info(f"{len(docs)}件のドキュメントがCosmosDBに追加されました。")
-
-
-if __name__ == "__main__":
-    uploader = CosmosDBUploader()
-    document = Document(page_content="テストドキュメント", metadata={"source": "test-2024-01-01.txt"})
-    uploader.upload([document])
