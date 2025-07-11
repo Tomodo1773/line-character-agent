@@ -20,28 +20,22 @@ class TestSpotifySearch:
         for var in required_vars:
             if not os.getenv(var):
                 pytest.skip(f"{var} environment variable not set")
-        
+
         # Arrange
-        mock_context = json.dumps({
-            "arguments": {
-                "query": "Beatles",
-                "qtype": "track",
-                "limit": 5
-            }
-        })
-        
+        mock_context = json.dumps({"arguments": {"query": "Beatles", "qtype": "track", "limit": 5}})
+
         # Act
         result = spotify_search(mock_context)
-        
+
         # Output API result for pytest -s
-        print(f"\n=== Spotify API Result ===")
+        print("\n=== Spotify API Result ===")
         print(result)
-        print(f"=== End Spotify API Result ===\n")
-        
+        print("=== End Spotify API Result ===\n")
+
         # Assert
         assert result is not None
         assert len(result) > 0
-        
+
         # Verify it's valid JSON
         result_dict = json.loads(result)
         assert "tracks" in result_dict

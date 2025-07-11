@@ -19,22 +19,18 @@ class TestPerplexityWebSearch:
         api_key = os.getenv("PERPLEXITY_API_KEY")
         if not api_key:
             pytest.skip("PERPLEXITY_API_KEY environment variable not set")
-        
+
         # Arrange
-        mock_context = json.dumps({
-            "arguments": {
-                "query": "What is Python programming?"
-            }
-        })
-        
+        mock_context = json.dumps({"arguments": {"query": "What is Python programming?"}})
+
         # Act
         result = perplexity_web_search(mock_context)
-        
+
         # Output API result for pytest -s
-        print(f"\n=== Perplexity API Result ===")
+        print("\n=== Perplexity API Result ===")
         print(result)
-        print(f"=== End Perplexity API Result ===\n")
-        
+        print("=== End Perplexity API Result ===\n")
+
         # Assert
         assert result is not None
         assert len(result) > 0
