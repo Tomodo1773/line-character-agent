@@ -54,7 +54,7 @@ search_properties = [
     ToolProperty(
         "qtype",
         "string",
-        "Type of items to search for (track, album, artist, playlist, or comma-separated combination) (default: track)",
+        "Type of items to search for (track, album, artist, or comma-separated combination) (default: track). Use spotify_search_my_playlists for playlist searches instead",
     ),
     ToolProperty("limit", "number", "Maximum number of items to return (default: 10)"),
 ]
@@ -84,6 +84,12 @@ add_track_to_liked_songs_properties = [
     ToolProperty("track_id", "string", "ID of the track to add to liked songs"),
 ]
 
+search_my_playlists_properties = [
+    ToolProperty("query", "string", "Search query to match against playlist names"),
+    ToolProperty("limit", "number", "Maximum number of results to return (default: 50)"),
+]
+
+
 # Convert tool properties to JSON
 playback_properties_json = json.dumps([prop.to_dict() for prop in playback_properties])
 search_properties_json = json.dumps([prop.to_dict() for prop in search_properties])
@@ -92,6 +98,7 @@ get_info_properties_json = json.dumps([prop.to_dict() for prop in get_info_prope
 create_playlist_properties_json = json.dumps([prop.to_dict() for prop in create_playlist_properties])
 add_tracks_to_playlist_properties_json = json.dumps([prop.to_dict() for prop in add_tracks_to_playlist_properties])
 add_track_to_liked_songs_properties_json = json.dumps([prop.to_dict() for prop in add_track_to_liked_songs_properties])
+search_my_playlists_properties_json = json.dumps([prop.to_dict() for prop in search_my_playlists_properties])
 
 
 @app.generic_trigger(
@@ -155,7 +162,7 @@ def spotify_playback(context) -> str:
     arg_name="context",
     type="mcpToolTrigger",
     toolName="spotify_search",
-    description="Search for tracks, albums, artists, or playlists on Spotify",
+    description="Search for tracks, albums, or artists on Spotify (use spotify_search_my_playlists for playlist searches)",
     toolProperties=search_properties_json,
 )
 def spotify_search(context) -> str:
@@ -262,13 +269,34 @@ def spotify_create_playlist(context) -> str:
     try:
         content = json.loads(context)
         arguments = content.get("arguments", {})
+        name = arguments.get("name", "")
 
         logger.info(f"Creating playlist with arguments: {arguments}")
+
+        if not name:
+            logger.error("Playlist name is required")
+            return "Playlist name is required."
+
+        # Check if playlist with same name already exists
+        logger.info(f"Checking for existing playlists with name: {name}")
+        search_results = spotify_client.search_my_playlists(query=name, limit=50)
+        existing_playlists = search_results.get("playlists", [])
+
+        # Check for exact match
+        exact_match = next((p for p in existing_playlists if p.get("name", "").lower() == name.lower()), None)
+
+        if exact_match:
+            logger.info(f"Found existing playlist with same name: {name}")
+            return f"A playlist with the name '{name}' already exists. Playlist ID: {exact_match.get('id')}"
+
+        # Create playlist if no duplicate found
+        logger.info(f"No duplicate found, creating new playlist: {name}")
         playlist = spotify_client.create_playlist(
-            name=arguments.get("name"),
+            name=name,
             public=arguments.get("public", False),
             description=arguments.get("description", ""),
         )
+        logger.info(f"Successfully created playlist: {name}")
         return json.dumps(playlist, indent=2)
 
     except SpotifyException as se:
@@ -338,6 +366,48 @@ def spotify_add_track_to_liked_songs(context) -> str:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
         return "An internal server error occurred. Please try again later."
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="spotify_search_my_playlists",
+    description="Search for playlists owned by the current user",
+    toolProperties=search_my_playlists_properties_json,
+)
+def spotify_search_my_playlists(context) -> str:
+    """Handle searching user's own playlists."""
+    try:
+        content = json.loads(context)
+        arguments = content.get("arguments", {})
+        query = arguments.get("query", "")
+        limit = int(arguments.get("limit", 50))
+
+        logger.info(f"Searching user's playlists with query: '{query}', limit: {limit}")
+
+        if not query:
+            logger.error("Search query is required")
+            return "検索クエリが必要です。検索クエリを入力してください。"
+
+        search_results = spotify_client.search_my_playlists(query=query, limit=limit)
+
+        if not search_results.get("playlists") or len(search_results["playlists"]) == 0:
+            logger.info("No playlists found for the search query")
+            return f"検索クエリ '{query}' に一致するプレイリストが見つかりませんでした。"
+
+        num_found = len(search_results["playlists"])
+        logger.info(f"Found {num_found} playlists matching the search query")
+
+        return json.dumps(search_results, indent=2)
+
+    except SpotifyException as se:
+        error_msg = f"Spotify Client error occurred: {str(se)}"
+        logger.error(error_msg)
+        return f"Spotify クライアントでエラーが発生しました: {str(se)}"
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "内部サーバーエラーが発生しました。再度お試しください。"
 
 
 # Perplexity Web Search Tool
