@@ -54,7 +54,7 @@ search_properties = [
     ToolProperty(
         "qtype",
         "string",
-        "Type of items to search for (track, album, artist, playlist, or comma-separated combination) (default: track)",
+        "Type of items to search for (track, album, artist, or comma-separated combination) (default: track). Use spotify_search_my_playlists for playlist searches instead",
     ),
     ToolProperty("limit", "number", "Maximum number of items to return (default: 10)"),
 ]
@@ -162,7 +162,7 @@ def spotify_playback(context) -> str:
     arg_name="context",
     type="mcpToolTrigger",
     toolName="spotify_search",
-    description="Search for tracks, albums, artists, or playlists on Spotify",
+    description="Search for tracks, albums, or artists on Spotify (use spotify_search_my_playlists for playlist searches)",
     toolProperties=search_properties_json,
 )
 def spotify_search(context) -> str:
