@@ -335,48 +335,46 @@ class Client:
         """
         if self.username is None:
             self.set_username()
-        
+
         me_id = self.sp.current_user()["id"]
         search_query = query.casefold().strip()
         matching_playlists = []
-        
+
         # Get user's playlists with pagination
         offset = 0
         page_limit = min(limit, 50)  # Spotify API limit is 50
-        
+
         while len(matching_playlists) < limit:
             page = self.sp.current_user_playlists(limit=page_limit, offset=offset)
-            
+
             for playlist in page["items"]:
                 if len(matching_playlists) >= limit:
                     break
-                
+
                 # Check if playlist is owned by user and matches search query
-                if (playlist["owner"]["id"] == me_id and 
-                    search_query in playlist["name"].casefold().strip()):
+                if playlist["owner"]["id"] == me_id and search_query in playlist["name"].casefold().strip():
                     matching_playlists.append(playlist)
-            
+
             # Check if we've reached the end of results
             if not page.get("next"):
                 break
-            
+
             offset += page_limit
-        
         self.logger.info(f"Found {len(matching_playlists)} matching playlists for query '{query}'")
-        
+
         # Parse results using existing utility function
         parsed_results = {
             "playlists": {
                 "href": f"search?q={query}&type=playlist&limit={limit}",
-                "items": [utils.parse_playlist(pl, self.username) for pl in matching_playlists],
+                "items": matching_playlists,  # 生のプレイリストデータをそのまま渡す
                 "limit": limit,
                 "next": None,
                 "offset": 0,
                 "previous": None,
-                "total": len(matching_playlists)
+                "total": len(matching_playlists),
             }
         }
-        
+
         return utils.parse_search_results(parsed_results, "playlist", self.username)
 
     @utils.validate
@@ -388,7 +386,7 @@ class Client:
         """
         if self.username is None:
             self.set_username()
-        
+
         me_id = self.sp.current_user()["id"]
         target = name.casefold().strip()
         limit, offset = 50, 0
@@ -396,14 +394,13 @@ class Client:
         while True:
             page = self.sp.current_user_playlists(limit=limit, offset=offset)
             for playlist in page["items"]:
-                if (playlist["owner"]["id"] == me_id and 
-                    playlist["name"].casefold().strip() == target):
+                if playlist["owner"]["id"] == me_id and playlist["name"].casefold().strip() == target:
                     self.logger.info(f"Found duplicate playlist: {playlist['name']} (ID: {playlist['id']})")
                     return True, playlist["id"]
-            
+
             if not page.get("next"):
                 break
             offset += limit
-        
+
         self.logger.info(f"No duplicate playlist found for name: {name}")
         return False, None

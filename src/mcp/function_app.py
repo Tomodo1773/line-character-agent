@@ -89,9 +89,6 @@ search_my_playlists_properties = [
     ToolProperty("limit", "number", "Maximum number of results to return (default: 50)"),
 ]
 
-check_duplicate_playlist_properties = [
-    ToolProperty("name", "string", "Name of the playlist to check for duplicates"),
-]
 
 # Convert tool properties to JSON
 playback_properties_json = json.dumps([prop.to_dict() for prop in playback_properties])
@@ -102,7 +99,6 @@ create_playlist_properties_json = json.dumps([prop.to_dict() for prop in create_
 add_tracks_to_playlist_properties_json = json.dumps([prop.to_dict() for prop in add_tracks_to_playlist_properties])
 add_track_to_liked_songs_properties_json = json.dumps([prop.to_dict() for prop in add_track_to_liked_songs_properties])
 search_my_playlists_properties_json = json.dumps([prop.to_dict() for prop in search_my_playlists_properties])
-check_duplicate_playlist_properties_json = json.dumps([prop.to_dict() for prop in check_duplicate_playlist_properties])
 
 
 @app.generic_trigger(
@@ -273,13 +269,34 @@ def spotify_create_playlist(context) -> str:
     try:
         content = json.loads(context)
         arguments = content.get("arguments", {})
+        name = arguments.get("name", "")
 
         logger.info(f"Creating playlist with arguments: {arguments}")
+
+        if not name:
+            logger.error("Playlist name is required")
+            return "Playlist name is required."
+
+        # Check if playlist with same name already exists
+        logger.info(f"Checking for existing playlists with name: {name}")
+        search_results = spotify_client.search_my_playlists(query=name, limit=50)
+        existing_playlists = search_results.get("playlists", [])
+
+        # Check for exact match
+        exact_match = next((p for p in existing_playlists if p.get("name", "").lower() == name.lower()), None)
+
+        if exact_match:
+            logger.info(f"Found existing playlist with same name: {name}")
+            return f"A playlist with the name '{name}' already exists. Playlist ID: {exact_match.get('id')}"
+
+        # Create playlist if no duplicate found
+        logger.info(f"No duplicate found, creating new playlist: {name}")
         playlist = spotify_client.create_playlist(
-            name=arguments.get("name"),
+            name=name,
             public=arguments.get("public", False),
             description=arguments.get("description", ""),
         )
+        logger.info(f"Successfully created playlist: {name}")
         return json.dumps(playlist, indent=2)
 
     except SpotifyException as se:
@@ -364,63 +381,24 @@ def spotify_search_my_playlists(context) -> str:
         content = json.loads(context)
         arguments = content.get("arguments", {})
         query = arguments.get("query", "")
-        limit = arguments.get("limit", 50)
+        limit = int(arguments.get("limit", 50))
 
         logger.info(f"Searching user's playlists with query: '{query}', limit: {limit}")
-        
+
         if not query:
             logger.error("Search query is required")
             return "検索クエリが必要です。プレイリスト名を入力してください。"
-        
+
         search_results = spotify_client.search_my_playlists(query=query, limit=limit)
-        
+
         if not search_results.get("playlists"):
             logger.info("No playlists found for the search query")
             return f"検索クエリ '{query}' に一致するプレイリストが見つかりませんでした。"
-        
+
         num_found = len(search_results["playlists"])
         logger.info(f"Found {num_found} playlists matching the search query")
-        
+
         return json.dumps(search_results, indent=2)
-
-    except SpotifyException as se:
-        error_msg = f"Spotify Client error occurred: {str(se)}"
-        logger.error(error_msg)
-        return f"Spotify クライアントでエラーが発生しました: {str(se)}"
-    except Exception as e:
-        error_msg = f"Unexpected error occurred: {str(e)}"
-        logger.error(error_msg)
-        return "内部サーバーエラーが発生しました。再度お試しください。"
-
-
-@app.generic_trigger(
-    arg_name="context",
-    type="mcpToolTrigger",
-    toolName="spotify_check_duplicate_playlist",
-    description="Check if a playlist with the given name already exists in user's playlists",
-    toolProperties=check_duplicate_playlist_properties_json,
-)
-def spotify_check_duplicate_playlist(context) -> str:
-    """Handle checking for duplicate playlists."""
-    try:
-        content = json.loads(context)
-        arguments = content.get("arguments", {})
-        name = arguments.get("name", "")
-
-        logger.info(f"Checking for duplicate playlist with name: '{name}'")
-        
-        if not name:
-            logger.error("Playlist name is required")
-            return "プレイリスト名が必要です。確認したいプレイリスト名を入力してください。"
-        
-        has_duplicate, playlist_id = spotify_client.has_duplicate_playlist(name=name)
-        
-        if has_duplicate:
-            logger.info(f"Found duplicate playlist: {name} (ID: {playlist_id})")
-            return f"同名のプレイリスト '{name}' が既に存在します。プレイリストID: {playlist_id}"
-        else:
-            logger.info(f"No duplicate playlist found for: {name}")
-            return f"プレイリスト '{name}' と同名のプレイリストは見つかりませんでした。"
 
     except SpotifyException as se:
         error_msg = f"Spotify Client error occurred: {str(se)}"
