@@ -255,6 +255,28 @@ line-character-agent/
 - **Open WebUI**: 汎用的なチャットUI
 - **その他OpenAI互換フロントエンド**: カスタムUI開発
 
+## データベーススキーマ
+
+### Cosmos DB - 日記エントリ（diary/entries）
+
+```json
+{
+  "id": "uuid",
+  "userId": "string",          // パーティションキー
+  "date": "2025-07-11",        // ISO形式日付
+  "year": 2025,                // 年（数値）
+  "month": 7,                  // 月（数値）
+  "day": 11,                   // 日（数値）
+  "dayOfWeek": 4,              // 曜日（0=月曜, 6=日曜）
+  "content": "string",         // 日記本文
+  "contentVector": [0.1, ...], // 埋め込みベクトル
+  "tags": [],                  // タグ配列
+  "metadata": {
+    "source": "2025年07月11日(金).md"
+  }
+}
+```
+
 ## 開発中の機能
 
 - **日記ベクトル化**: Cosmos DBを使用した日記内容のベクトル検索

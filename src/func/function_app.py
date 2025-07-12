@@ -1,11 +1,15 @@
 import datetime
+import os
 
 import azure.functions as func
+from dotenv import load_dotenv
 
-from aisearch import AISearchUploader
+from cosmosdb import CosmosDBUploader
 from get_google_drive import GoogleDriveHandler
-import os
 from logger import logger
+
+# 環境変数を.envファイルから読み込み
+load_dotenv()
 
 app = func.FunctionApp()
 
@@ -17,6 +21,9 @@ def timer_trigger(myTimer: func.TimerRequest) -> None:
 
 
 def upload_recent_diaries(span_days: int = 1):
+    # 除外するファイル名のリスト
+    excluded_files = {"dictionary.md", "digest.md", "profile.md"}
+
     # Get the list of files from Google Drive
     drive_handler = GoogleDriveHandler()
     files = drive_handler.list()
@@ -26,12 +33,17 @@ def upload_recent_diaries(span_days: int = 1):
     # Get the current time
     now = datetime.datetime.now()
 
-    # Initialize the AISearchUploader
-    uploader = AISearchUploader()
+    # Initialize the CosmosDBUploader
+    uploader = CosmosDBUploader()
 
     # Iterate over the files and check their modified time
     documents = []
     for file in files:
+        # 除外ファイルチェック
+        if file["name"] in excluded_files:
+            logger.info(f"File {file['name']} is excluded from upload.")
+            continue
+
         modified_time = datetime.datetime.strptime(file["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ")
 
         # Check if the file was modified within the last day
@@ -41,9 +53,9 @@ def upload_recent_diaries(span_days: int = 1):
             documents.append(document)
             logger.info(f"Document {document.metadata['source']} added to upload list.")
 
-    # Upload the content to Azure AI Search
+    # Upload the content to CosmosDB
     uploader.upload(documents)
-    logger.info(f"{len(documents)} documents uploaded to Azure AI Search.")
+    logger.info(f"{len(documents)} documents uploaded to CosmosDB.")
 
 
 if __name__ == "__main__":
