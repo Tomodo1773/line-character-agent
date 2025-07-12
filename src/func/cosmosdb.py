@@ -105,6 +105,15 @@ class CosmosDBUploader:
             # 埋め込み生成
             content_vector = self._generate_embedding(content)
 
+            # ファイル名（拡張子なし）を取得
+            filename_without_ext = ""
+            if metadata and "source" in metadata:
+                source = metadata["source"]
+                filename_without_ext = source.rsplit(".", 1)[0] if "." in source else source
+
+            # contentの先頭にファイル名を追加
+            content_with_filename = f"{filename_without_ext}\n\n{content}" if filename_without_ext else content
+
             # エントリ作成（既存IDまたは新規ID）
             entry = {
                 "id": existing_entry["id"] if existing_entry else str(uuid.uuid4()),
@@ -114,7 +123,7 @@ class CosmosDBUploader:
                 "month": date_info["month"],
                 "day": date_info["day"],
                 "dayOfWeek": date_info["dayOfWeek"],
-                "content": content,
+                "content": content_with_filename,
                 "contentVector": content_vector,
                 "tags": [],
                 "metadata": metadata or {},
