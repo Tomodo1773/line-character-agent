@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - "src/api/**"
+      - "src/func/**"
   workflow_dispatch:
 
 jobs:
