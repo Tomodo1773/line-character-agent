@@ -41,25 +41,54 @@ class CosmosDBUploader:
             logger.error(f"埋め込み生成でエラーが発生しました: {str(e)}")
             raise
 
-    def _extract_date_from_metadata(self, metadata: dict) -> str:
-        """メタデータから日付を抽出"""
-        # ファイル名から日付を抽出する処理を実装
+    def _extract_date_info(self, metadata: dict) -> dict:
+        """メタデータから日付情報を抽出して構造化"""
         source = metadata.get("source", "")
 
-        # 日付パターンを探す（例：2024-01-01のような形式）
-        date_pattern = r"(\d{4}-\d{2}-\d{2})"
-        match = re.search(date_pattern, source)
+        # 日本語形式：2025年07月11日(金).md
+        jp_pattern = r"(\d{4})年(\d{2})月(\d{2})日\(([月火水木金土日])\)"
+        jp_match = re.search(jp_pattern, source)
 
-        if match:
-            return match.group(1)
+        if jp_match:
+            year, month, day, weekday_jp = jp_match.groups()
+            date_str = f"{year}-{month}-{day}"
+            weekday_map = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
+            day_of_week = weekday_map.get(weekday_jp, 0)
         else:
-            # 日付が見つからない場合は今日の日付を使用
-            return datetime.now().strftime("%Y-%m-%d")
+            # 既存の ISO形式パターンもサポート
+            date_pattern = r"(\d{4}-\d{2}-\d{2})"
+            match = re.search(date_pattern, source)
+            if match:
+                date_str = match.group(1)
+                day_of_week = datetime.strptime(date_str, "%Y-%m-%d").weekday()
+            else:
+                date_str = datetime.now().strftime("%Y-%m-%d")
+                day_of_week = datetime.now().weekday()
+
+        return {
+            "date": date_str,
+            "year": int(date_str[:4]),
+            "month": int(date_str[5:7]),
+            "day": int(date_str[8:10]),
+            "dayOfWeek": day_of_week,
+        }
 
     def upsert_entry(self, userid: str, content: str, date_iso: str = None, metadata: dict = None):
         """日記エントリをCosmos DBにアップサート"""
         try:
-            date_str = date_iso or datetime.now().strftime("%Y-%m-%d")
+            # メタデータから日付情報を抽出
+            if metadata:
+                date_info = self._extract_date_info(metadata)
+                date_str = date_info["date"]
+            else:
+                date_str = date_iso or datetime.now().strftime("%Y-%m-%d")
+                date_info = {
+                    "date": date_str,
+                    "year": int(date_str[:4]),
+                    "month": int(date_str[5:7]),
+                    "day": int(date_str[8:10]),
+                    "dayOfWeek": datetime.strptime(date_str, "%Y-%m-%d").weekday(),
+                }
 
             # 同じ日付の既存エントリを検索
             existing_entry = None
@@ -81,6 +110,10 @@ class CosmosDBUploader:
                 "id": existing_entry["id"] if existing_entry else str(uuid.uuid4()),
                 "userId": userid,  # パーティションキー（infra設定と一致）
                 "date": date_str,
+                "year": date_info["year"],
+                "month": date_info["month"],
+                "day": date_info["day"],
+                "dayOfWeek": date_info["dayOfWeek"],
                 "content": content,
                 "contentVector": content_vector,
                 "tags": [],
@@ -101,10 +134,7 @@ class CosmosDBUploader:
         logger.info(f"{len(docs)}件のドキュメントがロードされました。")
 
         for doc in docs:
-            # メタデータから日付を抽出
-            date_iso = self._extract_date_from_metadata(doc.metadata)
-
-            # ドキュメントをアップサート
-            self.upsert_entry(userid=self.userid, content=doc.page_content, date_iso=date_iso, metadata=doc.metadata)
+            # ドキュメントをアップサート（メタデータから日付情報を自動抽出）
+            self.upsert_entry(userid=self.userid, content=doc.page_content, metadata=doc.metadata)
 
         logger.info(f"{len(docs)}件のドキュメントがCosmosDBに追加されました。")
