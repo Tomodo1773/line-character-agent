@@ -145,6 +145,7 @@ resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
 
 output name string = accounts.name
 output endpoint string = accounts.properties.documentEndpoint
+output primaryKey string = accounts.listKeys().primaryMasterKey
 output databaseName string = database.name
 output entriesContainerName string = entriesContainer.name
 output mainDatabaseName string = mainDatabase.name
