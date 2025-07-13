@@ -1,6 +1,5 @@
 import os
 from typing import Optional
-from datetime import date
 
 from dotenv import load_dotenv
 from langchain_azure_ai.vectorstores import AzureCosmosDBNoSqlVectorSearch
@@ -63,12 +62,12 @@ def diary_search_tool(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     order: str = "asc",
-    search_mode: str = "hybrid"
+    search_mode: str = "hybrid",
 ) -> str:
     """ユーザの日記コレクションをベクトル／ハイブリッド検索し、条件に合うエントリを返す"""
     try:
         vstore = get_cosmos_vectorstore()
-        
+
         # メタデータフィルタを組む
         filters = []
         if start_date:
@@ -76,30 +75,25 @@ def diary_search_tool(
         if end_date:
             filters.append(f'c.date <= "{end_date}"')
         search_filter = " AND ".join(filters) if filters else None
-        
+
         # ストア検索
-        docs = vstore.search(
-            query=query_text,
-            k=top_k,
-            search_type=search_mode,
-            search_filter=search_filter
-        )
-        
+        docs = vstore.search(query=query_text, k=top_k, search_type=search_mode, search_filter=search_filter)
+
         if not docs:
             return "日記に関連する情報が見つかりませんでした。"
-        
+
         # 必要なら日付ソート
         if order == "desc":
             docs = sorted(docs, key=lambda d: d.metadata.get("date", ""), reverse=True)
-        
+
         # Format the diary entries for better readability
         diary_entries = []
         for doc in docs:
             date_info = doc.metadata.get("date", "日付不明")
             diary_entries.append(f"【{date_info}】{doc.page_content}")
-        
+
         return "\n\n".join(diary_entries)
-        
+
     except Exception as e:
         return f"日記検索中にエラーが発生しました: {str(e)}"
 
