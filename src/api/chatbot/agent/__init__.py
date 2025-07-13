@@ -15,7 +15,7 @@ from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
 
-from chatbot.agent.tools import azure_ai_search, diary_search_tool
+from chatbot.agent.tools import diary_search_tool
 from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
@@ -233,41 +233,6 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     )
 
 
-def create_diary_query_node(state: State) -> Command[Literal["diary_searcher"]]:
-    """
-    日記検索用のクエリを生成します。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-    Returns:
-        Command: diary_searcherノードへの遷移＆作成したクエリ
-    """
-    logger.info("--- Create Diary Query Node ---")
-    llm = ChatOpenAI(model="gpt-4.1")
-
-    # プロンプトはLangchain Hubから取得
-    # https://smith.langchain.com/hub/tomodo1773/create_diary_search_query
-    template = get_prompt("tomodo1773/create_diary_search_query")
-    prompt = template.partial(current_datetime=get_japan_datetime())
-    create_diary_query_chain = prompt | llm | StrOutputParser()
-    return Command(
-        goto="diary_searcher",
-        update={"query": create_diary_query_chain.invoke({"messages": messages_to_dict(state["messages"])})},
-    )
-
-
-def diary_searcher_node(state: State) -> Command[Literal["chatbot"]]:
-    """
-    生成されたクエリを使用して日記検索を実行します。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
-    Returns:
-        Command: chatbotノードへの遷移＆検索結果
-    """
-    logger.info("--- Diary Searcher Node ---")
-    return Command(
-        goto="chatbot",
-        update={"documents": azure_ai_search(state["query"])},
-    )
 
 
 class ChatbotAgent:
@@ -290,8 +255,6 @@ class ChatbotAgent:
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
-        graph_builder.add_node("create_diary_query", create_diary_query_node)
-        graph_builder.add_node("diary_searcher", diary_searcher_node)
         self.graph = graph_builder.compile()
 
     async def ainvoke(self, messages: list, userid: str):
