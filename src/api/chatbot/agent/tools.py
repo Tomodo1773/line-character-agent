@@ -24,6 +24,23 @@ class AzureAISearchInput(BaseModel):
     query: str = Field(description="search query")
 
 
+@tool("diary-search-tool", args_schema=AzureAISearchInput)
+def diary_search_tool(query: str) -> str:
+    """A tool for retrieving relevant entries from the user's personal diary stored in Azure AI Search.
+    Useful for answering questions based on the user's past experiences and thoughts."""
+    retriever = AzureAISearchRetriever(content_key="content", top_k=3, index_name="diary-vector")
+    docs = retriever.invoke(query)
+    if not docs:
+        return "日記に関連する情報が見つかりませんでした。"
+    
+    # Format the diary entries for better readability
+    diary_entries = []
+    for doc in docs:
+        diary_entries.append(f"- {doc.page_content}")
+    
+    return "\n".join(diary_entries)
+
+
 def azure_ai_search(query: str) -> str:
     """A tool for retrieving relevant entries from the user's personal diary stored in Azure AI Search.
     Useful for answering questions based on the user's past experiences and thoughts."""

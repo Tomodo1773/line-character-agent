@@ -15,7 +15,7 @@ from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import TypedDict
 
-from chatbot.agent.tools import azure_ai_search
+from chatbot.agent.tools import azure_ai_search, diary_search_tool
 from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
@@ -116,7 +116,7 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
 
 
-def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot", "spotify_agent"]]:
+def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spotify_agent"]]:
     """
     現在の状態に基づいて次に遷移するノードを決定します。
     Args:
@@ -140,7 +140,7 @@ def router_node(state: State) -> Command[Literal["create_diary_query", "chatbot"
     if goto == "FINISH":
         goto = "chatbot"
     elif goto == "diary_searcher":
-        goto = "create_diary_query"
+        goto = "diary_agent"
 
     return Command(goto=goto)
 
@@ -196,6 +196,34 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     agent = create_react_agent(
         llm,
         tools=mcp_tools,
+        prompt=prompt,
+    )
+    content = await agent.ainvoke({"messages": state["messages"]})
+    return Command(
+        goto="__end__",
+        update={"messages": [AIMessage(content=content["messages"][-1].content)]},
+    )
+
+
+async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
+    """
+    日記検索関連のリクエストに対してdiary search toolを使って応答を生成するノード。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+    Returns:
+        Command: Endへの遷移＆AIの応答メッセージ
+    """
+    logger.info("--- Diary Agent Node ---")
+    # プロンプトはLangchain Hubから取得（Spotifyと同じショートプロンプトを使用）
+    # https://smith.langchain.com/hub/tomodo1773/sister_edinet_short
+    prompt = get_prompt("tomodo1773/sister_edinet_short")
+
+    llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
+    # 日記検索ツールを使用
+    diary_tools = [diary_search_tool]
+    agent = create_react_agent(
+        llm,
+        tools=diary_tools,
         prompt=prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
@@ -261,6 +289,7 @@ class ChatbotAgent:
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
+        graph_builder.add_node("diary_agent", diary_agent_node)
         graph_builder.add_node("create_diary_query", create_diary_query_node)
         graph_builder.add_node("diary_searcher", diary_searcher_node)
         self.graph = graph_builder.compile()
