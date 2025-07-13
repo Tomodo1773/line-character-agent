@@ -26,7 +26,7 @@ class CosmosCore:
 
     def _init_container(self, container_name: str):
         """コンテナの初期化"""
-        database = self._client.create_database_if_not_exists(id=os.getenv("COSMOS_DB_DATABASE_NAME"))
+        database = self._client.create_database_if_not_exists(id="main")
         return database.create_container_if_not_exists(id=container_name, partition_key=PartitionKey(path="/id"))
 
     def save(self, data: Dict[str, Any]) -> None:
