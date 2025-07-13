@@ -255,6 +255,19 @@ line-character-agent/
 - **Open WebUI**: 汎用的なチャットUI
 - **その他OpenAI互換フロントエンド**: カスタムUI開発
 
+## データベース構成
+
+### Cosmos DB 構成
+
+本システムでは以下のCosmosDBデータベース・コンテナ構成を使用しています：
+
+- **diary データベース**
+  - `entries` コンテナ: 日記エントリのベクトル検索用
+- **main データベース**
+  - `chat` コンテナ: チャット履歴管理用
+
+> **注意**: データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
+
 ## データベーススキーマ
 
 ### Cosmos DB - 日記エントリ（diary/entries）
@@ -274,6 +287,26 @@ line-character-agent/
   "metadata": {
     "source": "2025年07月11日(金).md"
   }
+}
+```
+
+### Cosmos DB - チャット履歴（main/chat）
+
+```json
+{
+  "id": "session-uuid",        // セッションID（パーティションキー）
+  "date": "2025-07-13T15:30:00+09:00", // 作成日時（ISO形式）
+  "userid": "line-user-id",    // LINEユーザーID
+  "messages": [                 // LangChainメッセージ配列
+    {
+      "type": "human",
+      "content": "こんにちは"
+    },
+    {
+      "type": "ai",
+      "content": "こんにちは！元気ですか？"
+    }
+  ]
 }
 ```
 
