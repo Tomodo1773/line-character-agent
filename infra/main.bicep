@@ -15,7 +15,6 @@ param resourceGroupName string = ''
 param cosmosDbAccountName string = ''
 param cosmosDbResourceGroupName string = ''
 param cosmosDbDatabaseName string = ''
-param azureAiSearchServiceName string = ''
 param appServicePlanName string = ''
 param appServicePlanResourceGroupName string = ''
 
@@ -117,8 +116,8 @@ module AppService './app/api.bicep' = {
       OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
       OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-COMPATIBLE-API-KEY)'
       COSMOS_DB_DATABASE_NAME: cosmosDbDatabaseName
-      AZURE_AI_SEARCH_SERVICE_NAME: azureAiSearchServiceName
-      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AZURE-AI-SEARCH-API-KEY)'
+      COSMOS_DB_ACCOUNT_URL: empty(cosmosDbAccountName) ? CosmosDB.outputs.endpoint : existingCosmosDB.properties.documentEndpoint
+      COSMOS_DB_ACCOUNT_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/COSMOS-DB-ACCOUNT-KEY)'
       NIJIVOICE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/NIJIVOICE-API-KEY)'
       DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
       MCP_FUNCTION_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/MCP-FUNCTION-URL)'
