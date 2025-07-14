@@ -26,6 +26,7 @@
 - **依存関係インストール**: `cd src/func && uv sync`
 - **パッケージ追加**: `cd src/func && uv add <パッケージ名>`
 - **ローカル実行**: Azure Functions Core Toolsをご利用ください
+- **テスト実行**: `cd src/func && uv run pytest`
 - **Lintチェック**: `cd src/func && uv run ruff check`
 - **コード整形**: `cd src/func && uv run ruff format`
 
@@ -48,15 +49,16 @@
 
 チャットボットはLangGraphを用いてAIエージェントを構築しており、以下のフローで動作します。
 
-1. メッセージは`chatbot`ノードで処理されます
-2. Web検索が必要な場合は`tools`ノード（Tavily）が呼び出されます
-3. エージェントはchatbotとtools間で処理を繰り返し、最終的な応答を生成します
+1. メッセージは`router`ノードで処理され、適切なエージェントにルーティングされます
+2. Spotify操作が必要な場合は`spotify_agent`ノードが呼び出されます
+3. 日記検索が必要な場合は`diary_search`ノードでRAG検索が実行されます
+4. 通常の会話は`chatbot`ノードで処理され、必要に応じてWeb検索も実行されます
 
 ### データフロー
 
 - LINEメッセージ → FastAPI webhook → エージェント処理 → LINE API経由で応答
 - チャット履歴はAzure Cosmos DBに保存（直近10件、1時間保持）
-- 日記ドキュメントは自動的にAzure AI Searchへアップロードされ、RAG用途で利用されます
+- 日記ドキュメントはベクトル化されてAzure Cosmos DBに保存され、RAG検索で利用されます
 
 ### 主な構成要素
 
@@ -76,6 +78,9 @@
 - APIサービスはpytestによるasync対応済み
 - テストは`src/api/tests/`に配置
 - APIディレクトリで`pytest`コマンドによりテスト実行可能
+- Functionサービスもpytestによるasync対応済み
+- テストは`src/func/tests/`に配置
+- Functionディレクトリで`pytest`コマンドによりテスト実行可能
 - MCPサービスもpytestによるasync対応済み
 - テストは`src/mcp/tests/`に配置
 - MCPディレクトリで`pytest`コマンドによりテスト実行可能

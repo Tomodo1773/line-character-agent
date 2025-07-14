@@ -73,8 +73,8 @@ class CosmosDBUploader:
             "dayOfWeek": day_of_week,
         }
 
-    def upsert_entry(self, userid: str, content: str, date_iso: str = None, metadata: dict = None):
-        """日記エントリをCosmos DBにアップサート"""
+    def create_entry(self, userid: str, content: str, date_iso: str = None, metadata: dict = None):
+        """日記エントリをCosmos DBに新規作成"""
         try:
             # メタデータから日付情報を抽出
             if metadata:
@@ -90,18 +90,6 @@ class CosmosDBUploader:
                     "dayOfWeek": datetime.strptime(date_str, "%Y-%m-%d").weekday(),
                 }
 
-            # 同じ日付の既存エントリを検索
-            existing_entry = None
-            try:
-                query = "SELECT * FROM c WHERE c.userId = @userid AND c.date = @date"
-                parameters = [{"name": "@userid", "value": userid}, {"name": "@date", "value": date_str}]
-                items = list(self.container.query_items(query=query, parameters=parameters, partition_key=userid))
-                if items:
-                    existing_entry = items[0]  # 同じ日付の最初のエントリを取得
-                    logger.info(f"既存の日記エントリを更新します: {existing_entry['id']} (日付: {date_str})")
-            except Exception as search_error:
-                logger.warning(f"既存エントリの検索でエラーが発生しました: {str(search_error)}")
-
             # 埋め込み生成
             content_vector = self._generate_embedding(content)
 
@@ -114,9 +102,9 @@ class CosmosDBUploader:
             # contentの先頭にファイル名を追加
             content_with_filename = f"{filename_without_ext}\n\n{content}" if filename_without_ext else content
 
-            # エントリ作成（既存IDまたは新規ID）
+            # エントリ作成
             entry = {
-                "id": existing_entry["id"] if existing_entry else str(uuid.uuid4()),
+                "id": str(uuid.uuid4()),
                 "userId": userid,  # パーティションキー（infra設定と一致）
                 "date": date_str,
                 "year": date_info["year"],
@@ -129,21 +117,49 @@ class CosmosDBUploader:
                 "metadata": metadata or {},
             }
 
-            # CosmosDBにアップサート
-            self.container.upsert_item(entry)
-            action = "更新" if existing_entry else "新規作成"
-            logger.info(f"日記エントリを{action}しました: {entry['id']} (日付: {date_str})")
+            # CosmosDBに新規作成
+            self.container.create_item(entry)
+            logger.info(f"日記エントリを新規作成しました: {entry['id']} (日付: {date_str})")
 
         except Exception as e:
             logger.error(f"CosmosDBへの保存でエラーが発生しました: {str(e)}")
             raise
 
-    def upload(self, docs: List[Document]):
+    def check_entry_exists(self, userid: str, date_str: str) -> bool:
+        """指定した日付のエントリが既に存在するかチェック"""
+        try:
+            query = "SELECT * FROM c WHERE c.userId = @userid AND c.date = @date"
+            parameters = [{"name": "@userid", "value": userid}, {"name": "@date", "value": date_str}]
+            items = list(self.container.query_items(query=query, parameters=parameters, partition_key=userid))
+            return len(items) > 0
+        except Exception as e:
+            logger.warning(f"既存エントリの検索でエラーが発生しました: {str(e)}")
+            return False
+
+    def upload(self, docs: List[Document], skip_existing: bool = True):
         """ドキュメントリストをCosmosDBにアップロード"""
         logger.info(f"{len(docs)}件のドキュメントがロードされました。")
 
-        for doc in docs:
-            # ドキュメントをアップサート（メタデータから日付情報を自動抽出）
-            self.upsert_entry(userid=self.userid, content=doc.page_content, metadata=doc.metadata)
+        uploaded_count = 0
+        skipped_count = 0
 
-        logger.info(f"{len(docs)}件のドキュメントがCosmosDBに追加されました。")
+        for doc in docs:
+            if skip_existing:
+                # メタデータから日付情報を抽出
+                date_info = self._extract_date_info(doc.metadata)
+                date_str = date_info["date"]
+
+                # 既存エントリをチェック
+                if self.check_entry_exists(self.userid, date_str):
+                    logger.info(f"日付 {date_str} の日記は既に存在するためスキップします。")
+                    skipped_count += 1
+                    continue
+
+            # ドキュメントを新規作成（メタデータから日付情報を自動抽出）
+            self.create_entry(userid=self.userid, content=doc.page_content, metadata=doc.metadata)
+            uploaded_count += 1
+
+        if skip_existing:
+            logger.info(f"{uploaded_count}件のドキュメントがCosmosDBに追加され、{skipped_count}件がスキップされました。")
+        else:
+            logger.info(f"{len(docs)}件のドキュメントがCosmosDBに追加されました。")

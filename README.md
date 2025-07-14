@@ -52,7 +52,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 
 - **Spotify操作**: MCP経由での音楽再生・検索
 - **Web検索**: Perplexity APIによる最新情報取得
-- **日記検索**: ベクトル化による過去日記の検索（開発中）
+- **日記検索**: ベクトル化による過去日記の検索・RAG機能
 
 ## AIエージェントグラフ
 
@@ -62,7 +62,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 
 1. **router**: ユーザーの発言内容から適切な処理にルーティング
 2. **spotify_agent**: 音楽関連操作（MCPサーバー経由でSpotify API・Perplexity API利用）
-3. **diary_search**: 日記内容のRAG検索（開発中）
+3. **diary_search**: 日記内容のRAG検索・ベクトル化による過去日記検索
 4. **chatbot**: メイン会話処理（ユーザープロファイル・日記ダイジェスト参照、Web検索対応）
 
 ## 技術スタック
@@ -84,7 +84,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 
 - OpenAI
 - Perplexity API（Web検索）
-- Azure Cosmos DB（ベクトル検索、開発中）
+- Azure Cosmos DB（ベクトル検索）
 
 ### 外部サービス連携
 
@@ -255,6 +255,19 @@ line-character-agent/
 - **Open WebUI**: 汎用的なチャットUI
 - **その他OpenAI互換フロントエンド**: カスタムUI開発
 
+## データベース構成
+
+### Cosmos DB 構成
+
+本システムでは以下のCosmosDBデータベース・コンテナ構成を使用しています：
+
+- **diary データベース**
+  - `entries` コンテナ: 日記エントリのベクトル検索用
+- **main データベース**
+  - `chat` コンテナ: チャット履歴管理用
+
+> **注意**: データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
+
 ## データベーススキーマ
 
 ### Cosmos DB - 日記エントリ（diary/entries）
@@ -277,9 +290,25 @@ line-character-agent/
 }
 ```
 
-## 開発中の機能
+### Cosmos DB - チャット履歴（main/chat）
 
-- **日記ベクトル化**: Cosmos DBを使用した日記内容のベクトル検索
+```json
+{
+  "id": "session-uuid",        // セッションID（パーティションキー）
+  "date": "2025-07-13T15:30:00+09:00", // 作成日時（ISO形式）
+  "userid": "line-user-id",    // LINEユーザーID
+  "messages": [                 // LangChainメッセージ配列
+    {
+      "type": "human",
+      "content": "こんにちは"
+    },
+    {
+      "type": "ai",
+      "content": "こんにちは！元気ですか？"
+    }
+  ]
+}
+```
 
 ## リファレンス
 

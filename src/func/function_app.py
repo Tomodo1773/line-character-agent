@@ -53,9 +53,8 @@ def upload_recent_diaries(span_days: int = 1):
             documents.append(document)
             logger.info(f"Document {document.metadata['source']} added to upload list.")
 
-    # Upload the content to CosmosDB
+    # Upload the content to CosmosDB (既存の日記をスキップ)
     uploader.upload(documents)
-    logger.info(f"{len(documents)} documents uploaded to CosmosDB.")
 
 
 if __name__ == "__main__":
