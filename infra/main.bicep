@@ -193,7 +193,7 @@ module functionApp 'app/func.bicep' = {
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
       OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
-      SPAN_DAYS: 1
+      SPAN_DAYS: 5
       DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
