@@ -1,5 +1,7 @@
 import datetime
+import json
 import os
+import re
 from typing import Optional
 
 from langchain_core.output_parsers import StrOutputParser
@@ -133,7 +135,7 @@ def generate_diary_digest(diary_content: str) -> str:
             ]
         )
 
-        llm = ChatOpenAI(model="gpt-4.1", temperature=0.2)
+        llm = ChatOpenAI(model="gpt-4", temperature=0.2)
         chain = template | llm | StrOutputParser()
 
         return chain.invoke({"diary_content": diary_content})
@@ -144,8 +146,8 @@ def generate_diary_digest(diary_content: str) -> str:
 
 def save_digest_to_drive(digest_content: str, diary_filename: str) -> bool:
     """
-    日記のダイジェストをGoogle Driveに保存する
-    ファイルが存在しない場合は新規作成し、存在する場合は追記する
+    日記のダイジェストをGoogle DriveにJSON形式で保存する
+    ファイルが存在しない場合は新規作成し、存在する場合は更新する
 
     Args:
         digest_content: 保存するダイジェストのテキスト
@@ -157,17 +159,49 @@ def save_digest_to_drive(digest_content: str, diary_filename: str) -> bool:
     try:
         drive_handler = GoogleDriveHandler()
 
-        # digest.mdに追記する日付としてdiary_filenameをそのまま使う
-        date_str = diary_filename
+        # 日付をYYYY-MM-DD形式に変換
+        date_str = _convert_filename_to_date(diary_filename)
 
-        filename = "digest.md"
+        filename = "digest.json"
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
-        formatted_digest = f"\n## {date_str}\n{digest_content}\n"
+        # 新しいダイジェストエントリ
+        new_digest = {
+            "date": date_str,
+            "text": digest_content
+        }
 
-        file_id = drive_handler.append_or_create_markdown(formatted_digest, filename, folder_id)
+        file_id = drive_handler.append_or_create_json(new_digest, filename, folder_id)
 
         return bool(file_id)
     except Exception as e:
         logger.error(f"ダイジェストの保存中にエラーが発生しました: {e}")
         return False
+
+
+def _convert_filename_to_date(filename: str) -> str:
+    """
+    ファイル名（例：2025年07月14日(月)）をYYYY-MM-DD形式に変換する
+
+    Args:
+        filename: 変換するファイル名
+
+    Returns:
+        YYYY-MM-DD形式の日付文字列
+    """
+    try:
+        # 例：2025年07月14日(月) -> 2025-07-14
+        match = re.match(r'(\d{4})年(\d{2})月(\d{2})日', filename)
+        if match:
+            year, month, day = match.groups()
+            return f"{year}-{month}-{day}"
+        else:
+            # パースできない場合は現在の日付を返す
+            jst = timezone("Asia/Tokyo")
+            now = datetime.datetime.now(jst)
+            return now.strftime("%Y-%m-%d")
+    except Exception:
+        # エラーの場合は現在の日付を返す
+        jst = timezone("Asia/Tokyo")
+        now = datetime.datetime.now(jst)
+        return now.strftime("%Y-%m-%d")

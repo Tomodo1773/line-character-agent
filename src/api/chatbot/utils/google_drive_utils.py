@@ -29,19 +29,19 @@ def get_profile_from_drive() -> Dict:
 
 def get_digest_from_drive() -> Dict:
     """
-    Google Driveからdigest.mdを取得する
+    Google Driveからdigest.jsonを取得する
 
     Returns:
         ダイジェスト情報
     """
     try:
         handler = GoogleDriveHandler(credentials_file="credentials.json")
-        content = handler.get_digest_md()
+        content = handler.get_digest_json()
 
         if content:
             return {"content": content}
         else:
-            logger.error("Failed to get digest.md content from Google Drive")
+            logger.error("Failed to get digest.json content from Google Drive")
             return {"content": ""}
     except Exception as e:
         logger.error(f"Error while getting digest from Google Drive: {e}")
