@@ -98,13 +98,13 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
 
 def generate_diary_digest(diary_content: str) -> str:
     """
-    日記の内容からAIを使ってダイジェスト（要約）を生成する
+    日記の内容からAIを使って2-5語程度の短いフレーズでダイジェスト（要約）を生成する
 
     Args:
         diary_content: 日記の内容
 
     Returns:
-        生成されたダイジェスト
+        生成されたダイジェスト（2-5語程度の短いフレーズ）
     """
     try:
         template = ChatPromptTemplate.from_messages(
@@ -118,7 +118,7 @@ def generate_diary_digest(diary_content: str) -> str:
                     感情は不要で、体言止めまたは短い文で端的に表現してください。
                     主語や修飾語を含めて、何をしたか・誰とだったか・どこでだったかが分かるように表現してください。
 
-                    例:
+                    例（入力と出力）:
                     入力: 午前中は家の掃除をして、昼はラーメンを食べに行った。午後は映画を見て、夜は友達と電話した。
                     出力: 午後に映画鑑賞
 
