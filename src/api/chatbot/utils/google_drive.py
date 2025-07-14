@@ -132,43 +132,6 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while getting file content: {error}")
             return ""
 
-    def append_or_create_markdown(self, content: str, filename: str, folder_id: Optional[str] = None) -> str:
-        """
-        指定されたコンテンツをMarkdownファイルに追記または新規作成する
-
-        Args:
-            content: 追記するコンテンツ
-            filename: ファイル名
-            folder_id: 保存先フォルダID（指定がない場合は環境変数から取得）
-
-        Returns:
-            処理されたファイルのID
-        """
-        try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
-            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
-            files = results.get("files", [])
-
-            if files:
-                # ファイルが存在する場合は内容を取得して追記
-                file_id = files[0]["id"]
-                existing_content = self.get_file_content(file_id)
-                updated_content = existing_content + "\n" + content
-
-                media = MediaIoBaseUpload(
-                    io.BytesIO(updated_content.encode("utf-8")), mimetype="text/markdown", resumable=True
-                )
-                self.service.files().update(fileId=file_id, media_body=media).execute()
-                logger.info(f"Updated file {filename} in Google Drive. ID: {file_id}")
-                return file_id
-            else:
-                return self.save_markdown(content, filename, folder_id)
-        except HttpError as error:
-            logger.error(f"An error occurred while appending to file: {error}")
-            return ""
 
     def append_or_create_json(self, new_digest: dict, filename: str, folder_id: Optional[str] = None) -> str:
         """
@@ -277,33 +240,6 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while getting profile.md: {error}")
             return ""
 
-    def get_digest_md(self, folder_id: Optional[str] = None) -> str:
-        """
-        digest.mdファイルの内容を取得する
-
-        Args:
-            folder_id: フォルダID（指定がない場合は環境変数から取得）
-
-        Returns:
-            ファイルの内容
-        """
-        try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = 'digest.md' and '{folder_id}' in parents and trashed = false"
-            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
-            files = results.get("files", [])
-
-            if files:
-                file_id = files[0]["id"]
-                return self.get_file_content(file_id)
-            else:
-                logger.error("digest.md file not found in Google Drive.")
-                return ""
-        except HttpError as error:
-            logger.error(f"An error occurred while getting digest.md: {error}")
-            return ""
 
     def get_digest_json(self, folder_id: Optional[str] = None) -> str:
         """
