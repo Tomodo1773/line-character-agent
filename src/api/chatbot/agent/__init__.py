@@ -16,7 +16,7 @@ from langsmith import traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
-from chatbot.utils import get_japan_datetime, messages_to_dict, remove_trailing_newline
+from chatbot.utils import get_japan_datetime, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
 logger = create_logger(__name__)
@@ -214,9 +214,13 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         Command: Endへの遷移＆AIの応答メッセージ
     """
     logger.info("--- Diary Agent Node ---")
-    # プロンプトはLangchain Hubから取得（Spotifyと同じショートプロンプトを使用）
-    # https://smith.langchain.com/hub/tomodo1773/sister_edinet_short
-    prompt = get_prompt("tomodo1773/sister_edinet_short")
+    # プロンプトはLangchain Hubから取得
+    # https://smith.langchain.com/hub/tomodo1773/sister_edinet_short_diary
+    prompt = get_prompt("tomodo1773/sister_edinet_short_diary")
+
+    # current_datetimeをpartialで事前に設定
+    if "current_datetime" in prompt.input_variables:
+        prompt = prompt.partial(current_datetime=get_japan_datetime())
 
     llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
     # 日記検索ツールを使用
@@ -231,8 +235,6 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         goto="__end__",
         update={"messages": [AIMessage(content=content["messages"][-1].content)]},
     )
-
-
 
 
 class ChatbotAgent:
