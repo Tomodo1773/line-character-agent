@@ -35,7 +35,6 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
-    query: str = ""
     profile: dict = {}
     digest: dict = {}
 
