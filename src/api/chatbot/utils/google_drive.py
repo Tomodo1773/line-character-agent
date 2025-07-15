@@ -1,5 +1,7 @@
 import io
+import json
 import os
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from google.oauth2 import service_account
@@ -130,12 +132,13 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while getting file content: {error}")
             return ""
 
-    def append_or_create_markdown(self, content: str, filename: str, folder_id: Optional[str] = None) -> str:
+
+    def append_or_create_json(self, new_digest: dict, filename: str, folder_id: Optional[str] = None) -> str:
         """
-        指定されたコンテンツをMarkdownファイルに追記または新規作成する
+        指定されたダイジェストをJSONファイルに追加または新規作成する
 
         Args:
-            content: 追記するコンテンツ
+            new_digest: 追加するダイジェストエントリ
             filename: ファイル名
             folder_id: 保存先フォルダID（指定がない場合は環境変数から取得）
 
@@ -151,22 +154,63 @@ class GoogleDriveHandler:
             files = results.get("files", [])
 
             if files:
-                # ファイルが存在する場合は内容を取得して追記
+                # ファイルが存在する場合は内容を取得して更新
                 file_id = files[0]["id"]
                 existing_content = self.get_file_content(file_id)
-                updated_content = existing_content + "\n" + content
-
+                
+                if existing_content.strip():
+                    digest_data = json.loads(existing_content)
+                else:
+                    digest_data = self._create_default_digest_structure()
+                
+                # recentセクションに新しいダイジェストを追加
+                digest_data["recent"].insert(0, new_digest)
+                digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
+                
+                updated_content = json.dumps(digest_data, ensure_ascii=False, indent=2)
+                
                 media = MediaIoBaseUpload(
-                    io.BytesIO(updated_content.encode("utf-8")), mimetype="text/markdown", resumable=True
+                    io.BytesIO(updated_content.encode("utf-8")), mimetype="application/json", resumable=True
                 )
                 self.service.files().update(fileId=file_id, media_body=media).execute()
                 logger.info(f"Updated file {filename} in Google Drive. ID: {file_id}")
                 return file_id
             else:
-                return self.save_markdown(content, filename, folder_id)
+                # ファイルが存在しない場合は新規作成
+                digest_data = self._create_default_digest_structure()
+                digest_data["recent"].append(new_digest)
+                digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
+                
+                content = json.dumps(digest_data, ensure_ascii=False, indent=2)
+                
+                media = MediaIoBaseUpload(
+                    io.BytesIO(content.encode("utf-8")), mimetype="application/json", resumable=True
+                )
+                metadata = {"name": filename, "parents": [folder_id]}
+                file = self.service.files().create(body=metadata, media_body=media, fields="id").execute()
+                logger.info(f"Created new file {filename} in Google Drive. ID: {file.get('id')}")
+                return file.get("id")
         except HttpError as error:
-            logger.error(f"An error occurred while appending to file: {error}")
+            logger.error(f"An error occurred while working with JSON file: {error}")
             return ""
+        except json.JSONDecodeError as error:
+            logger.error(f"JSON decode error: {error}")
+            return ""
+
+    def _create_default_digest_structure(self) -> dict:
+        """
+        デフォルトのダイジェストJSONデータ構造を作成する
+
+        Returns:
+            デフォルトのダイジェストデータ構造
+        """
+        return {
+            "version": "1.0",
+            "lastUpdated": datetime.now().strftime("%Y-%m-%d"),
+            "recent": [],
+            "monthly": [],
+            "yearly": []
+        }
 
     def get_profile_md(self, folder_id: Optional[str] = None) -> str:
         """
@@ -196,9 +240,10 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while getting profile.md: {error}")
             return ""
 
-    def get_digest_md(self, folder_id: Optional[str] = None) -> str:
+
+    def get_digest_json(self, folder_id: Optional[str] = None) -> str:
         """
-        digest.mdファイルの内容を取得する
+        digest.jsonファイルの内容を取得する
 
         Args:
             folder_id: フォルダID（指定がない場合は環境変数から取得）
@@ -210,7 +255,7 @@ class GoogleDriveHandler:
             if folder_id is None:
                 folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
-            query = f"name = 'digest.md' and '{folder_id}' in parents and trashed = false"
+            query = f"name = 'digest.json' and '{folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
 
@@ -218,10 +263,10 @@ class GoogleDriveHandler:
                 file_id = files[0]["id"]
                 return self.get_file_content(file_id)
             else:
-                logger.error("digest.md file not found in Google Drive.")
+                logger.error("digest.json file not found in Google Drive.")
                 return ""
         except HttpError as error:
-            logger.error(f"An error occurred while getting digest.md: {error}")
+            logger.error(f"An error occurred while getting digest.json: {error}")
             return ""
 
     def get_dictionary_md(self, folder_id: Optional[str] = None) -> str:

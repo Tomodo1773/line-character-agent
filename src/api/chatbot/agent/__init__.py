@@ -1,6 +1,5 @@
 import os
 import sys
-from operator import add
 from typing import Annotated, Literal
 
 from langchain import hub
@@ -36,8 +35,6 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
-    documents: Annotated[list, add] = []
-    query: str = ""
     profile: dict = {}
     digest: dict = {}
 
@@ -169,7 +166,7 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
 
     chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
-    content = await chatbot_chain.ainvoke({"messages": state["messages"], "documents": state.get("documents", [])})
+    content = await chatbot_chain.ainvoke({"messages": state["messages"]})
 
     return Command(
         goto="__end__",

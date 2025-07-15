@@ -22,7 +22,7 @@ def timer_trigger(myTimer: func.TimerRequest) -> None:
 
 def upload_recent_diaries(span_days: int = 1):
     # 除外するファイル名のリスト
-    excluded_files = {"dictionary.md", "digest.md", "profile.md"}
+    excluded_files = {"dictionary.md", "digest.json", "digest.md", "profile.md"}
 
     # Get the list of files from Google Drive
     drive_handler = GoogleDriveHandler()
