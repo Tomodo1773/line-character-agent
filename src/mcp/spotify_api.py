@@ -34,33 +34,46 @@ class MemoryCacheHandler(CacheHandler):
 
 
 print(f"CLIENT_ID: {CLIENT_ID}")
-SCOPES = [
-    "user-read-currently-playing",
-    "user-read-playback-state",
-    "user-read-currently-playing",  # spotify connect
-    "app-remote-control",
-    "streaming",  # playback
+
+# Scope sets for different operations
+READ_ONLY_SCOPES = [
     "playlist-read-private",
-    "playlist-read-collaborative",
-    "playlist-modify-private",
-    "playlist-modify-public",
-    # playlists
-    "user-read-playback-position",
+    "playlist-read-collaborative", 
+    "user-library-read",
     "user-top-read",
-    "user-read-recently-played",  # listening history
-    "user-library-modify",
-    "user-library-read",  # library
+    "user-read-recently-played",
 ]
 
+PLAYBACK_SCOPES = [
+    "user-read-currently-playing",
+    "user-read-playback-state",
+    "user-read-playback-position",
+    "user-modify-playback-state",
+    "app-remote-control",
+    "streaming",
+]
 
-class Client:
-    def __init__(self, logger: logging.Logger, token_cache=None):
-        """Initialize Spotify client with necessary permissions"""
+WRITE_SCOPES = [
+    "playlist-modify-private",
+    "playlist-modify-public",
+    "user-library-modify",
+]
+
+# Full scope set for backward compatibility
+ALL_SCOPES = READ_ONLY_SCOPES + PLAYBACK_SCOPES + WRITE_SCOPES
+
+# Legacy SCOPES for backward compatibility
+SCOPES = ALL_SCOPES
+
+
+class BaseClient:
+    def __init__(self, logger: logging.Logger, scopes: List[str], token_cache=None):
+        """Initialize Spotify client with specified scopes"""
         self.logger = logger
         self.token_cache = token_cache or {}
 
-        # Required scopes for playlist creation, playback control, and library modification
-        scope = ",".join(SCOPES)
+        # Use provided scopes
+        scope = ",".join(scopes)
 
         # Use memory cache handler for Azure Functions
         cache_handler = MemoryCacheHandler(self.token_cache)
@@ -80,6 +93,73 @@ class Client:
         self.sp = spotipy.Spotify(auth_manager=self.auth_manager)
 
         self.username = None
+
+
+class ReadOnlyClient(BaseClient):
+    def __init__(self, logger: logging.Logger, token_cache=None):
+        """Initialize Spotify client with read-only permissions (no device required)"""
+        super().__init__(logger, READ_ONLY_SCOPES, token_cache)
+
+    @utils.validate
+    def set_username(self, device=None):
+        self.username = self.sp.current_user()["display_name"]
+
+    @utils.validate
+    def search_my_playlists(self, query: str, limit: int = 50):
+        """
+        Search for playlists owned by the current user.
+        - query: Search query to match against playlist names
+        - limit: Maximum number of results to return
+        """
+        if self.username is None:
+            self.set_username()
+
+        me_id = self.sp.current_user()["id"]
+        search_query = query.casefold().strip()
+        matching_playlists = []
+
+        # Get user's playlists with pagination
+        offset = 0
+        page_limit = min(limit, 50)  # Spotify API limit is 50
+
+        while len(matching_playlists) < limit:
+            page = self.sp.current_user_playlists(limit=page_limit, offset=offset)
+
+            for playlist in page["items"]:
+                if len(matching_playlists) >= limit:
+                    break
+
+                # Check if playlist is owned by user and matches search query
+                if playlist["owner"]["id"] == me_id and search_query in playlist["name"].casefold().strip():
+                    matching_playlists.append(playlist)
+
+            # Check if we've reached the end of results
+            if not page.get("next"):
+                break
+
+            offset += page_limit
+        self.logger.info(f"Found {len(matching_playlists)} matching playlists for query '{query}'")
+
+        # Parse results using existing utility function
+        parsed_results = {
+            "playlists": {
+                "href": f"search?q={query.replace(' ', '%20')}&type=playlist&limit={limit}",
+                "items": matching_playlists,  # 生のプレイリストデータをそのまま渡す
+                "limit": limit,
+                "next": None,
+                "offset": 0,
+                "previous": None,
+                "total": len(matching_playlists),
+            }
+        }
+
+        return utils.parse_search_results(parsed_results, "playlist", self.username)
+
+
+class Client(BaseClient):
+    def __init__(self, logger: logging.Logger, token_cache=None):
+        """Initialize Spotify client with all permissions (for backward compatibility)"""
+        super().__init__(logger, ALL_SCOPES, token_cache)
 
     @utils.validate
     def set_username(self, device=None):

@@ -4,7 +4,7 @@ import os
 
 import azure.functions as func
 from openai import OpenAI
-from spotify_api import Client
+from spotify_api import Client, ReadOnlyClient
 from spotipy import SpotifyException
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
@@ -26,6 +26,7 @@ def setup_logger():
 
 logger = setup_logger()
 spotify_client = Client(logger, _access_token_cache)
+spotify_readonly_client = ReadOnlyClient(logger, _access_token_cache)
 
 
 class ToolProperty:
@@ -389,7 +390,7 @@ def spotify_search_my_playlists(context) -> str:
             logger.error("Search query is required")
             return "検索クエリが必要です。検索クエリを入力してください。"
 
-        search_results = spotify_client.search_my_playlists(query=query, limit=limit)
+        search_results = spotify_readonly_client.search_my_playlists(query=query, limit=limit)
 
         if not search_results.get("playlists") or len(search_results["playlists"]) == 0:
             logger.info("No playlists found for the search query")
