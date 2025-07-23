@@ -6,10 +6,10 @@ services:
     project: ./src/api
     language: python
     host: appservice
-  # func:
-  #   project: ./src/func
-  #   language: python
-  #   host: function
+  func:
+    project: ./src/func
+    language: python
+    host: function
   mcp:
     project: ./src/mcp
     language: python
