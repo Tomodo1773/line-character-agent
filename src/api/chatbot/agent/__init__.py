@@ -235,7 +235,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
 
 
 class ChatbotAgent:
-    RECURSION_LIMIT = 8
+    RECURSION_LIMIT = 20
 
     def __init__(self, cached: dict = None) -> None:
         """Initialize agent with cached prompts"""
