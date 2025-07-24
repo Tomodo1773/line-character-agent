@@ -81,12 +81,12 @@ class Client:
 
         self.username = None
 
-    @utils.validate
-    def set_username(self, device=None):
+    @utils.auth_required
+    def set_username(self):
         self.username = self.sp.current_user()["display_name"]
 
-    @utils.validate
-    def search(self, query: str, qtype: str = "track", limit=10, device=None):
+    @utils.auth_required
+    def search(self, query: str, qtype: str = "track", limit=10):
         """
         Searches based of query term.
         - query: query term
@@ -161,7 +161,7 @@ class Client:
             self.logger.error("Error getting current track info.")
             raise
 
-    @utils.validate
+    @utils.device_required
     def start_playback(self, spotify_uri=None, device=None):
         """
         Starts spotify playback of uri. If spotify_uri is omitted, resumes current playback.
@@ -197,14 +197,14 @@ class Client:
             self.logger.error(f"Error starting playback: {str(e)}.")
             raise
 
-    @utils.validate
+    @utils.device_required
     def pause_playback(self, device=None):
         """Pauses playback."""
         playback = self.sp.current_playback()
         if playback and playback.get("is_playing"):
             self.sp.pause_playback(device.get("id") if device else None)
 
-    @utils.validate
+    @utils.device_required
     def add_to_queue(self, track_id: str, device=None):
         """
         Adds track to queue.
@@ -212,7 +212,7 @@ class Client:
         """
         self.sp.add_to_queue(track_id, device.get("id") if device else None)
 
-    @utils.validate
+    @utils.device_required
     def get_queue(self, device=None):
         """Returns the current queue of tracks."""
         queue_info = self.sp.queue()
@@ -229,8 +229,8 @@ class Client:
             track = item["track"]
             print(idx, track["artists"][0]["name"], " – ", track["name"])
 
-    @utils.validate
-    def add_track_to_liked_songs(self, track_id: str, device=None):
+    @utils.auth_required
+    def add_track_to_liked_songs(self, track_id: str):
         """
         Add a track to the user's Liked Songs (library).
         - track_id: The ID of the track to add.
@@ -296,8 +296,8 @@ class Client:
     def set_volume(self, volume_percent):
         self.sp.volume(volume_percent)
 
-    @utils.validate
-    def create_playlist(self, name: str, public: bool = False, description: str = "", device=None):
+    @utils.auth_required
+    def create_playlist(self, name: str, public: bool = False, description: str = ""):
         """
         Create a new Spotify playlist.
         - name: Playlist name
@@ -311,8 +311,8 @@ class Client:
         self.logger.info(f"Created playlist: {playlist}")
         return playlist
 
-    @utils.validate
-    def add_tracks_to_playlist(self, playlist_id: str, track_ids: list[str], position: int = None, device=None):
+    @utils.auth_required
+    def add_tracks_to_playlist(self, playlist_id: str, track_ids: list[str], position: int = None):
         """
         Add tracks to a specified playlist.
         - playlist_id: The ID of the playlist
@@ -326,7 +326,7 @@ class Client:
         self.logger.info(f"Add tracks result: {result}")
         return result
 
-    @utils.validate
+    @utils.auth_required
     def search_my_playlists(self, query: str, limit: int = 50):
         """
         Search for playlists owned by the current user.
@@ -377,7 +377,7 @@ class Client:
 
         return utils.parse_search_results(parsed_results, "playlist", self.username)
 
-    @utils.validate
+    @utils.auth_required
     def has_duplicate_playlist(self, name: str):
         """
         Check if a playlist with the given name already exists in user's playlists.
