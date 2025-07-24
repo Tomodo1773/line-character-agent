@@ -189,13 +189,12 @@ def auth_required(func: Callable[..., T]) -> Callable[..., T]:
     Decorator for Spotify API methods that only require authentication.
     - Checks and refreshes authentication if needed
     """
-
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         if not self.auth_ok():
             self.auth_refresh()
         return func(self, *args, **kwargs)
-
+    
     return wrapper
 
 
