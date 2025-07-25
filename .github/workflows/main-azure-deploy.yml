@@ -101,4 +101,5 @@ jobs:
         run: |
           azd deploy mcp --no-prompt &
           azd deploy api --no-prompt &
+          azd deploy func --no-prompt &
           wait
