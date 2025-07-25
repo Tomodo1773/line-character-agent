@@ -99,18 +99,6 @@ jobs:
 
       - name: Deploy Application
         run: |
-          azd deploy mcp --no-prompt
-          if [ $? -ne 0 ]; then
-            echo "Deployment of 'mcp' failed."
-            exit 1
-          fi
-          azd deploy api --no-prompt
-          if [ $? -ne 0 ]; then
-            echo "Deployment of 'api' failed."
-            exit 1
-          fi
-          azd deploy func --no-prompt
-          if [ $? -ne 0 ]; then
-            echo "Deployment of 'func' failed."
-            exit 1
-          fi
+          azd deploy mcp --no-prompt || { echo "Deployment of 'mcp' failed."; exit 1; }
+          azd deploy api --no-prompt || { echo "Deployment of 'api' failed."; exit 1; }
+          azd deploy func --no-prompt || { echo "Deployment of 'func' failed."; exit 1; }
