@@ -313,7 +313,7 @@ def spotify_create_playlist(context) -> str:
     arg_name="context",
     type="mcpToolTrigger",
     toolName="spotify_add_tracks_to_playlist",
-    description="Add tracks to a specified playlist and automatically add to liked songs as well",
+    description="Add tracks to a specified playlist",
     toolProperties=add_tracks_to_playlist_properties_json,
 )
 def spotify_add_tracks_to_playlist(context) -> str:
@@ -340,7 +340,7 @@ def spotify_add_tracks_to_playlist(context) -> str:
         try:
             liked_result = spotify_client.add_track_to_liked_songs(track_id=track_id)
             logger.info("Successfully added track to liked songs")
-            return f"トラック追加完了！プレイリストとお気に入りの両方に追加されました。Playlist: {playlist_result}, Liked: {liked_result}"
+            return f"トラック追加完了！{playlist_result}"
         except SpotifyException as se:
             logger.error(f"Failed to add track to liked songs: {str(se)}")
             return f"トラックはプレイリストに追加されましたが、お気に入りへの追加に失敗しました。Playlist: {playlist_result}"
