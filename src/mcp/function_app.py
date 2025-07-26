@@ -328,26 +328,30 @@ def spotify_add_tracks_to_playlist(context) -> str:
         position = arguments.get("position")
         
         # track_idをリストにして渡す（API互換のため）
-        playlist_result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=[track_id], position=position)
-        logger.info("Successfully added track to playlist")
+        try:
+            playlist_result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=[track_id], position=position)
+            logger.info("Successfully added track to playlist")
+        except SpotifyException as se:
+            error_msg = f"Failed to add track to playlist: {str(se)}"
+            logger.error(error_msg)
+            return "プレイリストへのトラック追加に失敗しました。"
         
         # プレイリスト追加後、お気に入りにも追加
         try:
             liked_result = spotify_client.add_track_to_liked_songs(track_id=track_id)
             logger.info("Successfully added track to liked songs")
             return f"トラック追加完了！プレイリストとお気に入りの両方に追加されました。Playlist: {playlist_result}, Liked: {liked_result}"
+        except SpotifyException as se:
+            logger.error(f"Failed to add track to liked songs: {str(se)}")
+            return f"トラックはプレイリストに追加されましたが、お気に入りへの追加に失敗しました。Playlist: {playlist_result}"
         except Exception as e:
-            logger.error(f"Failed to add track to liked songs: {str(e)}")
-            return f"トラックはプレイリストに追加されましたが、お気に入りへの追加に失敗しました。Playlist: {playlist_result}, Error: {str(e)}"
+            logger.error(f"Unexpected error while adding track to liked songs: {str(e)}")
+            return f"トラックはプレイリストに追加されましたが、お気に入りへの追加中に予期しないエラーが発生しました。Playlist: {playlist_result}"
 
-    except SpotifyException as se:
-        error_msg = f"Spotify Client error occurred: {str(se)}"
-        logger.error(error_msg)
-        return f"An error occurred with the Spotify Client: {str(se)}"
     except Exception as e:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
-        return "An internal server error occurred. Please try again later."
+        return "予期しないエラーが発生しました。もう一度お試しください。"
 
 
 @app.generic_trigger(
