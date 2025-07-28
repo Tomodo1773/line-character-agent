@@ -1,4 +1,4 @@
-name: Test API
+name: Test FUNC
 
 on:
   pull_request:
