@@ -69,6 +69,13 @@ jobs:
           json: ${{ secrets.GOOGLE_CREDENTIALS }}
           dir: "src/api"
 
+      - name: create-json (func)
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          dir: "src/func"
+
       - name: ls src/api
         run: |
           cd src/api
