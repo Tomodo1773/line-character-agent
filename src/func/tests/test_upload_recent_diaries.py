@@ -87,10 +87,10 @@ def test_google_drive_handler_file_format_detection():
         mock_service.files().export_media.return_value = Mock()
         
         # Mock the download process for Google Docs
-        mock_downloader = Mock()
-        mock_downloader.next_chunk.side_effect = [(None, False), (None, True)]
+        mock_google_docs_downloader = Mock()
+        mock_google_docs_downloader.next_chunk.side_effect = [(None, False), (None, True)]
         
-        with patch('get_google_drive.MediaIoBaseDownload', return_value=mock_downloader), \
+        with patch('get_google_drive.MediaIoBaseDownload', return_value=mock_google_docs_downloader), \
              patch('get_google_drive.io.BytesIO') as mock_bytesio:
             
             # Mock the content for Google Docs
@@ -119,7 +119,10 @@ def test_google_drive_handler_file_format_detection():
         mock_service.files().get_media.return_value = Mock()
         
         # Mock the download process for MD file
-        with patch('get_google_drive.MediaIoBaseDownload', return_value=mock_downloader), \
+        mock_md_downloader = Mock()
+        mock_md_downloader.next_chunk.side_effect = [(None, False), (None, True)]
+        
+        with patch('get_google_drive.MediaIoBaseDownload', return_value=mock_md_downloader), \
              patch('get_google_drive.io.BytesIO') as mock_bytesio:
             
             # Mock the content for MD file
