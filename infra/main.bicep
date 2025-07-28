@@ -190,6 +190,8 @@ module functionApp 'app/func.bicep' = {
     tags: union(tags, { 'azd-service-name': 'func' })
     alwaysOn: false
     keyVaultName: keyVaultName
+    cosmosDbAccountName: empty(cosmosDbAccountName) ? CosmosDB.outputs.name : existingCosmosDB.name
+    cosmosDbResourceGroupName: empty(cosmosDbResourceGroupName) ? rg.name : cosmosDbResourceGroupName
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
       OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
