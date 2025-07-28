@@ -50,8 +50,6 @@ jobs:
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
           COSMOS_DB_DATABASE_NAME: "hogehoge"
           OPENAI_COMPATIBLE_API_KEY: "hogehoge"
-          AZURE_AI_SEARCH_SERVICE_NAME: "hogehoge"
-          AZURE_AI_SEARCH_API_KEY: "hogehoge"
           NIJIVOICE_API_KEY: "hogehoge"
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           MCP_FUNCTION_URL: "hogehoge"
