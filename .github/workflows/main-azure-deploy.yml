@@ -14,6 +14,9 @@ on:
       - "src/func/**"
       - "src/mcp/**"
       - ".github/workflows/main-azure-deploy.yml"
+      - "!src/api/uv.lock"
+      - "!src/func/uv.lock"
+      - "!src/mcp/uv.lock"
   workflow_dispatch:
 
   # Set up permissions for deploying with secretless Azure federated credentials
