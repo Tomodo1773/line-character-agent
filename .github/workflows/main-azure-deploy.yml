@@ -9,10 +9,14 @@ on:
     branches:
       - main
     paths:
+      - "infra/**"
       - "src/api/**"
       - "src/func/**"
       - "src/mcp/**"
-      - ".github/workflows/**"
+      - ".github/workflows/main-azure-deploy.yml"
+      - "!src/api/uv.lock"
+      - "!src/func/uv.lock"
+      - "!src/mcp/uv.lock"
   workflow_dispatch:
 
   # Set up permissions for deploying with secretless Azure federated credentials
@@ -68,6 +72,13 @@ jobs:
           name: "credentials.json"
           json: ${{ secrets.GOOGLE_CREDENTIALS }}
           dir: "src/api"
+
+      - name: create-json (func)
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          dir: "src/func"
 
       - name: ls src/api
         run: |
