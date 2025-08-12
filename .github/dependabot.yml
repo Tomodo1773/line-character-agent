@@ -7,6 +7,14 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    groups:
+      api-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps(api)"
+      prefix-development: "deps(api)"
+      include: "scope"
   - package-ecosystem: "uv"
     directory: "/src/func"
     open-pull-requests-limit: 2
@@ -14,6 +22,14 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    groups:
+      func-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps(func)"
+      prefix-development: "deps(func)"
+      include: "scope"
   - package-ecosystem: "uv"
     directory: "/src/mcp"
     open-pull-requests-limit: 2
@@ -21,3 +37,11 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    groups:
+      mcp-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps(mcp)"
+      prefix-development: "deps(mcp)"
+      include: "scope"
