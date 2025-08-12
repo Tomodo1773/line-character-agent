@@ -7,6 +7,10 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    groups:
+      api-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "uv"
     directory: "/src/func"
     open-pull-requests-limit: 2
@@ -14,6 +18,10 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    groups:
+      func-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "uv"
     directory: "/src/mcp"
     open-pull-requests-limit: 2
@@ -21,3 +29,7 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    groups:
+      mcp-dependencies:
+        patterns:
+          - "*"
