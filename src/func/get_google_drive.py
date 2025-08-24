@@ -49,10 +49,14 @@ class GoogleDriveHandler:
     def get(self, file_id) -> Document:
         try:
             file_metadata = self.service.files().get(fileId=file_id, fields="name, mimeType").execute()
+            file_name = file_metadata["name"]
+            mime_type = file_metadata["mimeType"]
 
-            if file_metadata["mimeType"] == "application/vnd.google-apps.document":
+            if mime_type == "application/vnd.google-apps.document":
+                logger.info(f"Processing Google Docs file: {file_name}")
                 request = self.service.files().export_media(fileId=file_id, mimeType="text/plain")
             else:
+                logger.info(f"Processing regular file (MD/other): {file_name} (MIME: {mime_type})")
                 request = self.service.files().get_media(fileId=file_id)
 
             fh = io.BytesIO()
@@ -62,11 +66,22 @@ class GoogleDriveHandler:
                 _, done = downloader.next_chunk()
 
             content = fh.getvalue().decode("utf-8-sig")
-            logger.info(f"File {file_metadata['name']} downloaded successfully.")
-            return Document(page_content=content, metadata={"source": file_metadata["name"]})
+            
+            if mime_type == "application/vnd.google-apps.document":
+                logger.info(f"Google Docs file {file_name} successfully converted to text ({len(content)} characters)")
+            else:
+                logger.info(f"File {file_name} downloaded successfully ({len(content)} characters)")
+                
+            return Document(page_content=content, metadata={"source": file_name, "mime_type": mime_type})
 
         except HttpError as error:
-            logger.error(f"An error occurred while getting file content: {error}")
+            logger.error(f"An error occurred while getting file content for {file_id}: {error}")
+            return None
+        except UnicodeDecodeError as error:
+            logger.error(f"Unicode decode error for file {file_id}: {error}")
+            return None
+        except Exception as error:
+            logger.error(f"Unexpected error while processing file {file_id}: {error}")
             return None
 
 
