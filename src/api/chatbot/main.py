@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import AudioMessage, TextMessage
+from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
@@ -28,7 +28,6 @@ from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.line import LineMessenger
-from chatbot.utils.nijivoice import NijiVoiceClient
 from chatbot.utils.transcript import DiaryTranscription
 
 load_dotenv()
@@ -87,7 +86,6 @@ async def handle_text_async(event):
     cosmos = AgentRepository()
     userid = event.source.user_id
     agent = ChatbotAgent()
-    nijivoice = NijiVoiceClient()
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -105,17 +103,8 @@ async def handle_text_async(event):
         content = response["messages"][-1].content
         logger.info(f"Generated text response: {content}")
 
-        # 音声を生成
-        voice_response = nijivoice.generate(content)
-        audio_url = voice_response["generatedVoice"]["audioFileUrl"]
-        duration = voice_response["generatedVoice"]["duration"]
-        logger.info(f"Generated voice response: {audio_url}")
-
         # メッセージを返信
-        reply_messages = [
-            TextMessage(text=content),
-            AudioMessage(original_content_url=audio_url, duration=duration),
-        ]
+        reply_messages = [TextMessage(text=content)]
         line_messennger.reply_message(reply_messages)
 
         # 会話履歴を保存
@@ -144,7 +133,6 @@ async def handle_audio_async(event):
     userid = event.source.user_id
     messages = []
     agent = ChatbotAgent()
-    nijivoice = NijiVoiceClient()
 
     # ローディングアニメーションを表示
     line_messennger.show_loading_animation()
@@ -171,12 +159,6 @@ async def handle_audio_async(event):
         reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
-        # 音声を生成
-        voice_response = nijivoice.generate(reaction)
-        audio_url = voice_response["generatedVoice"]["audioFileUrl"]
-        duration = voice_response["generatedVoice"]["duration"]
-        logger.info(f"Generated voice response: {audio_url}")
-
         # メッセージを返信
         reply_messages = [TextMessage(text=diary_content)]  # 日記の内容は常に送信
 
@@ -185,9 +167,7 @@ async def handle_audio_async(event):
             reply_messages.append(TextMessage(text=save_message))
 
         if reaction:
-            reply_messages.extend(
-                [TextMessage(text=reaction), AudioMessage(original_content_url=audio_url, duration=duration)]
-            )
+            reply_messages.append(TextMessage(text=reaction))
         line_messennger.reply_message(reply_messages)
 
         # メッセージを保存
