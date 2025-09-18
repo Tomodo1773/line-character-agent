@@ -22,7 +22,20 @@ class CosmosCore:
         """CosmosDBクライアントの初期化"""
         url = os.getenv("COSMOS_DB_ACCOUNT_URL")
         key = os.getenv("COSMOS_DB_ACCOUNT_KEY")
-        return CosmosClient(url=url, credential=key)
+        verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
+
+        if verify_setting is None:
+            connection_verify = True
+        else:
+            lowered = verify_setting.lower()
+            if lowered in {"false", "0", "no"}:
+                connection_verify = False
+            elif lowered in {"true", "1", "yes"}:
+                connection_verify = True
+            else:
+                connection_verify = verify_setting
+
+        return CosmosClient(url=url, credential=key, connection_verify=connection_verify)
 
     def _init_container(self, container_name: str):
         """コンテナの初期化"""
