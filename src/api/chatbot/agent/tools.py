@@ -23,11 +23,29 @@ _cosmos_client = None
 _cosmos_container = None
 
 
+def _resolve_connection_verify():
+    verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
+    if verify_setting is None:
+        return True
+
+    lowered = verify_setting.lower()
+    if lowered in {"false", "0", "no"}:
+        return False
+    if lowered in {"true", "1", "yes"}:
+        return True
+
+    return verify_setting
+
+
 def get_cosmos_client():
     """CosmosDBクライアントを取得"""
     global _cosmos_client
     if _cosmos_client is None:
-        _cosmos_client = CosmosClient(url=os.getenv("COSMOS_DB_ACCOUNT_URL"), credential=os.getenv("COSMOS_DB_ACCOUNT_KEY"))
+        _cosmos_client = CosmosClient(
+            url=os.getenv("COSMOS_DB_ACCOUNT_URL"),
+            credential=os.getenv("COSMOS_DB_ACCOUNT_KEY"),
+            connection_verify=_resolve_connection_verify(),
+        )
     return _cosmos_client
 
 

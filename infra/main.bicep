@@ -116,6 +116,7 @@ module AppService './app/api.bicep' = {
       OPENAI_COMPATIBLE_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-COMPATIBLE-API-KEY)'
       DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
       MCP_FUNCTION_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/MCP-FUNCTION-URL)'
+      COSMOS_DB_CONNECTION_VERIFY: 'true'
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
   }
