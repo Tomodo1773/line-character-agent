@@ -192,10 +192,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     mcp_tools = await get_mcp_tools()
     if not mcp_tools:
         logger.error("MCP tools unavailable. Skipping Spotify agent execution.")
-        fallback_message = (
-            "申し訳ありません。MCP サーバーに接続できず Spotify 関連の操作を実行できませんでした。"
-            "しばらく時間をおいてからもう一度お試しください。"
-        )
+        fallback_message = "ごめんね。MCP サーバーに接続できなかったみたい。"
         return Command(
             goto="__end__",
             update={"messages": [AIMessage(content=fallback_message)]},
