@@ -190,6 +190,14 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
     # MCPツール取得
     mcp_tools = await get_mcp_tools()
+    if not mcp_tools:
+        logger.error("MCP tools unavailable. Skipping Spotify agent execution.")
+        fallback_message = "ごめんね。MCP サーバーに接続できなかったみたい。"
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=fallback_message)]},
+        )
+
     agent = create_react_agent(
         llm,
         tools=mcp_tools,
