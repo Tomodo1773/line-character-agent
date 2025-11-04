@@ -1,52 +1,86 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-docker-compose
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-	"name": "Azure & Python",
-	// "dockerFile": "./Dockerfile",
-	"image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
-	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
-	"workspaceFolder": "/workspace",
+	"name": "Python 3",
+	"dockerComposeFile": "compose.yaml",
+	"service": "app",
+	"workspaceFolder": "/workspaces/workspace",
 	"features": {
-		// See https://containers.dev/features for list of features
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/azure/azure-dev/azd:latest": {}
+		"ghcr.io/devcontainers/features/github-cli:1": {}
 	},
 	"customizations": {
 		"vscode": {
 			"settings": {
-				"python.linting.enabled": true,
-				"python.linting.lintOnSave": true,
-				// Pylance
-				"python.languageServer": "Pylance",
-				"python.analysis.completeFunctionParens": true,
-				// Linter(flake8)
-				"python.linting.flake8Path": "/usr/local/bin/flake8",
-				"python.linting.pylintEnabled": false,
-				"python.linting.flake8Enabled": true,
-				// Formatter(black)
-				"python.formatting.blackPath": "/usr/local/bin/black",
-				"python.formatting.provider": "black",
-				"python.formatting.blackArgs": ["--line-length=119"],
+				"files.autoSave": "afterDelay",
+				"editor.renderWhitespace": "all",
+				"prettier.printWidth": 200,
+				"prettier.useTabs": true,
+				"editor.defaultFormatter": "esbenp.prettier-vscode",
+				"editor.formatOnSave": true,
+				"editor.formatOnPaste": true,
 				"[python]": {
-					"editor.defaultFormatter": "ms-python.black-formatter",
-					"editor.formatOnSave": true,
+					"editor.defaultFormatter": "charliermarsh.ruff",
 					"editor.codeActionsOnSave": {
-						"source.organizeImports": "explicit"
+						"source.organizeImports": "explicit",
+						"source.fixAll": "explicit"
 					}
 				},
-				"isort.args": ["--profile", "black"],
-				"workbench.activityBar.orientation": "vertical",
-				"editor.formatOnPaste": true
+				"ruff.lineLength": 127,
+				"[markdown]": {
+					"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+				},
+				"markdownlint.config": {
+					"default": true,
+					"MD018": false,
+					"MD034": false
+				},
+				"remote.extensionKind": {
+					"GitHub.copilot": ["ui"],
+					"GitHub.copilot-chat": ["ui"]
+				},
+				"github.copilot.chat.commitMessageGeneration.instructions": [
+					//コミットメッセージ生成の設定です。
+					{
+						"text": "Conventional Commit形式を利用: type(scope): description"
+					},
+					{
+						"text": "タイプ: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
+					},
+					{
+						"text": "要約は50文字以内"
+					},
+					{
+						"text": "命令形を使用"
+					},
+					{
+						"text": "descriptionは日本語で書くこと"
+					}
+				]
 			},
 			"extensions": [
-				"ms-python.python",
-				"ms-python.vscode-pylance",
-				"ms-python.isort",
-				"MS-CEINTL.vscode-language-pack-ja",
-				"ms-python.black-formatter",
-				"mosapride.zenkaku",
-				"ms-azuretools.vscode-bicep"
+				"charliermarsh.ruff",
+				"ms-python.mypy-type-checker",
+				"esbenp.prettier-vscode",
+				"tamasfe.even-better-toml",
+				"bierner.markdown-preview-github-styles",
+				"bierner.markdown-mermaid",
+				"hediet.vscode-drawio",
+				"GitHub.copilot-chat",
+				"GitHub.copilot",
+				"eamodio.gitlens",
+				"openai.chatgpt",
+				"Anthropic.claude-code",
+				"oderwat.indent-rainbow",
+				"DavidAnson.vscode-markdownlint"
 			]
 		}
-	}
+	},
+	"postCreateCommand": ".devcontainer/post_create.sh"
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
 }
