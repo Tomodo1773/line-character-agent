@@ -16,4 +16,5 @@ git config --global devcontainers-theme.hide-status 1
 git config --global codespaces-theme.hide-status 1
 
 uv sync || true
-uv run pre-commit install || true
+uv tool install pre-commit
+pre-commit install
