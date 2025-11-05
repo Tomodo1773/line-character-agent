@@ -15,8 +15,6 @@ on:
       infra_changed:
         description: インフラ構成に変更あり
         value: ${{ jobs.provision.outputs.infra_changed }}
-    secrets:
-      inherit: true
 
 permissions:
   id-token: write
