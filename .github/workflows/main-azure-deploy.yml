@@ -16,10 +16,6 @@ on:
       - "!src/mcp/uv.lock"
   workflow_dispatch:
     inputs:
-      force_provision:
-        description: 差分が無くても azd provision を実行
-        type: boolean
-        default: false
       deploy_api:
         description: API をデプロイ
         type: boolean
@@ -41,8 +37,6 @@ jobs:
   provision:
     uses: ./.github/workflows/provision.yml
     secrets: inherit
-    with:
-      force_provision: ${{ github.event_name == 'workflow_dispatch' && inputs.force_provision }}
 
   deploy_api:
     needs: provision
