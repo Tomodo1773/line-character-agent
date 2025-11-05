@@ -2,12 +2,6 @@ name: Azure Provision (main)
 
 on:
   workflow_call:
-    inputs:
-      force_provision:
-        description: 差分が無くても azd provision を実行する
-        required: false
-        type: boolean
-        default: false
     outputs:
       api_changed:
         description: API サービスに変更あり
@@ -77,5 +71,4 @@ jobs:
             --tenant-id "$AZURE_TENANT_ID"
 
       - name: azd provision
-        if: inputs.force_provision || steps.changes.outputs.api == 'true' || steps.changes.outputs.func == 'true' || steps.changes.outputs.mcp == 'true' || steps.changes.outputs.infra == 'true'
         run: azd provision --no-prompt
