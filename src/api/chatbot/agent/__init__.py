@@ -2,16 +2,15 @@ import os
 import sys
 from typing import Annotated, Literal
 
-from langchain import hub
+from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
-from langsmith import traceable
+from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
@@ -42,6 +41,15 @@ class State(TypedDict):
 # グローバル変数
 _cached = {"profile": {}, "prompts": {}, "digest": {}}
 _mcp_client = None
+_langsmith_client: Client | None = None
+
+
+def get_langsmith_client() -> Client:
+    """LangSmithクライアントのシングルトンインスタンスを取得"""
+    global _langsmith_client
+    if _langsmith_client is None:
+        _langsmith_client = Client()
+    return _langsmith_client
 
 
 async def get_mcp_client():
@@ -68,11 +76,16 @@ async def get_mcp_tools():
 
 @traceable(run_type="prompt", name="Get Prompt")
 def get_prompt(path: str):
-    """キャッシュされたプロンプトを取得、なければhubから取得"""
+    """キャッシュされたプロンプトを取得、なければLangSmithから取得"""
     global _cached
     if path not in _cached["prompts"]:
-        logger.info(f"Fetching prompt from hub as it is not cached: {path}")
-        _cached["prompts"][path] = hub.pull(path)
+        logger.info(f"Fetching prompt from LangSmith as it is not cached: {path}")
+        try:
+            client = get_langsmith_client()
+            _cached["prompts"][path] = client.pull_prompt(path)
+        except Exception as exc:
+            logger.error(f"Failed to fetch prompt from LangSmith: {exc}")
+            raise
     return _cached["prompts"][path]
 
 
@@ -198,7 +211,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
             update={"messages": [AIMessage(content=fallback_message)]},
         )
 
-    agent = create_react_agent(
+    agent = create_agent(
         llm,
         tools=mcp_tools,
         prompt=prompt,
@@ -230,7 +243,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
-    agent = create_react_agent(
+    agent = create_agent(
         llm,
         tools=diary_tools,
         prompt=prompt,
