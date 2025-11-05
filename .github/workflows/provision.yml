@@ -43,7 +43,7 @@ jobs:
 
       - name: 変更検知
         id: changes
-        uses: step-security/paths-filter@v3
+        uses: dorny/paths-filter@v3
         with:
           filters: |
             api:
