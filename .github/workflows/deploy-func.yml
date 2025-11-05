@@ -2,8 +2,7 @@ name: Deploy Func
 
 on:
   workflow_call:
-    secrets:
-      inherit: true
+    secrets: inherit
 
 permissions:
   id-token: write
