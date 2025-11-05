@@ -35,7 +35,7 @@ runs:
         package_dir="$RUNNER_TEMP/azd-packages"
         mkdir -p "$package_dir"
         azd package "${{ inputs.service_name }}" --output-path "$package_dir" --no-prompt
-        package=$(ls -1t "$package_dir"/"${{ inputs.service_name }}"*.zip | head -n 1)
+        package=$(ls -1t "$package_dir"/*"${{ inputs.service_name }}"*.zip | head -n 1)
         if [ -z "$package" ]; then
           echo "package not found" >&2
           exit 1
