@@ -1,0 +1,63 @@
+name: Deploy API
+
+on:
+  workflow_call:
+    secrets:
+      inherit: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_APPSERVICEPLAN_NAME: ${{ vars.AZURE_APPSERVICEPLAN_NAME }}
+      AZURE_APPSERVICEPLAN_RG: ${{ vars.AZURE_APPSERVICEPLAN_RG }}
+      AZURE_KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
+      AZURE_KEYVAULT_RG: ${{ vars.AZURE_KEYVAULT_RG }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.11 のセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: uv のインストール
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.13"
+
+      - name: requirements.txt を生成
+        run: uv export --format requirements-txt --no-editable > requirements.txt
+        working-directory: src/api
+
+      - name: Google 認証情報を配置
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          dir: "src/api"
+
+      - name: azd のセットアップ
+        uses: Azure/setup-azd@v2
+
+      - name: Azure へのログイン (OIDC)
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider "github" \
+            --tenant-id "$AZURE_TENANT_ID"
+
+      - name: API をデプロイ
+        uses: ./.github/actions/azd-service-deploy
+        with:
+          service_name: api
+          service_path: src/api

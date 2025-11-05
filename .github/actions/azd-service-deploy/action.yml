@@ -1,0 +1,49 @@
+name: Deploy Azure Service
+
+inputs:
+  service_name:
+    description: Azure Developer CLI のサービス名
+    required: true
+  service_path:
+    description: リポジトリ内のサービスディレクトリ
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: dist ディレクトリ同期
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "${{ inputs.service_path }}"
+        rm -rf .azure/dist
+        mkdir -p .azure/dist
+        rsync -a --delete \
+          --exclude '.azure/dist' \
+          --exclude '.git' \
+          --exclude '.venv' \
+          --exclude '__pycache__' \
+          --exclude '.pytest_cache' \
+          --exclude 'tests' \
+          ./ .azure/dist/
+
+    - id: package
+      name: azd package
+      shell: bash
+      run: |
+        set -euo pipefail
+        package_dir="$RUNNER_TEMP/azd-packages"
+        mkdir -p "$package_dir"
+        azd package "${{ inputs.service_name }}" --output-path "$package_dir" --no-prompt
+        package=$(ls -1t "$package_dir"/"${{ inputs.service_name }}"*.zip | head -n 1)
+        if [ -z "$package" ]; then
+          echo "package not found" >&2
+          exit 1
+        fi
+        echo "path=$package" >> "$GITHUB_OUTPUT"
+
+    - name: azd deploy --from-package
+      shell: bash
+      run: |
+        set -euo pipefail
+        azd deploy "${{ inputs.service_name }}" --from-package "${{ steps.package.outputs.path }}" --no-prompt

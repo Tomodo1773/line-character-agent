@@ -1,7 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
 name: Deploy Azure Apps (main)
 
 on:
@@ -13,103 +9,55 @@ on:
       - "src/api/**"
       - "src/func/**"
       - "src/mcp/**"
-      - ".github/workflows/main-azure-deploy.yml"
+      - ".github/workflows/**"
+      - ".github/actions/**"
       - "!src/api/uv.lock"
       - "!src/func/uv.lock"
       - "!src/mcp/uv.lock"
   workflow_dispatch:
+    inputs:
+      force_provision:
+        description: 差分が無くても azd provision を実行
+        type: boolean
+        default: false
+      deploy_api:
+        description: API をデプロイ
+        type: boolean
+        default: true
+      deploy_func:
+        description: Func をデプロイ
+        type: boolean
+        default: true
+      deploy_mcp:
+        description: MCP をデプロイ
+        type: boolean
+        default: true
 
-  # Set up permissions for deploying with secretless Azure federated credentials
-# https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_APPSERVICEPLAN_NAME: ${{ vars.AZURE_APPSERVICEPLAN_NAME }}
-      AZURE_APPSERVICEPLAN_RG: ${{ vars.AZURE_APPSERVICEPLAN_RG }}
-      AZURE_KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
-      AZURE_KEYVAULT_RG: ${{ vars.AZURE_KEYVAULT_RG }}
-    steps:
-      - uses: actions/checkout@v4
+  provision:
+    uses: ./.github/workflows/provision.yml
+    secrets: inherit
+    with:
+      force_provision: ${{ github.event_name == 'workflow_dispatch' && inputs.force_provision }}
 
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+  deploy_api:
+    needs: provision
+    if: needs.provision.outputs.api_changed == 'true' || needs.provision.outputs.infra_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
+    uses: ./.github/workflows/deploy-api.yml
+    secrets: inherit
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.5.13"
+  deploy_func:
+    needs: provision
+    if: needs.provision.outputs.func_changed == 'true' || needs.provision.outputs.infra_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_func)
+    uses: ./.github/workflows/deploy-func.yml
+    secrets: inherit
 
-      - name: Create requirements.txt from uv.lock (api)
-        run: |
-          cd src/api
-          uv export --format requirements-txt --no-editable > requirements.txt
-
-      - name: Create requirements.txt from uv.lock (func)
-        run: |
-          cd src/func
-          uv export --format requirements-txt --no-editable > requirements.txt
-
-      - name: Create requirements.txt from uv.lock (mcp)
-        run: |
-          cd src/mcp
-          uv export --format requirements-txt --no-editable > requirements.txt
-
-      - name: create-json
-        uses: jsdaniell/create-json@v1.2.2
-        with:
-          name: "credentials.json"
-          json: ${{ secrets.GOOGLE_CREDENTIALS }}
-          dir: "src/api"
-
-      - name: create-json (func)
-        uses: jsdaniell/create-json@v1.2.2
-        with:
-          name: "credentials.json"
-          json: ${{ secrets.GOOGLE_CREDENTIALS }}
-          dir: "src/func"
-
-      - name: ls src/api
-        run: |
-          cd src/api
-          ls -la
-
-      - name: ls src/func
-        run: |
-          cd src/func
-          ls -la
-
-      - name: ls src/mcp
-        run: |
-          cd src/mcp
-          ls -la
-
-      - name: Install azd
-        uses: Azure/setup-azd@v2
-
-      - name: Log in with Azure (Federated Credentials)
-        run: |
-          azd auth login \
-            --client-id "$AZURE_CLIENT_ID" \
-            --federated-credential-provider "github" \
-            --tenant-id "$AZURE_TENANT_ID"
-
-      - name: Provision Infrastructure
-        run: azd provision --no-prompt
-
-      - name: Deploy Application
-        run: |
-          azd deploy mcp --no-prompt || { echo "Deployment of 'mcp' failed."; exit 1; }
-          azd deploy api --no-prompt || { echo "Deployment of 'api' failed."; exit 1; }
-          azd deploy func --no-prompt || { echo "Deployment of 'func' failed."; exit 1; }
+  deploy_mcp:
+    needs: provision
+    if: needs.provision.outputs.mcp_changed == 'true' || needs.provision.outputs.infra_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_mcp)
+    uses: ./.github/workflows/deploy-mcp.yml
+    secrets: inherit
