@@ -7,7 +7,7 @@
 本プロジェクトは、Azureサービス上で構築されたLINE向けAIチャットボットであり、キャラクター型の会話AIエージェントを実現します。LangGraphによるエージェントオーケストレーションを採用し、必要に応じてWeb検索機能も提供します。以下の3つの主要コンポーネントがAzureサービスとしてデプロイされています。
 
 1. **APIサービス** (`src/api/`) - FastAPIベースのLINE webhookハンドラおよびチャットボットエージェント
-2. **Functionサービス** (`src/func/`) - AI Searchへ日記データを自動アップロードするAzure Functions
+2. **Functionサービス** (`src/func/`) - Cosmos DBへ日記データを自動アップロードするAzure Functions
 3. **MCPサービス** (`src/mcp/`) - Spotify連携用Model Context Protocolサーバー
 
 ## 開発コマンド
