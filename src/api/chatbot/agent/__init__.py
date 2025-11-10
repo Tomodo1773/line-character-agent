@@ -3,7 +3,7 @@ import sys
 from typing import Annotated, Literal
 
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
@@ -42,6 +42,33 @@ class State(TypedDict):
 _cached = {"profile": {}, "prompts": {}, "digest": {}}
 _mcp_client = None
 _langsmith_client: Client | None = None
+
+
+def _resolve_system_prompt(prompt_template):
+    """LangSmithなどから取得したテンプレートをシステムプロンプト文字列へ変換"""
+    if isinstance(prompt_template, str):
+        return prompt_template
+
+    if hasattr(prompt_template, "invoke"):
+        prompt_value = prompt_template.invoke({})
+        messages = getattr(prompt_value, "messages", [])
+        if not messages:
+            raise ValueError("prompt template returned no messages")
+
+        for message in messages:
+            if isinstance(message, SystemMessage) or getattr(message, "type", "") == "system":
+                content = message.content
+                if isinstance(content, str):
+                    return content
+                if isinstance(content, list):
+                    text_chunks = [block["text"] for block in content if isinstance(block, dict) and "text" in block]
+                    if text_chunks:
+                        return "".join(text_chunks)
+                    return "".join(str(block) for block in content)
+
+        raise ValueError("System message not found in prompt template")
+
+    raise TypeError("Unsupported prompt template type for system prompt resolution")
 
 
 def get_langsmith_client() -> Client:
@@ -199,6 +226,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     # プロンプトはLangchain Hubから取得
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet_short
     prompt = get_prompt("tomodo1773/sister_edinet_short")
+    system_prompt = _resolve_system_prompt(prompt)
 
     llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
     # MCPツール取得
@@ -214,7 +242,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     agent = create_agent(
         llm,
         tools=mcp_tools,
-        prompt=prompt,
+        system_prompt=system_prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
@@ -239,6 +267,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     # current_datetimeをpartialで事前に設定
     if "current_datetime" in prompt.input_variables:
         prompt = prompt.partial(current_datetime=get_japan_datetime())
+    system_prompt = _resolve_system_prompt(prompt)
 
     llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
     # 日記検索ツールを使用
@@ -246,7 +275,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     agent = create_agent(
         llm,
         tools=diary_tools,
-        prompt=prompt,
+        system_prompt=system_prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
