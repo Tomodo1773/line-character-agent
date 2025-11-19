@@ -317,7 +317,7 @@ def spotify_create_playlist(context) -> str:
     toolProperties=add_tracks_to_playlist_properties_json,
 )
 def spotify_add_tracks_to_playlist(context) -> str:
-    """Handle adding tracks to a playlist and automatically adding to liked songs."""
+    """Handle adding tracks to a playlist."""
     try:
         content = json.loads(context)
         arguments = content.get("arguments", {})
