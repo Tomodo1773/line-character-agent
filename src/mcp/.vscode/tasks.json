@@ -9,14 +9,15 @@
 		},
 		{
 			"type": "func",
-			"label": "func: host start",
+			"label": "mcp: func: host start",
 			"command": "host start",
 			"problemMatcher": "$func-python-watch",
 			"isBackground": true,
-			"dependsOn": "func: extensions install"
+			"dependsOn": "mcp: func: extensions install"
 		},
 		{
 			"type": "func",
+			"label": "mcp: func: extensions install",
 			"command": "extensions install",
 			"dependsOn": "uv sync (functions)",
 			"problemMatcher": []
