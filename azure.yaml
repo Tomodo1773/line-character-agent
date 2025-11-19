@@ -4,14 +4,17 @@ infra:
 services:
   api:
     project: ./src/api
+    dist: .azure/dist
     language: python
     host: appservice
   func:
     project: ./src/func
+    dist: .azure/dist
     language: python
     host: function
   mcp:
     project: ./src/mcp
+    dist: .azure/dist
     language: python
     host: function
 pipeline:
@@ -22,4 +25,3 @@ pipeline:
     - AZURE_COSMOSDB_RG
     - AZURE_KEYVAULT_NAME
     - AZURE_KEYVAULT_RG
-    - COSMOS_DB_DATABASE_NAME

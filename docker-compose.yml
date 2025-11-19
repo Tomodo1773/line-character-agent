@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: ./src/api
+      dockerfile: Dockerfile
+    env_file: ./src/api/.env
+    ports:
+      - "8000:3100"
+    environment:
+      COSMOS_DB_ACCOUNT_URL: https://cosmosdb:8081/
+      COSMOS_DB_ACCOUNT_KEY: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+      COSMOS_DB_CONNECTION_VERIFY: false
+    volumes:
+      - ./src/api/chatbot:/src/chatbot
+    depends_on:
+      cosmosdb:
+        condition: service_healthy
+
+  cosmosdb:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
+    restart: unless-stopped
+    mem_limit: 3g
+    ports:
+      - "8081:8081"
+      - "10250-10255:10250-10255"
+    environment:
+      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 2
+      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "true"
+    volumes:
+      - cosmosdb-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-skf", "https://localhost:8081/_explorer/emulator.pem"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  cosmosdb-data:

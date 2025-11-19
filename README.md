@@ -11,10 +11,11 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 
 - **バックエンド**
   - LangGraph AIエージェントアプリ（Azure App Service）
+  - 日記データアップロード機能（Azure Functions）
   - MCPサーバー（Azure Functions）
 
 - **データベース・ストレージ**
-  - Azure Cosmos DB（会話履歴）
+  - Azure Cosmos DB（会話履歴、日記エントリのベクトル検索）
   - Google Drive（ユーザープロファイル、日記データ）
 
 - **監視・管理**
@@ -34,7 +35,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 - AI音声認識による文字起こし
 - ユーザー辞書による誤字修正
 - Markdown形式でGoogle Driveに自動保存
-- AIエージェントからの感想コメント付きで返信
+- AIエージェントからの感想コメント付きで返信（テキストメッセージ）
 - 複数日の内容をまとめた日記ダイジェストの自動作成
 
 ### 2. マルチチャネル対応
@@ -78,7 +79,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 - FastAPI
 - LangGraph（マルチエージェントオーケストレーション）
 - LangChain
-- Azure Functions（MCPサーバー）
+- Azure Functions（日記アップロード、MCPサーバー）
 
 ### AI・検索
 
@@ -235,11 +236,11 @@ uv sync                      # 依存関係インストール
 ```text
 line-character-agent/
 ├── src/
-│   ├── api/              # FastAPI アプリケーション
+│   ├── api/              # FastAPI アプリケーション（LINE webhook、チャットボット）
 │   │   ├── chatbot/      # エージェント実装
 │   │   └── tests/        # テストコード
-│   ├── func/             # Azure Functions
-│   └── mcp/              # MCP サーバー
+│   ├── func/             # Azure Functions（日記データのCosmosDBアップロード）
+│   └── mcp/              # MCP サーバー（Spotify連携）
 ├── infra/                # Bicep インフラコード
 ├── images/               # ドキュメント用画像
 └── tools/                # 開発ツール

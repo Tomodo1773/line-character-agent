@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: python-project-template-dev
+    command: sleep infinity
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - ..:/workspaces/workspace:cached
+      - ${HOME}/.gitconfig:/home/vscode/.gitconfig_host
+      - dind-var-lib-docker:/var/lib/docker
+      - ${HOME}/.codex:/home/vscode/.codex:cached
+
+volumes:
+  dind-var-lib-docker:

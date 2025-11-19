@@ -42,6 +42,9 @@ param functionAppContainer string = ''
 
 param serviceName string = 'func'
 
+param cosmosDbAccountName string
+param cosmosDbResourceGroupName string
+
 module functions '../core/host/function.bicep' = {
   name: '${name}-functions'
   params: {
@@ -57,6 +60,8 @@ module functions '../core/host/function.bicep' = {
         AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
         DEPLOYMENT_STORAGE_CONNECTION_STRING: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
         FUNCTIONS_EXTENSION_VERSION: extensionVersion
+        COSMOS_DB_ACCOUNT_KEY: CosmosAccounts.listKeys().primaryMasterKey
+        COSMOS_DB_ACCOUNT_URL: CosmosAccounts.properties.documentEndpoint
       })
     clientAffinityEnabled: clientAffinityEnabled
     functionAppScaleLimit: functionAppScaleLimit
@@ -74,6 +79,11 @@ module functions '../core/host/function.bicep' = {
 
 resource storage 'Microsoft.Storage/storageAccounts@2021-09-01' existing = {
   name: storageAccountName
+}
+
+resource CosmosAccounts 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' existing = {
+  name: cosmosDbAccountName
+  scope: resourceGroup(cosmosDbResourceGroupName)
 }
 
 output identityPrincipalId string = managedIdentity ? functions.outputs.identityPrincipalId : ''

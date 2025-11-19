@@ -1,0 +1,72 @@
+name: Azure Provision (main)
+
+on:
+  workflow_call:
+    outputs:
+      api_changed:
+        description: API サービスに変更あり
+        value: ${{ jobs.provision.outputs.api_changed }}
+      func_changed:
+        description: Func サービスに変更あり
+        value: ${{ jobs.provision.outputs.func_changed }}
+      mcp_changed:
+        description: MCP サービスに変更あり
+        value: ${{ jobs.provision.outputs.mcp_changed }}
+      infra_changed:
+        description: インフラ構成に変更あり
+        value: ${{ jobs.provision.outputs.infra_changed }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_APPSERVICEPLAN_NAME: ${{ vars.AZURE_APPSERVICEPLAN_NAME }}
+      AZURE_APPSERVICEPLAN_RG: ${{ vars.AZURE_APPSERVICEPLAN_RG }}
+      AZURE_KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
+      AZURE_KEYVAULT_RG: ${{ vars.AZURE_KEYVAULT_RG }}
+    outputs:
+      api_changed: ${{ steps.changes.outputs.api }}
+      func_changed: ${{ steps.changes.outputs.func }}
+      mcp_changed: ${{ steps.changes.outputs.mcp }}
+      infra_changed: ${{ steps.changes.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 変更検知
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            api:
+              - 'src/api/**'
+              - '!src/api/uv.lock'
+            func:
+              - 'src/func/**'
+              - '!src/func/uv.lock'
+            mcp:
+              - 'src/mcp/**'
+              - '!src/mcp/uv.lock'
+            infra:
+              - 'infra/**'
+
+      - name: azd のセットアップ
+        uses: Azure/setup-azd@v2
+
+      - name: Azure へのログイン (OIDC)
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider "github" \
+            --tenant-id "$AZURE_TENANT_ID"
+
+      - name: azd provision
+        run: azd provision --no-prompt
