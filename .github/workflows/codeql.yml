@@ -9,6 +9,8 @@ on:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       github: ${{ steps.changes.outputs.github }}
       src: ${{ steps.changes.outputs.src }}
