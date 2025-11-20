@@ -142,7 +142,7 @@ def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spot
 
         next: Literal["spotify_agent", "diary_searcher", "FINISH"]
 
-    llm = ChatOpenAI(temperature=0, model="gpt-4.1")
+    llm = ChatOpenAI(temperature=0, model="gpt-5.1")
     structured_llm = llm.with_structured_output(Router)
     chain = prompt | structured_llm
     response = chain.invoke({"messages": state["messages"]})
@@ -175,7 +175,7 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         user_digest=state["digest"],
     )
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
+    llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
     llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
 
     chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
@@ -200,7 +200,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet_short
     prompt = get_prompt("tomodo1773/sister_edinet_short")
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
     # MCPツール取得
     mcp_tools = await get_mcp_tools()
     if not mcp_tools:
@@ -240,7 +240,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     if "current_datetime" in prompt.input_variables:
         prompt = prompt.partial(current_datetime=get_japan_datetime())
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
     agent = create_agent(

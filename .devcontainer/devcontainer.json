@@ -75,6 +75,7 @@
 				"openai.chatgpt",
 				"Anthropic.claude-code",
 				"oderwat.indent-rainbow",
+				"ms-azuretools.vscode-bicep",
 				"DavidAnson.vscode-markdownlint"
 			]
 		}
