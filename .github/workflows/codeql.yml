@@ -2,15 +2,33 @@ name: CodeQL
 
 on:
   push:
-    branches: [ "main", "copilot/**" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  schedule:
-    - cron: '0 0 * * 0'  # 毎週日曜日の午前0時（UTC）
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      github: ${{ steps.changes.outputs.github }}
+      src: ${{ steps.changes.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 変更検知
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            github:
+              - '.github/**'
+            src:
+              - 'src/**'
+
   analyze-actions:
     name: Analyze GitHub Actions
+    needs: detect-changes
+    if: needs.detect-changes.outputs.github == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -20,49 +38,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check if .github files changed
-        id: check-github-changes
-        if: github.event_name != 'schedule'
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.sha }}"
-          else
-            BASE_SHA="${{ github.event.before }}"
-            HEAD_SHA="${{ github.sha }}"
-          fi
-          
-          echo "Checking for changes in .github directory..."
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^\.github/"; then
-            echo "Changes detected in .github directory"
-            echo "run_analysis=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in .github directory"
-            echo "run_analysis=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Initialize CodeQL
-        if: |
-          github.event_name == 'schedule' ||
-          steps.check-github-changes.outputs.run_analysis == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: 'javascript'
           queries: security-and-quality
 
       - name: Perform CodeQL Analysis
-        if: |
-          github.event_name == 'schedule' ||
-          steps.check-github-changes.outputs.run_analysis == 'true'
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript"
 
   analyze-python:
     name: Analyze Python
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -72,43 +63,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check if src files changed
-        id: check-src-changes
-        if: github.event_name != 'schedule'
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.sha }}"
-          else
-            BASE_SHA="${{ github.event.before }}"
-            HEAD_SHA="${{ github.sha }}"
-          fi
-          
-          echo "Checking for changes in src directory..."
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^src/"; then
-            echo "Changes detected in src directory"
-            echo "run_analysis=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in src directory"
-            echo "run_analysis=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Initialize CodeQL
-        if: |
-          github.event_name == 'schedule' ||
-          steps.check-src-changes.outputs.run_analysis == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: 'python'
           queries: security-and-quality
 
       - name: Perform CodeQL Analysis
-        if: |
-          github.event_name == 'schedule' ||
-          steps.check-src-changes.outputs.run_analysis == 'true'
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:python"
