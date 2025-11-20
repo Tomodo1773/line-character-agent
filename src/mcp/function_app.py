@@ -326,21 +326,23 @@ def spotify_add_tracks_to_playlist(context) -> str:
         playlist_id = arguments.get("playlist_id")
         track_id = arguments.get("track_id")
         position = arguments.get("position")
-        
+
         # track_idをリストにして渡す（API互換のため）
         try:
-            playlist_result = spotify_client.add_tracks_to_playlist(playlist_id=playlist_id, track_ids=[track_id], position=position)
+            playlist_result = spotify_client.add_tracks_to_playlist(
+                playlist_id=playlist_id, track_ids=[track_id], position=position
+            )
             logger.info("Successfully added track to playlist")
         except SpotifyException as se:
             error_msg = f"Failed to add track to playlist: {str(se)}"
             logger.error(error_msg)
             return "プレイリストへのトラック追加に失敗しました。"
-        
+
         # プレイリスト追加後、お気に入りにも追加
         try:
             liked_result = spotify_client.add_track_to_liked_songs(track_id=track_id)
             logger.info("Successfully added track to liked songs")
-            return f"トラック追加完了！{playlist_result}"
+            return f"トラック追加完了！{playlist_result} {liked_result}"
         except SpotifyException as se:
             logger.error(f"Failed to add track to liked songs: {str(se)}")
             return f"トラックはプレイリストに追加されましたが、お気に入りへの追加に失敗しました。Playlist: {playlist_result}"
@@ -446,16 +448,16 @@ def openai_web_search(context) -> str:
         content = json.loads(context)
         arguments = content.get("arguments", {})
         query = arguments.get("query", "")
-        
+
         if not query:
             return "検索クエリが必要です。クエリを入力してください。"
-        
+
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return "OPENAI_API_KEYが環境変数にセットされていません。APIキーをセットしてから利用してください。"
-        
+
         client = OpenAI(api_key=api_key)
-        
+
         instructions = """
 You are a helpful AI assistant with access to web search.
 
@@ -468,14 +470,14 @@ Steps:
 2. If it is a list of suggestions, first, write a brief and natural introduction based on the original query.
 3. Followed by a list of suggestions, each suggestion should be split by two newlines.
 """
-        
+
         response = client.responses.create(
             model="gpt-5.1",
             input=query,
             instructions=instructions,
         )
-        
-        return response.output
+
+        return response.output_text
     except Exception as e:
         logger.error(f"OpenAI Web検索でエラー: {str(e)}")
         return f"OpenAI Web検索でエラーが発生しました: {str(e)}"
