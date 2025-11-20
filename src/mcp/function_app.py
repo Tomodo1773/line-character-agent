@@ -475,24 +475,7 @@ Steps:
             instructions=instructions,
         )
         
-        # Extract the text content from the response
-        if hasattr(response, 'output') and response.output:
-            if isinstance(response.output, list) and len(response.output) > 0:
-                # Get the first output item's content
-                first_output = response.output[0]
-                if hasattr(first_output, 'content'):
-                    if isinstance(first_output.content, list) and len(first_output.content) > 0:
-                        # Get text from content items
-                        text_parts = []
-                        for content_item in first_output.content:
-                            if hasattr(content_item, 'text'):
-                                text_parts.append(content_item.text)
-                        return '\n'.join(text_parts) if text_parts else str(first_output.content)
-                    return str(first_output.content)
-                return str(first_output)
-            return str(response.output)
-        
-        return "応答の取得に失敗しました。"
+        return response.output
     except Exception as e:
         logger.error(f"OpenAI Web検索でエラー: {str(e)}")
         return f"OpenAI Web検索でエラーが発生しました: {str(e)}"
