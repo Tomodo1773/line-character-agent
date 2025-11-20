@@ -141,7 +141,7 @@ Add a track to the user's Liked Songs (library)
 
 ### openai_web_search
 
-OpenAI web search機能を使ってWeb検索を行うMCPツール。クエリを投げてWebから最新情報を取得できる。
+OpenAI Responses APIを使ってWeb検索を行うMCPツール。クエリを投げてWebから最新情報を取得できる。
 
 **Parameters:**
 
@@ -161,7 +161,7 @@ OpenAI web search機能を使ってWeb検索を行うMCPツール。クエリを
 **注意:**
 
 - 環境変数 `OPENAI_API_KEY` にOpenAIのAPIキーをセットしてください。
-- モデルは `gpt-4o` を使用し、`web_search_preview` ツールで最新のWeb情報を取得します。
+- モデルは最新の `gpt-5.1` を使用し、Responses APIで最新のWeb情報を取得します。
 
 ## Token Management
 

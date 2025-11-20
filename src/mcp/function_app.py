@@ -437,11 +437,11 @@ openai_search_properties_json = json.dumps([prop.to_dict() for prop in openai_se
     arg_name="context",
     type="mcpToolTrigger",
     toolName="openai_web_search",
-    description="MCP tool that uses OpenAI web search to retrieve the latest information from the web. Submit a query to search the web and get up-to-date information.",
+    description="MCP tool that uses OpenAI Responses API with gpt-5.1 to retrieve the latest information from the web. Submit a query to search the web and get up-to-date information.",
     toolProperties=openai_search_properties_json,
 )
 def openai_web_search(context) -> str:
-    """MCP tool for web search using OpenAI web_search_preview."""
+    """MCP tool for web search using OpenAI Responses API with gpt-5.1."""
     try:
         content = json.loads(context)
         arguments = content.get("arguments", {})
@@ -456,7 +456,7 @@ def openai_web_search(context) -> str:
         
         client = OpenAI(api_key=api_key)
         
-        system = """
+        instructions = """
 You are a helpful AI assistant with access to web search.
 
 Rules:
@@ -469,15 +469,30 @@ Steps:
 3. Followed by a list of suggestions, each suggestion should be split by two newlines.
 """
         
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": query}]
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            tools=[{"type": "web_search_preview"}]
+        response = client.responses.create(
+            model="gpt-5.1",
+            input=query,
+            instructions=instructions,
         )
         
-        return response.choices[0].message.content
+        # Extract the text content from the response
+        if hasattr(response, 'output') and response.output:
+            if isinstance(response.output, list) and len(response.output) > 0:
+                # Get the first output item's content
+                first_output = response.output[0]
+                if hasattr(first_output, 'content'):
+                    if isinstance(first_output.content, list) and len(first_output.content) > 0:
+                        # Get text from content items
+                        text_parts = []
+                        for content_item in first_output.content:
+                            if hasattr(content_item, 'text'):
+                                text_parts.append(content_item.text)
+                        return '\n'.join(text_parts) if text_parts else str(first_output.content)
+                    return str(first_output.content)
+                return str(first_output)
+            return str(response.output)
+        
+        return "応答の取得に失敗しました。"
     except Exception as e:
         logger.error(f"OpenAI Web検索でエラー: {str(e)}")
         return f"OpenAI Web検索でエラーが発生しました: {str(e)}"
