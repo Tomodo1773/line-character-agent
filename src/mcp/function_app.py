@@ -4,8 +4,9 @@ import os
 
 import azure.functions as func
 from openai import OpenAI
-from spotify_api import Client
 from spotipy import SpotifyException
+
+from spotify_api import Client
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
@@ -476,6 +477,7 @@ Steps:
             input=query,
             instructions=instructions,
             tools=[{"type": "web_search"}],
+            reasoning={"effort": "low"},
         )
 
         return response.output_text
