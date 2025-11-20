@@ -475,6 +475,7 @@ Steps:
             model="gpt-5.1",
             input=query,
             instructions=instructions,
+            tools=[{"type": "web_search"}],
         )
 
         return response.output_text
