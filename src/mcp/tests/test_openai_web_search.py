@@ -2,14 +2,9 @@
 
 import json
 import os
+from datetime import date, timedelta
 
 import pytest
-
-# Set minimal Spotify credentials to allow module import of function_app
-# (function_app initializes spotify_client at module level)
-# Don't set REFRESH_TOKEN to avoid actual Spotify API calls during import
-os.environ.setdefault("SPOTIFY_CLIENT_ID", "dummy_client_id")
-os.environ.setdefault("SPOTIFY_CLIENT_SECRET", "dummy_client_secret")
 
 from function_app import openai_web_search
 
@@ -27,7 +22,9 @@ class TestOpenAIWebSearch:
             pytest.skip("OPENAI_API_KEY environment variable not set")
 
         # Arrange
-        mock_context = json.dumps({"arguments": {"query": "What is Python programming?"}})
+        yesterday = date.today() - timedelta(days=1)
+        query = f"あなたは{yesterday:%Y-%m-%d}の情報についてweb検索できますか。YesかNoで教えて"
+        mock_context = json.dumps({"arguments": {"query": query}})
 
         # Act
         result = openai_web_search(mock_context)
@@ -40,4 +37,4 @@ class TestOpenAIWebSearch:
         # Assert
         assert result is not None
         assert len(result) > 0
-        assert "Python" in result
+        assert "yes" in result.lower()
