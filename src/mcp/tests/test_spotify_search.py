@@ -5,12 +5,6 @@ import os
 
 import pytest
 
-# Set minimal Spotify credentials to allow module import
-# (function_app initializes spotify_client at module level)
-# Don't set REFRESH_TOKEN to avoid actual Spotify API calls during import
-os.environ.setdefault("SPOTIFY_CLIENT_ID", "dummy_client_id")
-os.environ.setdefault("SPOTIFY_CLIENT_SECRET", "dummy_client_secret")
-
 from function_app import spotify_search, spotify_search_my_playlists
 
 
