@@ -424,34 +424,40 @@ def spotify_search_my_playlists(context) -> str:
         return "内部サーバーエラーが発生しました。再度お試しください。"
 
 
-# Perplexity Web Search Tool
-perplexity_search_properties = [
+# OpenAI Web Search Tool
+openai_search_properties = [
     ToolProperty(
         "query", "string", "A search request in sentence form (make it as specific as possible and include context)."
     ),
 ]
-perplexity_search_properties_json = json.dumps([prop.to_dict() for prop in perplexity_search_properties])
+openai_search_properties_json = json.dumps([prop.to_dict() for prop in openai_search_properties])
 
 
 @app.generic_trigger(
     arg_name="context",
     type="mcpToolTrigger",
-    toolName="perplexity_web_search",
-    description="MCP tool that uses Perplexity API to perform web searches. Submit a query to retrieve the latest information from the web.",
-    toolProperties=perplexity_search_properties_json,
+    toolName="openai_web_search",
+    description="MCP tool that uses OpenAI web search to retrieve the latest information from the web. Submit a query to search the web and get up-to-date information.",
+    toolProperties=openai_search_properties_json,
 )
-def perplexity_web_search(context) -> str:
-    """MCP tool for web search using Perplexity API."""
+def openai_web_search(context) -> str:
+    """MCP tool for web search using OpenAI web_search_preview."""
     try:
         content = json.loads(context)
         arguments = content.get("arguments", {})
         query = arguments.get("query", "")
-        api_key = os.getenv("PERPLEXITY_API_KEY")
+        
+        if not query:
+            return "検索クエリが必要です。クエリを入力してください。"
+        
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            return "PERPLEXITY_API_KEYが環境変数にセットされていません。APIキーをセットしてから利用してください。"
-        client = OpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
+            return "OPENAI_API_KEYが環境変数にセットされていません。APIキーをセットしてから利用してください。"
+        
+        client = OpenAI(api_key=api_key)
+        
         system = """
-You are a helpful AI assistant.
+You are a helpful AI assistant with access to web search.
 
 Rules:
 1. Provide only the final answer. It is important that you do not include any explanation on the steps below.
@@ -462,9 +468,16 @@ Steps:
 2. If it is a list of suggestions, first, write a brief and natural introduction based on the original query.
 3. Followed by a list of suggestions, each suggestion should be split by two newlines.
 """
+        
         messages = [{"role": "system", "content": system}, {"role": "user", "content": query}]
-        response = client.chat.completions.create(model="sonar", messages=messages)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            tools=[{"type": "web_search_preview"}]
+        )
+        
         return response.choices[0].message.content
     except Exception as e:
-        logger.error(f"Perplexity Web検索でエラー: {str(e)}")
-        return f"Perplexity Web検索でエラーが発生しました: {str(e)}"
+        logger.error(f"OpenAI Web検索でエラー: {str(e)}")
+        return f"OpenAI Web検索でエラーが発生しました: {str(e)}"

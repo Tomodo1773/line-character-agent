@@ -139,9 +139,9 @@ Add a track to the user's Liked Songs (library)
 
 - `track_id` (string): ID of the track to add to liked songs
 
-### perplexity_web_search
+### openai_web_search
 
-Perplexity APIを使ってWeb検索を行うMCPツール。クエリを投げてWebから最新情報を取得できる。
+OpenAI web search機能を使ってWeb検索を行うMCPツール。クエリを投げてWebから最新情報を取得できる。
 
 **Parameters:**
 
@@ -151,7 +151,7 @@ Perplexity APIを使ってWeb検索を行うMCPツール。クエリを投げて
 
 ```json
 {
-  "toolName": "perplexity_web_search",
+  "toolName": "openai_web_search",
   "arguments": {
     "query": "2025年のAI業界の最新トレンドを教えて"
   }
@@ -160,8 +160,8 @@ Perplexity APIを使ってWeb検索を行うMCPツール。クエリを投げて
 
 **注意:**
 
-- 環境変数 `PERPLEXITY_API_KEY` にPerplexityのAPIキーをセットしてください。
-- モデルは `llama-3.1-sonar-large-128k-online` を使用しています。
+- 環境変数 `OPENAI_API_KEY` にOpenAIのAPIキーをセットしてください。
+- モデルは `gpt-4o` を使用し、`web_search_preview` ツールで最新のWeb情報を取得します。
 
 ## Token Management
 
