@@ -1,5 +1,4 @@
 import datetime
-import json
 import os
 import re
 from typing import Optional
@@ -135,7 +134,7 @@ def generate_diary_digest(diary_content: str) -> str:
             ]
         )
 
-        llm = ChatOpenAI(model="gpt-4.1", temperature=0.2)
+        llm = ChatOpenAI(model="gpt-5.1", temperature=0.2)
         chain = template | llm | StrOutputParser()
 
         return chain.invoke({"diary_content": diary_content})
@@ -166,10 +165,7 @@ def save_digest_to_drive(digest_content: str, diary_filename: str) -> bool:
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
         # 新しいダイジェストエントリ
-        new_digest = {
-            "date": date_str,
-            "text": digest_content
-        }
+        new_digest = {"date": date_str, "text": digest_content}
 
         file_id = drive_handler.append_or_create_json(new_digest, filename, folder_id)
 
@@ -191,7 +187,7 @@ def _convert_filename_to_date(filename: str) -> str:
     """
     try:
         # 例：2025年07月14日(月) -> 2025-07-14
-        match = re.match(r'(\d{4})年(\d{2})月(\d{2})日', filename)
+        match = re.match(r"(\d{4})年(\d{2})月(\d{2})日", filename)
         if match:
             year, month, day = match.groups()
             return f"{year}-{month}-{day}"
