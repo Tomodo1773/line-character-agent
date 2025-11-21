@@ -1,0 +1,76 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      github: ${{ steps.changes.outputs.github }}
+      src: ${{ steps.changes.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 変更検知
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            github:
+              - '.github/**'
+            src:
+              - 'src/**'
+
+  analyze-actions:
+    name: Analyze GitHub Actions
+    needs: detect-changes
+    if: needs.detect-changes.outputs.github == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'actions'
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:actions"
+
+  analyze-python:
+    name: Analyze Python
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'python'
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
