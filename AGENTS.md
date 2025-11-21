@@ -4,7 +4,7 @@
 
 - `src/api/` FastAPI アプリ（LINE webhook、エージェント）。テストは `src/api/tests/`。
 - `src/func/` Azure Functions（日記アップロード/RAG）。テストは `src/func/tests/`。
-- `src/mcp/` MCP サーバー（Spotify/Perplexity 連携）。テストは `src/mcp/tests/`。
+- `src/mcp/` MCP サーバー（Spotify/OpenAI 連携）。テストは `src/mcp/tests/`。
 - `infra/` Bicep、`images/` 図版、`tools/` 開発ユーティリティ。
 
 ## ビルド・テスト・開発コマンド

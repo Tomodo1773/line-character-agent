@@ -52,7 +52,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 ### 4. 高度なエージェント機能
 
 - **Spotify操作**: MCP経由での音楽再生・検索
-- **Web検索**: Perplexity APIによる最新情報取得
+- **Web検索**: OpenAI APIによる最新情報取得
 - **日記検索**: ベクトル化による過去日記の検索・RAG機能
 
 ## AIエージェントグラフ
@@ -62,7 +62,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 ### エージェント構成
 
 1. **router**: ユーザーの発言内容から適切な処理にルーティング
-2. **spotify_agent**: 音楽関連操作（MCPサーバー経由でSpotify API・Perplexity API利用）
+2. **spotify_agent**: 音楽関連操作（MCPサーバー経由でSpotify API・OpenAI API利用）
 3. **diary_search**: 日記内容のRAG検索・ベクトル化による過去日記検索
 4. **chatbot**: メイン会話処理（ユーザープロファイル・日記ダイジェスト参照、Web検索対応）
 
@@ -83,8 +83,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 
 ### AI・検索
 
-- OpenAI
-- Perplexity API（Web検索）
+- OpenAI（Web検索含む）
 - Azure Cosmos DB（ベクトル検索）
 
 ### 外部サービス連携
@@ -154,7 +153,7 @@ sequenceDiagram
     
     alt Spotify操作の場合
         API->>MCP: MCP呼び出し
-        MCP->>External: Spotify/Perplexity API
+        MCP->>External: Spotify/OpenAI API
         External-->>MCP: 結果
         MCP-->>API: 処理結果
     end
@@ -172,7 +171,6 @@ sequenceDiagram
 - Google Cloud Platform（Drive API有効化）
 - OpenAI APIまたはAzure OpenAI
 - Spotify Developerアカウント
-- Perplexity API（オプション）
 - LangSmithアカウント（オプション）
 
 ### Google Drive事前準備ファイル
