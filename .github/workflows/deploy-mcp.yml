@@ -23,20 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Python 3.11 のセットアップ
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: uv のインストール
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.5.13"
-
-      - name: requirements.txt を生成
-        run: uv export --format requirements-txt --no-editable > requirements.txt
-        working-directory: src/mcp
-
       - name: azd のセットアップ
         uses: Azure/setup-azd@v2
 
