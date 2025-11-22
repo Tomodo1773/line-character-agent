@@ -38,7 +38,10 @@ class UserRepository(BaseRepository):
         return result[0] if result else {}
 
     def _upsert_user(self, userid: str, extra_fields: Dict[str, Any]) -> None:
-        existing = self._sanitize_item(self.fetch_user(userid)) if userid else {}
+        if not userid:
+            raise ValueError("userid must be a non-empty string")
+
+        existing = self._sanitize_item(self.fetch_user(userid))
         data = {**existing, **extra_fields, "id": userid, "userid": userid}
         self.save(data)
 

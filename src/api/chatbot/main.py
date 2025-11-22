@@ -98,7 +98,7 @@ async def callback(
 
 
 def get_user_credentials_or_prompt(
-    userid: str, line_messennger: LineMessenger, user_repository: UserRepository
+    userid: str, line_messenger: LineMessenger, user_repository: UserRepository
 ):
     """ユーザーのGoogle認可情報を取得し、未認可なら認可URLを返信して処理を終了する"""
     user_repository.ensure_user(userid)
@@ -107,7 +107,7 @@ def get_user_credentials_or_prompt(
 
     if not credentials:
         auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        line_messennger.reply_message(
+        line_messenger.reply_message(
             [TextMessage(text=f"GoogleDriveの許可設定を最初にしてちょうだい。\n{auth_url}")]
         )
         return None
@@ -117,18 +117,18 @@ def get_user_credentials_or_prompt(
 
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
-    line_messennger = LineMessenger(event)
+    line_messenger = LineMessenger(event)
     cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
-    credentials = get_user_credentials_or_prompt(userid, line_messennger, user_repository)
+    credentials = get_user_credentials_or_prompt(userid, line_messenger, user_repository)
     if not credentials:
         return
 
     agent = ChatbotAgent()
 
     # ローディングアニメーションを表示
-    line_messennger.show_loading_animation()
+    line_messenger.show_loading_animation()
 
     # CosmosDBから直近の会話履歴を取得
     session = cosmos.fetch_messages()
@@ -145,7 +145,7 @@ async def handle_text_async(event):
 
         # メッセージを返信
         reply_messages = [TextMessage(text=content)]
-        line_messennger.reply_message(reply_messages)
+        line_messenger.reply_message(reply_messages)
 
         # 会話履歴を保存
         add_messages = [{"type": "human", "content": event.message.text}, {"type": "ai", "content": content}]
@@ -157,7 +157,7 @@ async def handle_text_async(event):
             error_message = f"Error {e.status_code}: {e.detail}"
         else:
             error_message = f"Error: {str(e)}"
-        line_messennger.reply_message([TextMessage(text=error_message)])
+        line_messenger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
 
 
@@ -168,11 +168,11 @@ def handle_text(event):
 
 async def handle_audio_async(event):
     logger.info(f"Start handling audio message: {event.message.id}")
-    line_messennger = LineMessenger(event)
+    line_messenger = LineMessenger(event)
     cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
-    credentials = get_user_credentials_or_prompt(userid, line_messennger, user_repository)
+    credentials = get_user_credentials_or_prompt(userid, line_messenger, user_repository)
     if not credentials:
         return
 
@@ -181,14 +181,14 @@ async def handle_audio_async(event):
     agent = ChatbotAgent()
 
     # ローディングアニメーションを表示
-    line_messennger.show_loading_animation()
+    line_messenger.show_loading_animation()
 
     # 音声データを取得
-    audio = line_messennger.get_content()
+    audio = line_messenger.get_content()
 
     try:
         # audioから日記を取得
-        diary_content = DiaryTranscription().invoke(audio)
+        diary_content = DiaryTranscription(drive_handler).invoke(audio)
         reaction_prompt = f"""以下の日記に対して一言だけ感想を言って。
 内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
 {diary_content}
@@ -214,7 +214,7 @@ async def handle_audio_async(event):
 
         if reaction:
             reply_messages.append(TextMessage(text=reaction))
-        line_messennger.reply_message(reply_messages)
+        line_messenger.reply_message(reply_messages)
 
         # メッセージを保存
         messages.append({"type": "ai", "content": reaction})
@@ -236,7 +236,7 @@ async def handle_audio_async(event):
     except Exception as e:
         # メッセージを返信
         error_message = f"Error: {e}"
-        line_messennger.reply_message([TextMessage(text=error_message)])
+        line_messenger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
 
 
