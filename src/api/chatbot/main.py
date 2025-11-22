@@ -17,7 +17,7 @@ from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageCo
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from chatbot.agent import ChatbotAgent
-from chatbot.database.repositories import AgentRepository
+from chatbot.database.repositories import AgentRepository, UserRepository
 from chatbot.models import (
     ChatCompletionRequest,
     ChatCompletionStreamResponse,
@@ -27,6 +27,8 @@ from chatbot.models import (
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
+from chatbot.utils.google_auth import GoogleDriveOAuthManager
+from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
 from chatbot.utils.transcript import DiaryTranscription
 
@@ -60,6 +62,21 @@ async def root():
     return {"message": "The server is up and running."}
 
 
+@app.get("/auth/google/callback")
+async def google_drive_oauth_callback(code: str, state: str):
+    user_repository = UserRepository()
+    user_repository.ensure_user(state)
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+    credentials = oauth_manager.exchange_code_for_credentials(code)
+    oauth_manager.save_user_credentials(state, credentials)
+
+    completion_message = "GoogleDriveの許可設定が完了したわ。最初のメッセージをもう一度送ってね。"
+    line_messenger = LineMessenger(user_id=state)
+    line_messenger.push_message([TextMessage(text=completion_message)])
+
+    return {"message": "Authorization completed. Please resend your first message on LINE."}
+
+
 @app.post("/callback")
 async def callback(
     request: Request,
@@ -80,15 +97,38 @@ async def callback(
     return "ok"
 
 
+def get_user_credentials_or_prompt(
+    userid: str, line_messenger: LineMessenger, user_repository: UserRepository
+):
+    """ユーザーのGoogle認可情報を取得し、未認可なら認可URLを返信して処理を終了する"""
+    user_repository.ensure_user(userid)
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+    credentials = oauth_manager.get_user_credentials(userid)
+
+    if not credentials:
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
+        line_messenger.reply_message(
+            [TextMessage(text=f"GoogleDriveの許可設定を最初にしてちょうだい。\n{auth_url}")]
+        )
+        return None
+
+    return credentials
+
+
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
-    line_messennger = LineMessenger(event)
+    line_messenger = LineMessenger(event)
     cosmos = AgentRepository()
+    user_repository = UserRepository()
     userid = event.source.user_id
+    credentials = get_user_credentials_or_prompt(userid, line_messenger, user_repository)
+    if not credentials:
+        return
+
     agent = ChatbotAgent()
 
     # ローディングアニメーションを表示
-    line_messennger.show_loading_animation()
+    line_messenger.show_loading_animation()
 
     # CosmosDBから直近の会話履歴を取得
     session = cosmos.fetch_messages()
@@ -105,7 +145,7 @@ async def handle_text_async(event):
 
         # メッセージを返信
         reply_messages = [TextMessage(text=content)]
-        line_messennger.reply_message(reply_messages)
+        line_messenger.reply_message(reply_messages)
 
         # 会話履歴を保存
         add_messages = [{"type": "human", "content": event.message.text}, {"type": "ai", "content": content}]
@@ -117,7 +157,7 @@ async def handle_text_async(event):
             error_message = f"Error {e.status_code}: {e.detail}"
         else:
             error_message = f"Error: {str(e)}"
-        line_messennger.reply_message([TextMessage(text=error_message)])
+        line_messenger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
 
 
@@ -128,21 +168,27 @@ def handle_text(event):
 
 async def handle_audio_async(event):
     logger.info(f"Start handling audio message: {event.message.id}")
-    line_messennger = LineMessenger(event)
+    line_messenger = LineMessenger(event)
     cosmos = AgentRepository()
+    user_repository = UserRepository()
     userid = event.source.user_id
+    credentials = get_user_credentials_or_prompt(userid, line_messenger, user_repository)
+    if not credentials:
+        return
+
+    drive_handler = GoogleDriveHandler(credentials=credentials)
     messages = []
     agent = ChatbotAgent()
 
     # ローディングアニメーションを表示
-    line_messennger.show_loading_animation()
+    line_messenger.show_loading_animation()
 
     # 音声データを取得
-    audio = line_messennger.get_content()
+    audio = line_messenger.get_content()
 
     try:
         # audioから日記を取得
-        diary_content = DiaryTranscription().invoke(audio)
+        diary_content = DiaryTranscription(drive_handler).invoke(audio)
         reaction_prompt = f"""以下の日記に対して一言だけ感想を言って。
 内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
 {diary_content}
@@ -150,7 +196,7 @@ async def handle_audio_async(event):
         messages.append({"type": "human", "content": reaction_prompt})
         logger.info("Generated diary transcription")
 
-        saved_filename = save_diary_to_drive(diary_content)
+        saved_filename = save_diary_to_drive(diary_content, drive_handler)
         if saved_filename:
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
@@ -168,7 +214,7 @@ async def handle_audio_async(event):
 
         if reaction:
             reply_messages.append(TextMessage(text=reaction))
-        line_messennger.reply_message(reply_messages)
+        line_messenger.reply_message(reply_messages)
 
         # メッセージを保存
         messages.append({"type": "ai", "content": reaction})
@@ -179,7 +225,7 @@ async def handle_audio_async(event):
             if saved_filename:
                 digest = generate_diary_digest(diary_content)
                 if digest:
-                    success = save_digest_to_drive(digest, saved_filename)
+                    success = save_digest_to_drive(digest, saved_filename, drive_handler)
                     if success:
                         logger.info("Saved digest successfully")
                     else:
@@ -190,7 +236,7 @@ async def handle_audio_async(event):
     except Exception as e:
         # メッセージを返信
         error_message = f"Error: {e}"
-        line_messennger.reply_message([TextMessage(text=error_message)])
+        line_messenger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
 
 

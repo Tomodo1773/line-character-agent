@@ -94,16 +94,28 @@ def get_user_profile(userid: str) -> dict:
     global _cached
     if userid not in _cached["profile"]:
         logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
+        from chatbot.utils.google_auth import GoogleDriveOAuthManager
+        from chatbot.utils.google_drive import GoogleDriveHandler
         from chatbot.utils.google_drive_utils import get_digest_from_drive, get_profile_from_drive
 
-        user_profile = get_profile_from_drive()
+        auth_manager = GoogleDriveOAuthManager()
+        credentials = auth_manager.get_user_credentials(userid)
+
+        if not credentials:
+            logger.warning("Google Drive credentials not found for user: %s", userid)
+            _cached["profile"][userid] = ""
+            _cached["digest"][userid] = ""
+            return {"profile": "", "digest": ""}
+
+        drive_handler = GoogleDriveHandler(credentials=credentials)
+        user_profile = get_profile_from_drive(drive_handler)
         if user_profile and "content" in user_profile:
             _cached["profile"][userid] = user_profile["content"]
         else:
             logger.error("Failed to get profile content, using empty profile")
             _cached["profile"][userid] = ""
 
-        digest = get_digest_from_drive()
+        digest = get_digest_from_drive(drive_handler)
         if digest and "content" in digest:
             _cached["digest"][userid] = digest["content"]
         else:

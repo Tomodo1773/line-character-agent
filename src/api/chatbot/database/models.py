@@ -10,13 +10,6 @@ class DatabaseRecord(BaseModel):
     date: datetime
 
 
-class UserProfile(DatabaseRecord):
-    """ユーザープロファイルモデル"""
-
-    userid: str
-    profile: Dict[str, Any]
-
-
 class NameData(DatabaseRecord):
     """名前データモデル"""
 

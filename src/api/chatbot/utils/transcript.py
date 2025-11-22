@@ -1,7 +1,9 @@
 import getpass
 import os
 import tempfile
+from typing import Optional
 
+from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.google_drive_utils import get_dictionary_from_drive
 from chatbot.utils import remove_trailing_newline
 from chatbot.utils.config import create_logger
@@ -70,7 +72,8 @@ system_prompt = """
 
 
 class DiaryTranscription:
-    def __init__(self) -> None:
+    def __init__(self, drive_handler: Optional[GoogleDriveHandler] = None) -> None:
+        self._drive_handler = drive_handler
         self.chain = self._create_chain()
 
     def invoke(
@@ -103,7 +106,11 @@ class DiaryTranscription:
         return configured_chain
 
     def _read_dictionary(self) -> str:
-        return get_dictionary_from_drive()
+        if not self._drive_handler:
+            logger.warning("GoogleDriveHandler is not provided. Skipping dictionary lookup.")
+            return ""
+
+        return get_dictionary_from_drive(self._drive_handler)
 
     def transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)

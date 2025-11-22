@@ -64,7 +64,7 @@ def check_filename_duplicate(drive_handler: GoogleDriveHandler, folder_id: str, 
     return new_filename
 
 
-def save_diary_to_drive(diary_content: str) -> Optional[str]:
+def save_diary_to_drive(diary_content: str, drive_handler: GoogleDriveHandler) -> Optional[str]:
     """
     日記コンテンツをGoogle Driveに保存する
 
@@ -75,8 +75,6 @@ def save_diary_to_drive(diary_content: str) -> Optional[str]:
         保存に成功した場合はファイル名（拡張子なし）、失敗した場合はNone
     """
     try:
-        drive_handler = GoogleDriveHandler()
-
         filename = generate_diary_filename()
         folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
@@ -143,7 +141,7 @@ def generate_diary_digest(diary_content: str) -> str:
         return ""
 
 
-def save_digest_to_drive(digest_content: str, diary_filename: str) -> bool:
+def save_digest_to_drive(digest_content: str, diary_filename: str, drive_handler: GoogleDriveHandler) -> bool:
     """
     日記のダイジェストをGoogle DriveにJSON形式で保存する
     ファイルが存在しない場合は新規作成し、存在する場合は更新する
@@ -156,8 +154,6 @@ def save_digest_to_drive(digest_content: str, diary_filename: str) -> bool:
         保存に成功した場合はTrue、失敗した場合はFalse
     """
     try:
-        drive_handler = GoogleDriveHandler()
-
         # 日付をYYYY-MM-DD形式に変換
         date_str = _convert_filename_to_date(diary_filename)
 

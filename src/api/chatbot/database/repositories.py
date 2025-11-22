@@ -1,18 +1,31 @@
-from datetime import datetime, timedelta
 import uuid
-import pytz
-from typing import Dict, Any, List
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
 
+import pytz
 from langchain_core.messages import BaseMessage, messages_to_dict
 
-from .interfaces import BaseRepository
+from chatbot.utils.crypto import decrypt_dict, encrypt_dict
+
 from .core import CosmosCore
+from .interfaces import BaseRepository
 from .models import AgentSession
 
 
 class UserRepository(BaseRepository):
     def __init__(self):
-        self._core = CosmosCore("USERS")
+        self._core = CosmosCore("users")
+
+    @staticmethod
+    def _sanitize_item(item: Dict[str, Any]) -> Dict[str, Any]:
+        sanitized = dict(item)
+        sanitized.pop("date", None)
+        sanitized.pop("_rid", None)
+        sanitized.pop("_self", None)
+        sanitized.pop("_etag", None)
+        sanitized.pop("_attachments", None)
+        sanitized.pop("_ts", None)
+        return sanitized
 
     def save(self, data: Dict[str, Any]) -> None:
         self._core.save(data)
@@ -20,14 +33,43 @@ class UserRepository(BaseRepository):
     def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self._core.fetch(query, parameters)
 
-    def save_profile(self, userid: str, profile: dict) -> None:
-        data = {"userid": userid, "profile": profile}
+    def fetch_user(self, userid: str) -> Dict[str, Any]:
+        query = "SELECT TOP 1 * FROM c WHERE c.id = @userid ORDER BY c.date DESC"
+        parameters = [{"name": "@userid", "value": userid}]
+        result = self.fetch(query, parameters)
+        return result[0] if result else {}
+
+    def _upsert_user(self, userid: str, extra_fields: Dict[str, Any]) -> None:
+        if not userid:
+            raise ValueError("userid must be a non-empty string")
+
+        existing = self._sanitize_item(self.fetch_user(userid))
+        data = {**existing, **extra_fields, "id": userid, "userid": userid}
         self.save(data)
 
-    def fetch_profile(self, userid: str) -> dict:
-        query = "SELECT c.profile FROM c WHERE c.userid = @userid"
+    def ensure_user(self, userid: str) -> None:
+        if not self.fetch_user(userid):
+            self._upsert_user(userid, {})
+
+    def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
+        encrypted = encrypt_dict(tokens)
+        self._upsert_user(userid, {"google_tokens_enc": encrypted})
+
+    def fetch_google_tokens(self, userid: str) -> Dict[str, Any]:
+        query = (
+            "SELECT TOP 1 c.google_tokens_enc "
+            "FROM c WHERE c.userid = @userid "
+            "AND IS_DEFINED(c.google_tokens_enc) "
+            "ORDER BY c.date DESC"
+        )
         parameters = [{"name": "@userid", "value": userid}]
-        return self.fetch(query, parameters)
+        result = self.fetch(query, parameters)
+        if not result:
+            return {}
+
+        record = result[0]
+        decrypted = decrypt_dict(record.get("google_tokens_enc", ""))
+        return decrypted
 
 
 class AgentRepository(BaseRepository):

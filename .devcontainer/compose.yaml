@@ -11,6 +11,7 @@ services:
     volumes:
       - ..:/workspaces/workspace:cached
       - ${HOME}/.gitconfig:/home/vscode/.gitconfig_host
+      - ${HOME}/.config/gh:/home/vscode/.config/gh:cached
       - dind-var-lib-docker:/var/lib/docker
       - ${HOME}/.codex:/home/vscode/.codex:cached
 

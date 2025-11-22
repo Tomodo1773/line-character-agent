@@ -32,15 +32,12 @@ jobs:
           cd src/api
           uv sync
 
-      - name: create-json
-        uses: jsdaniell/create-json@v1.2.2
-        with:
-          name: "credentials.json"
-          json: ${{ secrets.GOOGLE_CREDENTIALS }}
-          dir: "src/api"
-
       - name: Run tests
         env:
+          GOOGLE_CLIENT_ID: "hogehoge"
+          GOOGLE_CLIENT_SECRET: "hogehoge"
+          GOOGLE_OAUTH_REDIRECT_URI: "hogehoge"
+          GOOGLE_TOKEN_ENC_KEY: "hogehoge"
           LINE_CHANNEL_ACCESS_TOKEN: "hogehoge"
           LINE_CHANNEL_SECRET: "hogehoge"
           LINE_USER_ID: "hogehoge"
@@ -50,7 +47,7 @@ jobs:
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
           OPENAI_COMPATIBLE_API_KEY: "hogehoge"
           NIJIVOICE_API_KEY: "hogehoge"
-          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          DRIVE_FOLDER_ID: "hogehoge"
           MCP_FUNCTION_URL: "hogehoge"
         run: |
           cd src/api
