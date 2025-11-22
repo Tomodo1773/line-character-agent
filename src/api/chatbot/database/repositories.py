@@ -49,14 +49,6 @@ class UserRepository(BaseRepository):
         if not self.fetch_user(userid):
             self._upsert_user(userid, {})
 
-    def save_profile(self, userid: str, profile: dict) -> None:
-        self._upsert_user(userid, {"profile": profile})
-
-    def fetch_profile(self, userid: str) -> dict:
-        query = "SELECT c.profile FROM c WHERE c.userid = @userid"
-        parameters = [{"name": "@userid", "value": userid}]
-        return self.fetch(query, parameters)
-
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
         self._upsert_user(userid, {"google_tokens": tokens})
 
