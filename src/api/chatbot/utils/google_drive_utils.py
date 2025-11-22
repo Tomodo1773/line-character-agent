@@ -6,7 +6,7 @@ from chatbot.utils.google_drive import GoogleDriveHandler
 logger = create_logger(__name__)
 
 
-def get_profile_from_drive() -> Dict:
+def get_profile_from_drive(drive_handler: GoogleDriveHandler) -> Dict:
     """
     Google Driveからprofile.mdを取得する
 
@@ -14,8 +14,7 @@ def get_profile_from_drive() -> Dict:
         ユーザープロファイル情報
     """
     try:
-        handler = GoogleDriveHandler(credentials_file="credentials.json")
-        content = handler.get_profile_md()
+        content = drive_handler.get_profile_md()
 
         if content:
             return {"content": content}
@@ -27,7 +26,7 @@ def get_profile_from_drive() -> Dict:
         return {"content": ""}
 
 
-def get_digest_from_drive() -> Dict:
+def get_digest_from_drive(drive_handler: GoogleDriveHandler) -> Dict:
     """
     Google Driveからdigest.jsonを取得する
 
@@ -35,8 +34,7 @@ def get_digest_from_drive() -> Dict:
         ダイジェスト情報
     """
     try:
-        handler = GoogleDriveHandler(credentials_file="credentials.json")
-        content = handler.get_digest_json()
+        content = drive_handler.get_digest_json()
 
         if content:
             return {"content": content}
@@ -48,7 +46,7 @@ def get_digest_from_drive() -> Dict:
         return {"content": ""}
 
 
-def get_dictionary_from_drive() -> str:
+def get_dictionary_from_drive(drive_handler: GoogleDriveHandler) -> str:
     """
     Google Driveからdictionary.mdを取得する
 
@@ -56,8 +54,7 @@ def get_dictionary_from_drive() -> str:
         辞書のmarkdownコンテンツ
     """
     try:
-        handler = GoogleDriveHandler(credentials_file="credentials.json")
-        content = handler.get_dictionary_md()
+        content = drive_handler.get_dictionary_md()
 
         if content:
             return content

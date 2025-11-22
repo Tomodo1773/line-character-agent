@@ -14,20 +14,59 @@ class UserRepository(BaseRepository):
     def __init__(self):
         self._core = CosmosCore("USERS")
 
+    @staticmethod
+    def _sanitize_item(item: Dict[str, Any]) -> Dict[str, Any]:
+        sanitized = dict(item)
+        sanitized.pop("date", None)
+        sanitized.pop("_rid", None)
+        sanitized.pop("_self", None)
+        sanitized.pop("_etag", None)
+        sanitized.pop("_attachments", None)
+        sanitized.pop("_ts", None)
+        return sanitized
+
     def save(self, data: Dict[str, Any]) -> None:
         self._core.save(data)
 
     def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self._core.fetch(query, parameters)
 
-    def save_profile(self, userid: str, profile: dict) -> None:
-        data = {"userid": userid, "profile": profile}
+    def fetch_user(self, userid: str) -> Dict[str, Any]:
+        query = "SELECT TOP 1 * FROM c WHERE c.id = @userid ORDER BY c.date DESC"
+        parameters = [{"name": "@userid", "value": userid}]
+        result = self.fetch(query, parameters)
+        return result[0] if result else {}
+
+    def _upsert_user(self, userid: str, extra_fields: Dict[str, Any]) -> None:
+        existing = self._sanitize_item(self.fetch_user(userid)) if userid else {}
+        data = {**existing, **extra_fields, "id": userid, "userid": userid}
         self.save(data)
+
+    def ensure_user(self, userid: str) -> None:
+        if not self.fetch_user(userid):
+            self._upsert_user(userid, {})
+
+    def save_profile(self, userid: str, profile: dict) -> None:
+        self._upsert_user(userid, {"profile": profile})
 
     def fetch_profile(self, userid: str) -> dict:
         query = "SELECT c.profile FROM c WHERE c.userid = @userid"
         parameters = [{"name": "@userid", "value": userid}]
         return self.fetch(query, parameters)
+
+    def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
+        self._upsert_user(userid, {"google_tokens": tokens})
+
+    def fetch_google_tokens(self, userid: str) -> Dict[str, Any]:
+        query = (
+            "SELECT TOP 1 c.google_tokens FROM c WHERE c.userid = @userid "
+            "AND IS_DEFINED(c.google_tokens) ORDER BY c.date DESC"
+        )
+        parameters = [{"name": "@userid", "value": userid}]
+        result = self.fetch(query, parameters)
+        if result:
+            return result[0].get("google_tokens", {})
+        return {}
 
 
 class AgentRepository(BaseRepository):

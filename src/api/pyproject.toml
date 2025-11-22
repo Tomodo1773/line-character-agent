@@ -24,6 +24,7 @@ dependencies = [
     "google-auth>=2.40.3",
     "google-api-python-client>=2.171.0",
     "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.1",
 ]
 
 [tool.uv]

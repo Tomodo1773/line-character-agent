@@ -4,7 +4,9 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from google.auth.transport.requests import Request
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
@@ -19,15 +21,24 @@ class GoogleDriveHandler:
 
     SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
 
-    def __init__(self, credentials_file="credentials.json"):
+    def __init__(self, credentials: Optional[Credentials] = None, credentials_file: Optional[str] = "credentials.json"):
         """
         Google Drive APIクライアントを初期化する
 
         Args:
-            credentials_file: サービスアカウントの認証情報ファイルパス
+            credentials: OAuth認証済みユーザーの資格情報
+            credentials_file: サービスアカウントの認証情報ファイルパス（OAuthがない場合のフォールバック）
         """
         try:
-            self.creds = service_account.Credentials.from_service_account_file(credentials_file, scopes=self.SCOPES)
+            if credentials:
+                if credentials.expired and credentials.refresh_token:
+                    credentials.refresh(Request())
+                self.creds = credentials
+            elif credentials_file:
+                self.creds = service_account.Credentials.from_service_account_file(credentials_file, scopes=self.SCOPES)
+            else:
+                raise ValueError("Either credentials or credentials_file must be provided for Google Drive access")
+
             self.service = build("drive", "v3", credentials=self.creds)
             logger.info("Initialized Google Drive API client.")
         except Exception as e:

@@ -13,6 +13,9 @@ REQUIRED_ENV_VARS = [
     "OPENAI_COMPATIBLE_API_KEY",
     "DRIVE_FOLDER_ID",
     "MCP_FUNCTION_URL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REDIRECT_URI",
 ]
 
 
@@ -41,6 +44,16 @@ def create_logger(name: str) -> logging.Logger:
 
 
 logger = create_logger(__name__)
+
+
+def get_env_variable(key: str) -> str:
+    """必須の環境変数を取得するヘルパー関数"""
+
+    value = os.getenv(key)
+    if not value:
+        logger.error("環境変数 %s が設定されていません", key)
+        raise EnvironmentError(f"環境変数 {key} が設定されていません")
+    return value
 
 
 def check_environment_variables() -> Tuple[bool, List[str]]:
