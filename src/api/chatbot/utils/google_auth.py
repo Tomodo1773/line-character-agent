@@ -33,9 +33,7 @@ class GoogleDriveOAuthManager:
         }
 
     def generate_authorization_url(self, state: str) -> Tuple[str, str]:
-        flow = Flow.from_client_config(
-            self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri
-        )
+        flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
         auth_url, flow_state = flow.authorization_url(
             access_type="offline", include_granted_scopes="true", prompt="consent", state=state
         )
@@ -43,9 +41,7 @@ class GoogleDriveOAuthManager:
         return auth_url, flow_state
 
     def exchange_code_for_credentials(self, code: str) -> Credentials:
-        flow = Flow.from_client_config(
-            self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri
-        )
+        flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
         flow.fetch_token(code=code)
         logger.info("Exchanged authorization code for credentials")
         return flow.credentials
@@ -56,9 +52,6 @@ class GoogleDriveOAuthManager:
             "token": credentials.token,
             "refresh_token": credentials.refresh_token,
             "token_uri": credentials.token_uri,
-            "client_id": credentials.client_id,
-            "client_secret": credentials.client_secret,
-            "scopes": credentials.scopes,
             "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
         }
 
@@ -70,13 +63,16 @@ class GoogleDriveOAuthManager:
         expiry = token_data.get("expiry")
         expiry_dt = datetime.fromisoformat(expiry) if expiry else None
 
+        client_id = get_env_variable("GOOGLE_CLIENT_ID")
+        client_secret = get_env_variable("GOOGLE_CLIENT_SECRET")
+
         return Credentials(
             token=token_data.get("token"),
             refresh_token=token_data.get("refresh_token"),
             token_uri=token_data.get("token_uri"),
-            client_id=token_data.get("client_id"),
-            client_secret=token_data.get("client_secret"),
-            scopes=token_data.get("scopes"),
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=GoogleDriveHandler.SCOPES,
             expiry=expiry_dt,
         )
 
@@ -95,4 +91,3 @@ class GoogleDriveOAuthManager:
             self.save_user_credentials(userid, credentials)
 
         return credentials
-
