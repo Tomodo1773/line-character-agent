@@ -1,6 +1,7 @@
 import asyncio
 import os
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -27,14 +28,15 @@ def test_chatbot_agent_response():
     - エージェントが適切なレスポンスを返すことを確認
     - レスポンスのmessages内、最新のcontentが空でないことを確認
     """
-    agent_graph = ChatbotAgent()
-    userid = os.environ.get("LINE_USER_ID")
-    if not userid:
-        raise ValueError("LINE_USER_ID environment variable is not set")
+    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
+        agent_graph = ChatbotAgent()
+        userid = os.environ.get("LINE_USER_ID")
+        if not userid:
+            raise ValueError("LINE_USER_ID environment variable is not set")
 
-    messages = [{"type": "human", "content": "こんにちは"}]
+        messages = [{"type": "human", "content": "こんにちは"}]
 
-    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
+        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -46,20 +48,21 @@ def test_chatbot_agent_web_search_response():
     - 昨日の日付を含む質問を投げ、Web検索の可否をYes/Noで答えさせる
     - レスポンスがYes（大文字・小文字を問わず）を含むことを確認
     """
-    agent_graph = ChatbotAgent()
-    userid = os.environ.get("LINE_USER_ID")
-    if not userid:
-        raise ValueError("LINE_USER_ID environment variable is not set")
+    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
+        agent_graph = ChatbotAgent()
+        userid = os.environ.get("LINE_USER_ID")
+        if not userid:
+            raise ValueError("LINE_USER_ID environment variable is not set")
 
-    yesterday = date.today() - timedelta(days=1)
-    messages = [
-        {
-            "type": "human",
-            "content": (f"あなたは{yesterday:%Y-%m-%d}の情報についてweb検索できますか。YesかNoで教えて"),
-        }
-    ]
+        yesterday = date.today() - timedelta(days=1)
+        messages = [
+            {
+                "type": "human",
+                "content": (f"あなたは{yesterday:%Y-%m-%d}の情報についてweb検索できますか。YesかNoで教えて"),
+            }
+        ]
 
-    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
+        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
 
     assert "messages" in response
     assert "yes" in response["messages"][-1].content.lower()
