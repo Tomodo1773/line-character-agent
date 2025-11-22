@@ -96,11 +96,15 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
 // ****************************************************************
 
 // The application backend
+var appServiceName = '${abbrs.webSitesAppService}${resourceToken}'
+var appServiceUri = 'https://${appServiceName}.azurewebsites.net'
+var googleOAuthRedirectUri = '${appServiceUri}/auth/google/callback'
+
 module AppService './app/api.bicep' = {
   name: 'AppService'
   scope: rg
   params: {
-    name: '${abbrs.webSitesAppService}${resourceToken}'
+    name: appServiceName
     location: location
     tags: tags
     appServicePlanId: empty(appServicePlanName) ? AppServicePlan.outputs.id : existingAppServicePlan.id
@@ -118,7 +122,7 @@ module AppService './app/api.bicep' = {
       MCP_FUNCTION_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/MCP-FUNCTION-URL)'
       GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-ID)'
       GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-SECRET)'
-      GOOGLE_OAUTH_REDIRECT_URI: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-OAUTH-REDIRECT-URI)'
+      GOOGLE_OAUTH_REDIRECT_URI: googleOAuthRedirectUri
       COSMOS_DB_CONNECTION_VERIFY: 'true'
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }
