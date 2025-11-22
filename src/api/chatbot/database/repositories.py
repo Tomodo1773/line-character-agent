@@ -1,18 +1,18 @@
-from datetime import datetime, timedelta
 import uuid
-import pytz
-from typing import Dict, Any, List
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
 
+import pytz
 from langchain_core.messages import BaseMessage, messages_to_dict
 
-from .interfaces import BaseRepository
 from .core import CosmosCore
+from .interfaces import BaseRepository
 from .models import AgentSession
 
 
 class UserRepository(BaseRepository):
     def __init__(self):
-        self._core = CosmosCore("USERS")
+        self._core = CosmosCore("users")
 
     @staticmethod
     def _sanitize_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -62,8 +62,7 @@ class UserRepository(BaseRepository):
 
     def fetch_google_tokens(self, userid: str) -> Dict[str, Any]:
         query = (
-            "SELECT TOP 1 c.google_tokens FROM c WHERE c.userid = @userid "
-            "AND IS_DEFINED(c.google_tokens) ORDER BY c.date DESC"
+            "SELECT TOP 1 c.google_tokens FROM c WHERE c.userid = @userid AND IS_DEFINED(c.google_tokens) ORDER BY c.date DESC"
         )
         parameters = [{"name": "@userid", "value": userid}]
         result = self.fetch(query, parameters)
