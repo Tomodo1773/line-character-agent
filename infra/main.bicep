@@ -123,6 +123,7 @@ module AppService './app/api.bicep' = {
       GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-ID)'
       GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-SECRET)'
       GOOGLE_OAUTH_REDIRECT_URI: googleOAuthRedirectUri
+      GOOGLE_TOKEN_ENC_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-TOKEN-ENC-KEY)'
       COSMOS_DB_CONNECTION_VERIFY: 'true'
       APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
     }

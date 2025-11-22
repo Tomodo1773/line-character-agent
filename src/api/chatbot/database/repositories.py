@@ -5,6 +5,8 @@ from typing import Any, Dict, List
 import pytz
 from langchain_core.messages import BaseMessage, messages_to_dict
 
+from chatbot.utils.crypto import decrypt_dict, encrypt_dict
+
 from .core import CosmosCore
 from .interfaces import BaseRepository
 from .models import AgentSession
@@ -50,17 +52,24 @@ class UserRepository(BaseRepository):
             self._upsert_user(userid, {})
 
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
-        self._upsert_user(userid, {"google_tokens": tokens})
+        encrypted = encrypt_dict(tokens)
+        self._upsert_user(userid, {"google_tokens_enc": encrypted})
 
     def fetch_google_tokens(self, userid: str) -> Dict[str, Any]:
         query = (
-            "SELECT TOP 1 c.google_tokens FROM c WHERE c.userid = @userid AND IS_DEFINED(c.google_tokens) ORDER BY c.date DESC"
+            "SELECT TOP 1 c.google_tokens_enc "
+            "FROM c WHERE c.userid = @userid "
+            "AND IS_DEFINED(c.google_tokens_enc) "
+            "ORDER BY c.date DESC"
         )
         parameters = [{"name": "@userid", "value": userid}]
         result = self.fetch(query, parameters)
-        if result:
-            return result[0].get("google_tokens", {})
-        return {}
+        if not result:
+            return {}
+
+        record = result[0]
+        decrypted = decrypt_dict(record.get("google_tokens_enc", ""))
+        return decrypted
 
 
 class AgentRepository(BaseRepository):
