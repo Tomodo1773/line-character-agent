@@ -46,7 +46,6 @@ jobs:
           COSMOS_DB_ACCOUNT_URL: "hogehoge"
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
           OPENAI_COMPATIBLE_API_KEY: "hogehoge"
-          NIJIVOICE_API_KEY: "hogehoge"
           DRIVE_FOLDER_ID: "hogehoge"
           MCP_FUNCTION_URL: "hogehoge"
         run: |
