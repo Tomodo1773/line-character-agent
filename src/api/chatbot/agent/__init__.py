@@ -224,7 +224,15 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
         )
 
     # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
-    system_prompt = prompt.messages[0].prompt.template
+    try:
+        system_prompt = prompt.messages[0].prompt.template
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Failed to extract system prompt from ChatPromptTemplate: {e}")
+        fallback_message = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=fallback_message)]},
+        )
 
     agent = create_agent(
         llm,
@@ -256,7 +264,15 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         prompt = prompt.partial(current_datetime=get_japan_datetime())
 
     # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
-    system_prompt = prompt.messages[0].prompt.template
+    try:
+        system_prompt = prompt.messages[0].prompt.template
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Failed to extract system prompt from ChatPromptTemplate: {e}")
+        fallback_message = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=fallback_message)]},
+        )
 
     llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
     # 日記検索ツールを使用
