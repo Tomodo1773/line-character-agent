@@ -223,10 +223,13 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
             update={"messages": [AIMessage(content=fallback_message)]},
         )
 
+    # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
+    system_prompt = prompt.messages[0].prompt.template
+
     agent = create_agent(
         llm,
         tools=mcp_tools,
-        prompt=prompt,
+        system_prompt=system_prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
@@ -252,13 +255,16 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     if "current_datetime" in prompt.input_variables:
         prompt = prompt.partial(current_datetime=get_japan_datetime())
 
+    # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
+    system_prompt = prompt.messages[0].prompt.template
+
     llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
     agent = create_agent(
         llm,
         tools=diary_tools,
-        prompt=prompt,
+        system_prompt=system_prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
