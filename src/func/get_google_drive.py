@@ -78,3 +78,21 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting file content: {error}")
             return None
+
+
+# 以下は手動テスト用のコード例です。必要に応じてコメントアウトしてご利用ください。
+# if __name__ == "__main__":
+#     # 必要に応じて認証情報の取得方法を記述してください
+#     from google.oauth2.credentials import Credentials
+#     import os
+# 
+#     # 例: 環境変数やファイルから認証情報を取得
+#     creds = None
+#     # creds = Credentials.from_authorized_user_file("path/to/token.json", GoogleDriveHandler.SCOPES)
+# 
+#     handler = GoogleDriveHandler(creds)
+#     files = handler.list()
+#     print(f"Found {len(files)} files.")
+#     if files:
+#         doc = handler.get(files[0]['id'])
+#         print(doc)
