@@ -136,12 +136,15 @@ def test_spotify_agent_node_with_correct_signature():
         """MCPツールが取得できる状態をシミュレート"""
         return ["dummy_tool"]
 
-    def strict_fake_create_agent(model, tools, system_prompt):
+    def strict_fake_create_agent(*, model=None, tools=None, system_prompt=None):
         """
         create_agent の厳格なモック。
-        model, tools, system_prompt の3引数のみを受け取る。
+        model, tools, system_prompt のキーワード引数のみを受け取る。
         誤った引数（例: prompt）が渡されると TypeError になる。
         """
+        # 必須引数のチェック
+        if model is None or tools is None or system_prompt is None:
+            raise TypeError("create_agent requires model, tools, and system_prompt")
 
         class DummyAgent:
             async def ainvoke(self, input_dict, config=None):
