@@ -33,12 +33,15 @@ def upload_recent_diaries(span_days: int = 1):
         return
 
     for userid, credentials in user_credentials:
+        now_utc = datetime.datetime.utcnow()
+        cutoff = now_utc - datetime.timedelta(days=span_days)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         drive_handler = GoogleDriveHandler(credentials=credentials)
-        files = drive_handler.list()
+        files = drive_handler.list(modified_after=cutoff_str)
         for file in files:
             logger.debug(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
 
-        now = datetime.datetime.now()
         uploader = CosmosDBUploader(userid=userid)
 
         documents = []
@@ -48,14 +51,10 @@ def upload_recent_diaries(span_days: int = 1):
                 logger.info(f"File {file['name']} is excluded from upload.")
                 continue
 
-            modified_time = datetime.datetime.strptime(file["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ")
-
-            # Check if the file was modified within the desired range
-            if (now - modified_time).days < span_days:
-                document = drive_handler.get(file["id"])
-                if document:
-                    documents.append(document)
-                    logger.info("Document %s added to upload list for user %s.", document.metadata["source"], userid)
+            document = drive_handler.get(file["id"])
+            if document:
+                documents.append(document)
+                logger.info("Document %s added to upload list for user %s.", document.metadata["source"], userid)
 
         if documents:
             uploader.upload(documents)

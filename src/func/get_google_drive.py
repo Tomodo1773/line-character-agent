@@ -25,18 +25,24 @@ class GoogleDriveHandler:
         self.creds = credentials
         self.service = build("drive", "v3", credentials=self.creds)
 
-    def list(self, folder_id=None):
+    def list(self, folder_id=None, modified_after=None):
         if folder_id is None:
             folder_id = os.environ.get("DRIVE_FOLDER_ID")
+
+        # modified_after は RFC3339 (UTC, 末尾Z) 文字列で渡すことを想定
+        time_filter = ""
+        if modified_after:
+            time_filter = f" and modifiedTime > '{modified_after}'"
 
         items = []
         page_token = None
         try:
             while True:
+                query = f"'{folder_id}' in parents and trashed = false{time_filter}"
                 results = (
                     self.service.files()
                     .list(
-                        q=f"'{folder_id}' in parents",
+                        q=query,
                         spaces="drive",
                         fields="nextPageToken, files(id, name, createdTime, modifiedTime)",
                         orderBy="modifiedTime desc",
@@ -78,39 +84,3 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting file content: {error}")
             return None
-
-
-# 以下は手動テスト用のコード例です。必要に応じてコメントアウトしてご利用ください。
-# if __name__ == "__main__":
-#     # 必要に応じて認証情報の取得方法を記述してください
-#     from google.oauth2.credentials import Credentials
-#     import os
-# 
-#     # 例: 環境変数やファイルから認証情報を取得
-#     creds = None
-#     # creds = Credentials.from_authorized_user_file("path/to/token.json", GoogleDriveHandler.SCOPES)
-# 
-#     handler = GoogleDriveHandler(creds)
-#     files = handler.list()
-#     print(f"Found {len(files)} files.")
-#     if files:
-#         doc = handler.get(files[0]['id'])
-#         print(doc)
-
-
-# 以下は手動テスト用のコード例です。必要に応じてコメントアウトしてご利用ください。
-# if __name__ == "__main__":
-#     # 必要に応じて認証情報の取得方法を記述してください
-#     from google.oauth2.credentials import Credentials
-#     import os
-# 
-#     # 例: 環境変数やファイルから認証情報を取得
-#     creds = None
-#     # creds = Credentials.from_authorized_user_file("path/to/token.json", GoogleDriveHandler.SCOPES)
-# 
-#     handler = GoogleDriveHandler(creds)
-#     files = handler.list()
-#     print(f"Found {len(files)} files.")
-#     if files:
-#         doc = handler.get(files[0]['id'])
-#         print(doc)

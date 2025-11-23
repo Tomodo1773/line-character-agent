@@ -6,7 +6,6 @@ with mocked Google Drive and CosmosDB interactions.
 
 import datetime
 
-import pytest
 from langchain_core.documents import Document
 
 from function_app import upload_recent_diaries
@@ -42,6 +41,9 @@ def test_upload_recent_diaries_span_days_1(mocker):
     mock_token_manager_instance.get_all_user_credentials.assert_called_once()
     mock_drive_handler_class.assert_called_once_with(credentials=mock_credentials)
     mock_drive_handler_instance.list.assert_called_once()
+    call_kwargs = mock_drive_handler_instance.list.call_args.kwargs
+    assert "modified_after" in call_kwargs
+    assert call_kwargs["modified_after"].endswith("Z")
     mock_drive_handler_instance.get.assert_called_once_with("file-1")
     mock_uploader_class.assert_called_once_with(userid="user-1")
     mock_uploader_instance.upload.assert_called_once()
