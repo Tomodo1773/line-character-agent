@@ -33,7 +33,7 @@ def upload_recent_diaries(span_days: int = 1):
         return
 
     for userid, credentials in user_credentials:
-        now_utc = datetime.datetime.utcnow()
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
         cutoff = now_utc - datetime.timedelta(days=span_days)
         cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
