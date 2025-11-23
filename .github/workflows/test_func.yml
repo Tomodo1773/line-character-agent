@@ -32,13 +32,6 @@ jobs:
           cd src/func
           uv sync
 
-      - name: create-json
-        uses: jsdaniell/create-json@v1.2.2
-        with:
-          name: "credentials.json"
-          json: ${{ secrets.GOOGLE_CREDENTIALS }}
-          dir: "src/func"
-
       - name: Run tests
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
