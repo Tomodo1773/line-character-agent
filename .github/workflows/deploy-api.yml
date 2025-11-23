@@ -23,13 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Google 認証情報を配置
-        uses: jsdaniell/create-json@v1.2.2
-        with:
-          name: "credentials.json"
-          json: ${{ secrets.GOOGLE_CREDENTIALS }}
-          dir: "src/api"
-
       - name: azd のセットアップ
         uses: Azure/setup-azd@v2
 

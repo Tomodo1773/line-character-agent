@@ -329,9 +329,9 @@ if __name__ == "__main__":
         logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
         sys.exit(1)
 
-    userid = os.environ.get("LINE_USER_ID")
-
     agent_graph = ChatbotAgent()
+
+    userid = "local-user"
 
     agent_graph.create_image()
     history = []

@@ -264,6 +264,7 @@ line-character-agent/
   - `entries` コンテナ: 日記エントリのベクトル検索用
 - **main データベース**
   - `chat` コンテナ: チャット履歴管理用
+  - `users` コンテナ: ユーザー情報管理用
 
 > **注意**: データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
 
@@ -303,11 +304,24 @@ line-character-agent/
     },
     {
       "type": "ai",
-      "content": "こんにちは！元気ですか？"
+      "content": "こんにちは!元気ですか?"
     }
   ]
 }
 ```
+
+### Cosmos DB - ユーザー情報（main/users）
+
+```json
+{
+  "id": "line-user-id",        // ユーザーID（パーティションキー）
+  "date": "2025-07-13T15:30:00+09:00", // 作成・更新日時（ISO形式）
+  "userid": "line-user-id",    // LINEユーザーID
+  "google_tokens_enc": "暗号化された文字列" // Google OAuth認証トークン（暗号化済み）
+}
+```
+
+> **注意**: `google_tokens_enc`はGoogle DriveのOAuth認証トークンを暗号化して保存しています。トークンには`token`、`refresh_token`、`token_uri`、`expiry`が含まれます。
 
 ## リファレンス
 

@@ -12,11 +12,14 @@ from logger import logger
 
 
 class CosmosDBUploader:
-    def __init__(self):
+    def __init__(self, userid: str):
+        if not userid:
+            raise ValueError("userid is required")
+
         self.model: str = "text-embedding-3-small"
         self.database_name = "diary"
         self.container_name = "entries"
-        self.userid = os.getenv("LINE_USER_ID", "default_user")  # LINE user ID変数名を統一
+        self.userid = userid
 
         # CosmosDB接続設定（src/apiと同じ変数名）
         self.cosmos_url = os.getenv("COSMOS_DB_ACCOUNT_URL")
@@ -160,6 +163,8 @@ class CosmosDBUploader:
             uploaded_count += 1
 
         if skip_existing:
-            logger.info(f"{uploaded_count}件のドキュメントがCosmosDBに追加され、{skipped_count}件がスキップされました。")
+            logger.info(
+                f"{uploaded_count}件のドキュメントがCosmosDBに追加されました。CosmosDBに保存済みでスキップされたアイテムは{skipped_count}件です。"
+            )
         else:
             logger.info(f"{len(docs)}件のドキュメントがCosmosDBに追加されました。")

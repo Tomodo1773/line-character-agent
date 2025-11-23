@@ -17,6 +17,7 @@
 		},
 		{
 			"type": "func",
+			"label": "func: extensions install",
 			"command": "extensions install",
 			"dependsOn": "uv sync (functions)",
 			"problemMatcher": []

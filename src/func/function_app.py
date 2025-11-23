@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from cosmosdb import CosmosDBUploader
 from get_google_drive import GoogleDriveHandler
+from google_auth import GoogleUserTokenManager
 from logger import logger
 
 # 環境変数を.envファイルから読み込み
@@ -24,37 +25,39 @@ def upload_recent_diaries(span_days: int = 1):
     # 除外するファイル名のリスト
     excluded_files = {"dictionary.md", "digest.json", "digest.md", "profile.md"}
 
-    # Get the list of files from Google Drive
-    drive_handler = GoogleDriveHandler()
-    files = drive_handler.list()
-    for file in files:
-        print(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
+    token_manager = GoogleUserTokenManager()
+    user_credentials = token_manager.get_all_user_credentials()
 
-    # Get the current time
-    now = datetime.datetime.now()
+    if not user_credentials:
+        logger.warning("No Google Drive credentials found in users container.")
+        return
 
-    # Initialize the CosmosDBUploader
-    uploader = CosmosDBUploader()
+    for userid, credentials in user_credentials:
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        cutoff = now_utc - datetime.timedelta(days=span_days)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Iterate over the files and check their modified time
-    documents = []
-    for file in files:
-        # 除外ファイルチェック
-        if file["name"] in excluded_files:
-            logger.info(f"File {file['name']} is excluded from upload.")
-            continue
+        drive_handler = GoogleDriveHandler(credentials=credentials)
+        files = drive_handler.list(modified_after=cutoff_str)
+        for file in files:
+            logger.debug(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
 
-        modified_time = datetime.datetime.strptime(file["modifiedTime"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        uploader = CosmosDBUploader(userid=userid)
 
-        # Check if the file was modified within the last day
-        if (now - modified_time).days < span_days:
-            # Get the content of the file
+        documents = []
+        for file in files:
+            # 除外ファイルチェック
+            if file["name"] in excluded_files:
+                logger.info(f"File {file['name']} is excluded from upload.")
+                continue
+
             document = drive_handler.get(file["id"])
-            documents.append(document)
-            logger.info(f"Document {document.metadata['source']} added to upload list.")
+            if document:
+                documents.append(document)
+                logger.info("Document %s added to upload list for user %s.", document.metadata["source"], userid)
 
-    # Upload the content to CosmosDB (既存の日記をスキップ)
-    uploader.upload(documents)
+        if documents:
+            uploader.upload(documents)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from google.auth.transport.requests import Request
-from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -21,26 +20,21 @@ class GoogleDriveHandler:
 
     SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
 
-    def __init__(self, credentials: Optional[Credentials] = None, credentials_file: Optional[str] = "credentials.json"):
+    def __init__(self, credentials: Credentials):
         """
-        Google Drive APIクライアントを初期化する
+        Google Drive APIクライアントを初期化する（OAuth資格情報のみ対応）
 
         Args:
             credentials: OAuth認証済みユーザーの資格情報
-            credentials_file: サービスアカウントの認証情報ファイルパス（OAuthがない場合のフォールバック）
         """
+        if not credentials:
+            raise ValueError("OAuth credentials must be provided for Google Drive access")
         try:
-            if credentials:
-                if credentials.expired and credentials.refresh_token:
-                    credentials.refresh(Request())
-                self.creds = credentials
-            elif credentials_file:
-                self.creds = service_account.Credentials.from_service_account_file(credentials_file, scopes=self.SCOPES)
-            else:
-                raise ValueError("Either credentials or credentials_file must be provided for Google Drive access")
-
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(Request())
+            self.creds = credentials
             self.service = build("drive", "v3", credentials=self.creds)
-            logger.info("Initialized Google Drive API client.")
+            logger.info("Initialized Google Drive API client (OAuth only mode).")
         except Exception as e:
             logger.error(f"Failed to initialize Google Drive API client: {e}")
             raise
@@ -143,7 +137,6 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while getting file content: {error}")
             return ""
 
-
     def append_or_create_json(self, new_digest: dict, filename: str, folder_id: Optional[str] = None) -> str:
         """
         指定されたダイジェストをJSONファイルに追加または新規作成する
@@ -168,18 +161,18 @@ class GoogleDriveHandler:
                 # ファイルが存在する場合は内容を取得して更新
                 file_id = files[0]["id"]
                 existing_content = self.get_file_content(file_id)
-                
+
                 if existing_content.strip():
                     digest_data = json.loads(existing_content)
                 else:
                     digest_data = self._create_default_digest_structure()
-                
+
                 # recentセクションに新しいダイジェストを追加
                 digest_data["recent"].insert(0, new_digest)
                 digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
-                
+
                 updated_content = json.dumps(digest_data, ensure_ascii=False, indent=2)
-                
+
                 media = MediaIoBaseUpload(
                     io.BytesIO(updated_content.encode("utf-8")), mimetype="application/json", resumable=True
                 )
@@ -191,12 +184,10 @@ class GoogleDriveHandler:
                 digest_data = self._create_default_digest_structure()
                 digest_data["recent"].append(new_digest)
                 digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
-                
+
                 content = json.dumps(digest_data, ensure_ascii=False, indent=2)
-                
-                media = MediaIoBaseUpload(
-                    io.BytesIO(content.encode("utf-8")), mimetype="application/json", resumable=True
-                )
+
+                media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="application/json", resumable=True)
                 metadata = {"name": filename, "parents": [folder_id]}
                 file = self.service.files().create(body=metadata, media_body=media, fields="id").execute()
                 logger.info(f"Created new file {filename} in Google Drive. ID: {file.get('id')}")
@@ -220,7 +211,7 @@ class GoogleDriveHandler:
             "lastUpdated": datetime.now().strftime("%Y-%m-%d"),
             "recent": [],
             "monthly": [],
-            "yearly": []
+            "yearly": [],
         }
 
     def get_profile_md(self, folder_id: Optional[str] = None) -> str:
@@ -250,7 +241,6 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting profile.md: {error}")
             return ""
-
 
     def get_digest_json(self, folder_id: Optional[str] = None) -> str:
         """
