@@ -12,11 +12,14 @@ from logger import logger
 
 
 class CosmosDBUploader:
-    def __init__(self):
+    def __init__(self, userid: str):
+        if not userid:
+            raise ValueError("userid is required")
+
         self.model: str = "text-embedding-3-small"
         self.database_name = "diary"
         self.container_name = "entries"
-        self.userid = os.getenv("LINE_USER_ID", "default_user")  # LINE user ID変数名を統一
+        self.userid = userid
 
         # CosmosDB接続設定（src/apiと同じ変数名）
         self.cosmos_url = os.getenv("COSMOS_DB_ACCOUNT_URL")

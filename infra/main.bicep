@@ -205,7 +205,6 @@ module functionApp 'app/func.bicep' = {
       OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
       SPAN_DAYS: 5
       DRIVE_FOLDER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/DRIVE-FOLDER-ID)'
-      LINE_USER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-USER-ID)'
     }
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id

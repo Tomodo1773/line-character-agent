@@ -1,5 +1,4 @@
 import asyncio
-import os
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -9,6 +8,7 @@ from chatbot.agent import ChatbotAgent
 from chatbot.main import app
 
 client = TestClient(app)
+TEST_USER_ID = "test-user"
 
 
 def test_read_root():
@@ -30,13 +30,9 @@ def test_chatbot_agent_response():
     """
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
         agent_graph = ChatbotAgent()
-        userid = os.environ.get("LINE_USER_ID")
-        if not userid:
-            raise ValueError("LINE_USER_ID environment variable is not set")
-
         messages = [{"type": "human", "content": "こんにちは"}]
 
-        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
+        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -50,10 +46,6 @@ def test_chatbot_agent_web_search_response():
     """
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
         agent_graph = ChatbotAgent()
-        userid = os.environ.get("LINE_USER_ID")
-        if not userid:
-            raise ValueError("LINE_USER_ID environment variable is not set")
-
         yesterday = date.today() - timedelta(days=1)
         messages = [
             {
@@ -62,7 +54,7 @@ def test_chatbot_agent_web_search_response():
             }
         ]
 
-        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
+        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
 
     assert "messages" in response
     assert "yes" in response["messages"][-1].content.lower()
@@ -116,14 +108,10 @@ def test_spotify_agent_mcp_fallback():
                 mock_router.return_value = Command(goto="spotify_agent")
 
                 agent_graph = ChatbotAgent()
-                userid = os.environ.get("LINE_USER_ID")
-                if not userid:
-                    raise ValueError("LINE_USER_ID environment variable is not set")
-
                 # B'zの曲検索をリクエスト
                 messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
-                response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=userid))
+                response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
 
                 # レスポンスの検証
                 assert "messages" in response
