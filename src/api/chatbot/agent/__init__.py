@@ -89,6 +89,21 @@ def get_prompt(path: str):
     return _cached["prompts"][path]
 
 
+def extract_system_prompt(prompt) -> str | None:
+    """
+    ChatPromptTemplateからsystemメッセージのテンプレート文字列を抽出します。
+    Args:
+        prompt: LangChain Hub から取得した ChatPromptTemplate
+    Returns:
+        str | None: systemメッセージのテンプレート文字列。抽出失敗時はNone
+    """
+    try:
+        return prompt.messages[0].prompt.template
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Failed to extract system prompt from ChatPromptTemplate: {e}")
+        return None
+
+
 def get_user_profile(userid: str) -> dict:
     """キャッシュされたユーザプロフィール情報を取得、なければGoogle Driveから取得"""
     global _cached
@@ -224,10 +239,8 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
         )
 
     # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
-    try:
-        system_prompt = prompt.messages[0].prompt.template
-    except (IndexError, AttributeError) as e:
-        logger.error(f"Failed to extract system prompt from ChatPromptTemplate: {e}")
+    system_prompt = extract_system_prompt(prompt)
+    if system_prompt is None:
         fallback_message = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
         return Command(
             goto="__end__",
@@ -264,10 +277,8 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         prompt = prompt.partial(current_datetime=get_japan_datetime())
 
     # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
-    try:
-        system_prompt = prompt.messages[0].prompt.template
-    except (IndexError, AttributeError) as e:
-        logger.error(f"Failed to extract system prompt from ChatPromptTemplate: {e}")
+    system_prompt = extract_system_prompt(prompt)
+    if system_prompt is None:
         fallback_message = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
         return Command(
             goto="__end__",
