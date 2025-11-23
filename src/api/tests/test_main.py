@@ -123,71 +123,46 @@ def test_spotify_agent_node_with_correct_signature():
     """
     spotify_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
     - MCPツールが取得できる状態で正常系の動作を確認
-    - create_agent が model, tools, system_prompt の3引数で呼び出されることを確認
-    - 誤った引数（prompt など）が渡されると TypeError で失敗することを確認
-    - ダミーエージェントの応答が state に反映されることを確認
+    - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
+    - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
     from unittest.mock import AsyncMock, patch
 
     import chatbot.agent
-    from langchain_core.messages import AIMessage
+    from chatbot.agent import spotify_agent_node
+    from langchain_core.messages import AIMessage, HumanMessage
 
     async def fake_get_mcp_tools():
         """MCPツールが取得できる状態をシミュレート"""
+        # ダミーツールを返す（実際のツールは使用しない）
         return ["dummy_tool"]
 
-    def strict_fake_create_agent(*, model=None, tools=None, system_prompt=None):
-        """
-        create_agent の厳格なモック。
-        model, tools, system_prompt のキーワード引数のみを受け取る。
-        誤った引数（例: prompt）が渡されると TypeError になる。
-        """
-        # 必須引数のチェック
-        if model is None or tools is None or system_prompt is None:
-            raise TypeError("create_agent requires model, tools, and system_prompt")
+    with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+        mock_get_mcp_tools.side_effect = fake_get_mcp_tools
 
-        class DummyAgent:
-            async def ainvoke(self, input_dict, config=None):
-                """ダミーエージェントの応答を返す"""
-                messages = input_dict.get("messages", [])
-                # AIの応答として新しいメッセージを追加
-                dummy_response = AIMessage(content="Spotify で音楽を検索しました（テスト応答）")
-                return {"messages": messages + [dummy_response]}
+        # spotify_agent_node を直接呼び出す
+        initial_state = {
+            "messages": [HumanMessage(content="こんにちは")],
+            "userid": TEST_USER_ID,
+            "profile": "",
+            "digest": "",
+        }
 
-        return DummyAgent()
+        # 正常系：例外が発生せずに完了することを確認
+        result = asyncio.run(spotify_agent_node(initial_state))
 
-    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
-        with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
-            mock_get_mcp_tools.side_effect = fake_get_mcp_tools
+        # レスポンスの検証
+        assert result is not None
+        # Command オブジェクトが返されることを確認
+        from langgraph.types import Command
 
-            with patch.object(chatbot.agent, "create_agent") as mock_create_agent:
-                mock_create_agent.side_effect = strict_fake_create_agent
-
-                # routerをモックしてspotify_agentに直接ルーティング
-                with patch.object(chatbot.agent, "router_node") as mock_router:
-                    from langgraph.types import Command
-
-                    mock_router.return_value = Command(goto="spotify_agent")
-
-                    agent_graph = ChatbotAgent()
-                    messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
-
-                    # 正常系：例外が発生せずに完了することを確認
-                    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
-
-                    # レスポンスの検証
-                    assert "messages" in response
-                    # ダミーエージェントの応答が含まれていることを確認
-                    last_message = response["messages"][-1]
-                    assert isinstance(last_message, AIMessage)
-                    assert "Spotify で音楽を検索しました（テスト応答）" in last_message.content
-
-                    # create_agent が正しい引数で呼び出されたことを確認
-                    mock_create_agent.assert_called_once()
-                    call_args = mock_create_agent.call_args
-                    # model, tools, system_prompt の3引数が渡されていることを確認
-                    assert len(call_args.args) == 0  # 位置引数なし
-                    assert "system_prompt" in call_args.kwargs
-                    assert "tools" in call_args.kwargs
-                    # 誤った引数 "prompt" が渡されていないことを確認
-                    assert "prompt" not in call_args.kwargs
+        assert isinstance(result, Command)
+        assert result.goto == "__end__"
+        # update に messages が含まれていることを確認
+        assert "messages" in result.update
+        # AIMessage が返されていることを確認
+        returned_messages = result.update["messages"]
+        assert len(returned_messages) > 0
+        assert isinstance(returned_messages[0], AIMessage)
+        # 応答が空でないことを確認
+        assert len(returned_messages[0].content) > 0
