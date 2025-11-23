@@ -128,7 +128,6 @@ def test_spotify_agent_node_with_correct_signature():
     """
     from unittest.mock import AsyncMock, patch
 
-    import chatbot.agent
     from chatbot.agent import spotify_agent_node
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
@@ -143,7 +142,7 @@ def test_spotify_agent_node_with_correct_signature():
         # ダミーツールを返す（実際のツールは使用しない）
         return [dummy_tool]
 
-    with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+    with patch("chatbot.agent.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
         mock_get_mcp_tools.side_effect = fake_get_mcp_tools
 
         # spotify_agent_node を直接呼び出す
