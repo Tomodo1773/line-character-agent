@@ -163,6 +163,8 @@ class CosmosDBUploader:
             uploaded_count += 1
 
         if skip_existing:
-            logger.info(f"{uploaded_count}件のドキュメントがCosmosDBに追加され、{skipped_count}件がスキップされました。")
+            logger.info(
+                f"{uploaded_count}件のドキュメントがCosmosDBに追加されました。CosmosDBに保存済みでスキップされたアイテムは{skipped_count}件です。"
+            )
         else:
             logger.info(f"{len(docs)}件のドキュメントがCosmosDBに追加されました。")
