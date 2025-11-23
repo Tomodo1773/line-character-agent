@@ -26,7 +26,7 @@ def test_upload_recent_diaries_span_days_1(mocker):
 
     mock_drive_handler_class = mocker.patch("function_app.GoogleDriveHandler")
     mock_drive_handler_instance = mock_drive_handler_class.return_value
-    modified_time = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    modified_time = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     mock_drive_handler_instance.list.return_value = [
         {"id": "file-1", "name": "note.md", "createdTime": modified_time, "modifiedTime": modified_time}
     ]
