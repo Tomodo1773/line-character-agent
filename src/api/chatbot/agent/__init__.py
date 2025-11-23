@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
@@ -18,6 +19,12 @@ from chatbot.utils import get_japan_datetime, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
 logger = create_logger(__name__)
+
+# ############################################
+# 定数
+# ############################################
+
+PROMPT_EXTRACTION_ERROR_MESSAGE = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
 
 # ############################################
 # 事前準備
@@ -89,7 +96,7 @@ def get_prompt(path: str):
     return _cached["prompts"][path]
 
 
-def extract_system_prompt(prompt) -> str | None:
+def extract_system_prompt(prompt: ChatPromptTemplate) -> str | None:
     """
     ChatPromptTemplateからsystemメッセージのテンプレート文字列を抽出します。
     Args:
@@ -241,10 +248,9 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
     system_prompt = extract_system_prompt(prompt)
     if system_prompt is None:
-        fallback_message = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
         return Command(
             goto="__end__",
-            update={"messages": [AIMessage(content=fallback_message)]},
+            update={"messages": [AIMessage(content=PROMPT_EXTRACTION_ERROR_MESSAGE)]},
         )
 
     agent = create_agent(
@@ -279,10 +285,9 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
     system_prompt = extract_system_prompt(prompt)
     if system_prompt is None:
-        fallback_message = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
         return Command(
             goto="__end__",
-            update={"messages": [AIMessage(content=fallback_message)]},
+            update={"messages": [AIMessage(content=PROMPT_EXTRACTION_ERROR_MESSAGE)]},
         )
 
     llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
