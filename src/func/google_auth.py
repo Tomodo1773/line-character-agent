@@ -11,10 +11,10 @@ from google.oauth2.credentials import Credentials
 
 from logger import logger
 
-GOOGLE_SCOPES = [
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/documents.readonly",
-]
+# Functions 側は Drive の読み取りのみを行うため、Docs API 専用スコープは不要。
+# リフレッシュトークン発行時に承認されたスコープと一致させておくことで
+# refresh 時の invalid_scope を防ぐ。
+GOOGLE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def get_env_variable(name: str) -> str:
