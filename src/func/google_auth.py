@@ -104,7 +104,8 @@ class UserTokenRepository:
 
     @staticmethod
     def _sanitize_item(item: Dict[str, Any]) -> Dict[str, Any]:
-        return {k: v for k, v in item.items() if not k.startswith("_") and k != "date"}
+        # Cosmos DB のシステムフィールドのみ除外し、業務データは保持する
+        return {k: v for k, v in item.items() if not k.startswith("_")}
 
     def fetch_all_tokens(self) -> List[Dict[str, Any]]:
         query = "SELECT c.id, c.userid, c.google_tokens_enc FROM c WHERE IS_DEFINED(c.google_tokens_enc)"
