@@ -117,3 +117,74 @@ def test_spotify_agent_mcp_fallback():
                 assert "messages" in response
                 last_message = response["messages"][-1].content
                 assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
+
+
+def test_spotify_agent_node_with_correct_signature():
+    """
+    spotify_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
+    - MCPツールが取得できる状態で正常系の動作を確認
+    - create_agent が model, tools, system_prompt の3引数で呼び出されることを確認
+    - 誤った引数（prompt など）が渡されると TypeError で失敗することを確認
+    - ダミーエージェントの応答が state に反映されることを確認
+    """
+    from unittest.mock import AsyncMock, patch
+
+    import chatbot.agent
+    from langchain_core.messages import AIMessage
+
+    async def fake_get_mcp_tools():
+        """MCPツールが取得できる状態をシミュレート"""
+        return ["dummy_tool"]
+
+    def strict_fake_create_agent(model, tools, system_prompt):
+        """
+        create_agent の厳格なモック。
+        model, tools, system_prompt の3引数のみを受け取る。
+        誤った引数（例: prompt）が渡されると TypeError になる。
+        """
+
+        class DummyAgent:
+            async def ainvoke(self, input_dict, config=None):
+                """ダミーエージェントの応答を返す"""
+                messages = input_dict.get("messages", [])
+                # AIの応答として新しいメッセージを追加
+                dummy_response = AIMessage(content="Spotify で音楽を検索しました（テスト応答）")
+                return {"messages": messages + [dummy_response]}
+
+        return DummyAgent()
+
+    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
+        with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+            mock_get_mcp_tools.side_effect = fake_get_mcp_tools
+
+            with patch.object(chatbot.agent, "create_agent") as mock_create_agent:
+                mock_create_agent.side_effect = strict_fake_create_agent
+
+                # routerをモックしてspotify_agentに直接ルーティング
+                with patch.object(chatbot.agent, "router_node") as mock_router:
+                    from langgraph.types import Command
+
+                    mock_router.return_value = Command(goto="spotify_agent")
+
+                    agent_graph = ChatbotAgent()
+                    messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
+
+                    # 正常系：例外が発生せずに完了することを確認
+                    response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
+
+                    # レスポンスの検証
+                    assert "messages" in response
+                    # ダミーエージェントの応答が含まれていることを確認
+                    last_message = response["messages"][-1]
+                    assert isinstance(last_message, AIMessage)
+                    assert "Spotify で音楽を検索しました（テスト応答）" in last_message.content
+
+                    # create_agent が正しい引数で呼び出されたことを確認
+                    mock_create_agent.assert_called_once()
+                    call_args = mock_create_agent.call_args
+                    # model, tools, system_prompt の3引数が渡されていることを確認
+                    assert len(call_args.args) == 0  # 位置引数なし
+                    assert "system_prompt" in call_args.kwargs
+                    assert "tools" in call_args.kwargs
+                    # 誤った引数 "prompt" が渡されていないことを確認
+                    assert "prompt" not in call_args.kwargs
