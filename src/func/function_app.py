@@ -36,7 +36,7 @@ def upload_recent_diaries(span_days: int = 1):
         drive_handler = GoogleDriveHandler(credentials=credentials)
         files = drive_handler.list()
         for file in files:
-            print(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
+            logger.debug(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
 
         now = datetime.datetime.now()
         uploader = CosmosDBUploader(userid=userid)
