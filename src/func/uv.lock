@@ -231,7 +231,7 @@ requires-dist = [
     { name = "azure-cosmos", specifier = ">=4.7.0,<5" },
     { name = "azure-functions", specifier = ">=1.21.3,<2" },
     { name = "azure-identity", specifier = ">=1.16.0,<2" },
-    { name = "cryptography", specifier = ">=44.0.0,<47" },
+    { name = "cryptography", specifier = ">=46.0.3,<47" },
     { name = "google-api-python-client", specifier = ">=2.149.0,<3" },
     { name = "google-auth", specifier = ">=2.35.0,<3" },
     { name = "google-auth-httplib2", specifier = ">=0.2.0,<0.3" },
