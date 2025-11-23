@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, StateGraph
@@ -18,6 +19,12 @@ from chatbot.utils import get_japan_datetime, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
 
 logger = create_logger(__name__)
+
+# ############################################
+# 定数
+# ############################################
+
+PROMPT_EXTRACTION_ERROR_MESSAGE = "ごめんね。プロンプトの読み込みに失敗しちゃった。"
 
 # ############################################
 # 事前準備
@@ -87,6 +94,21 @@ def get_prompt(path: str):
             logger.error(f"Failed to fetch prompt from LangSmith: {exc}")
             raise
     return _cached["prompts"][path]
+
+
+def extract_system_prompt(prompt: ChatPromptTemplate) -> str | None:
+    """
+    ChatPromptTemplateからsystemメッセージのテンプレート文字列を抽出します。
+    Args:
+        prompt: LangChain Hub から取得した ChatPromptTemplate
+    Returns:
+        str | None: systemメッセージのテンプレート文字列。抽出失敗時はNone
+    """
+    try:
+        return prompt.messages[0].prompt.template
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Failed to extract system prompt from ChatPromptTemplate: {e}")
+        return None
 
 
 def get_user_profile(userid: str) -> dict:
@@ -223,10 +245,18 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
             update={"messages": [AIMessage(content=fallback_message)]},
         )
 
+    # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
+    system_prompt = extract_system_prompt(prompt)
+    if system_prompt is None:
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=PROMPT_EXTRACTION_ERROR_MESSAGE)]},
+        )
+
     agent = create_agent(
         llm,
         tools=mcp_tools,
-        prompt=prompt,
+        system_prompt=system_prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
@@ -252,13 +282,21 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     if "current_datetime" in prompt.input_variables:
         prompt = prompt.partial(current_datetime=get_japan_datetime())
 
+    # Hub の ChatPromptTemplate から system メッセージ部分だけ抽出
+    system_prompt = extract_system_prompt(prompt)
+    if system_prompt is None:
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=PROMPT_EXTRACTION_ERROR_MESSAGE)]},
+        )
+
     llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
     agent = create_agent(
         llm,
         tools=diary_tools,
-        prompt=prompt,
+        system_prompt=system_prompt,
     )
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(

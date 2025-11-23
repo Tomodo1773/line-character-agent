@@ -117,3 +117,57 @@ def test_spotify_agent_mcp_fallback():
                 assert "messages" in response
                 last_message = response["messages"][-1].content
                 assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
+
+
+def test_spotify_agent_node_with_correct_signature():
+    """
+    spotify_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
+    - MCPツールが取得できる状態で正常系の動作を確認
+    - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
+    - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
+    """
+    from unittest.mock import AsyncMock, patch
+
+    from chatbot.agent import spotify_agent_node
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.tools import tool
+
+    @tool
+    def dummy_tool(query: str) -> str:
+        """A dummy tool for testing."""
+        return "dummy response"
+
+    async def fake_get_mcp_tools():
+        """MCPツールが取得できる状態をシミュレート"""
+        # ダミーツールを返す（実際のツールは使用しない）
+        return [dummy_tool]
+
+    with patch("chatbot.agent.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+        mock_get_mcp_tools.side_effect = fake_get_mcp_tools
+
+        # spotify_agent_node を直接呼び出す
+        initial_state = {
+            "messages": [HumanMessage(content="こんにちは")],
+            "userid": TEST_USER_ID,
+            "profile": "",
+            "digest": "",
+        }
+
+        # 正常系：例外が発生せずに完了することを確認
+        result = asyncio.run(spotify_agent_node(initial_state))
+
+        # レスポンスの検証
+        assert result is not None
+        # Command オブジェクトが返されることを確認
+        from langgraph.types import Command
+
+        assert isinstance(result, Command)
+        assert result.goto == "__end__"
+        # update に messages が含まれていることを確認
+        assert "messages" in result.update
+        # AIMessage が返されていることを確認
+        returned_messages = result.update["messages"]
+        assert len(returned_messages) > 0
+        assert isinstance(returned_messages[0], AIMessage)
+        # 応答が空でないことを確認
+        assert len(returned_messages[0].content) > 0
