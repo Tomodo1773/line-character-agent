@@ -10,7 +10,7 @@ def test_create_google_drive_auth_flex_message():
     Google Drive OAuth認証用のFlex Messageが正しく生成されることをテスト
     - FlexMessageオブジェクトが返されることを確認
     - alt_textが設定されていることを確認
-    - contentsに必要な要素（header, body, footer）が含まれていることを確認
+    - contents構造をJSON形式で検証
     - buttonのURIが正しく設定されていることを確認
     """
     test_auth_url = "https://accounts.google.com/o/oauth2/auth?test=true"
@@ -23,31 +23,32 @@ def test_create_google_drive_auth_flex_message():
     # alt_textが設定されていることを確認
     assert flex_message.alt_text == "Google Drive連携の設定"
     
-    # contentsがdictであることを確認
-    assert isinstance(flex_message.contents, dict)
+    # contentsをJSONに変換して検証
+    # LINE SDK v3では、contentsはFlexContainerオブジェクトとして返される
+    contents_dict = flex_message.to_dict()["contents"]
     
     # contentsの構造を確認
-    assert flex_message.contents["type"] == "bubble"
-    assert flex_message.contents["size"] == "kilo"
+    assert contents_dict["type"] == "bubble"
+    assert contents_dict["size"] == "kilo"
     
     # headerの確認
-    assert "header" in flex_message.contents
-    header = flex_message.contents["header"]
+    assert "header" in contents_dict
+    header = contents_dict["header"]
     assert header["type"] == "box"
     assert len(header["contents"]) > 0
     assert header["contents"][0]["text"] == "Google Drive 連携"
     
     # bodyの確認
-    assert "body" in flex_message.contents
-    body = flex_message.contents["body"]
+    assert "body" in contents_dict
+    body = contents_dict["body"]
     assert body["type"] == "box"
     assert len(body["contents"]) > 0
     assert "Google Drive" in body["contents"][0]["text"]
     assert body["contents"][0]["wrap"] is True
     
     # footerの確認
-    assert "footer" in flex_message.contents
-    footer = flex_message.contents["footer"]
+    assert "footer" in contents_dict
+    footer = contents_dict["footer"]
     assert footer["type"] == "box"
     assert len(footer["contents"]) > 0
     
