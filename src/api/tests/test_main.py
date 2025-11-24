@@ -1,6 +1,6 @@
 import asyncio
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -92,8 +92,6 @@ def test_spotify_agent_mcp_fallback():
     - フォールバックメッセージが返されることを確認
     - メッセージ内容が「ごめんね。MCP サーバーに接続できなかったみたい。」であることを確認
     """
-    from unittest.mock import AsyncMock, patch
-
     import chatbot.agent
 
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
@@ -119,18 +117,22 @@ def test_spotify_agent_mcp_fallback():
                 assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
 
 
-def test_spotify_agent_node_with_correct_signature():
+def test_spotify_agent():
     """
     spotify_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
     - MCPツールが取得できる状態で正常系の動作を確認
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
-    from unittest.mock import AsyncMock, patch
+    import os
 
+    import pytest
     from chatbot.agent import spotify_agent_node
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
+
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY が設定されていないため、実際の OpenAI 呼び出しを行えません")
 
     @tool
     def dummy_tool(query: str) -> str:
@@ -170,4 +172,53 @@ def test_spotify_agent_node_with_correct_signature():
         assert len(returned_messages) > 0
         assert isinstance(returned_messages[0], AIMessage)
         # 応答が空でないことを確認
+        assert len(returned_messages[0].content) > 0
+
+
+def test_diary_agent():
+    """
+    diary_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
+    - ダミーの diary search tool を使用し、エージェントが正常に動作することを確認
+    - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
+    """
+    import os
+
+    import pytest
+    from chatbot.agent import diary_agent_node
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.tools import tool
+    from langgraph.types import Command
+
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY が設定されていないため、実際の OpenAI 呼び出しを行えません")
+
+    @tool
+    def dummy_diary_tool(
+        query_text: str,
+        top_k: int = 5,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        order: str = "asc",
+    ) -> str:
+        """A dummy diary search tool for testing."""
+
+        return "dummy diary response"
+
+    with patch("chatbot.agent.diary_search_tool", dummy_diary_tool):
+        initial_state = {
+            "messages": [HumanMessage(content="こんにちは")],
+            "userid": TEST_USER_ID,
+            "profile": "",
+            "digest": "",
+        }
+
+        result = asyncio.run(diary_agent_node(initial_state))
+
+        assert isinstance(result, Command)
+        assert result.goto == "__end__"
+        assert "messages" in result.update
+
+        returned_messages = result.update["messages"]
+        assert len(returned_messages) > 0
+        assert isinstance(returned_messages[0], AIMessage)
         assert len(returned_messages[0].content) > 0
