@@ -127,7 +127,6 @@ def test_spotify_agent():
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
     import os
-    from unittest.mock import patch
 
     import pytest
     from chatbot.agent import spotify_agent_node
@@ -185,7 +184,6 @@ def test_diary_agent():
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     """
     import os
-    from unittest.mock import patch
 
     import pytest
     from chatbot.agent import diary_agent_node
