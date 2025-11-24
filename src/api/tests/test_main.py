@@ -1,6 +1,6 @@
 import asyncio
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -126,11 +126,16 @@ def test_spotify_agent():
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
+    import os
     from unittest.mock import AsyncMock, patch
 
+    import pytest
     from chatbot.agent import spotify_agent_node
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
+
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY が設定されていないため、実際の OpenAI 呼び出しを行えません")
 
     @tool
     def dummy_tool(query: str) -> str:
