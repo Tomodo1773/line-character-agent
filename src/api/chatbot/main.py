@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import TextMessage
+from linebot.v3.messaging import FlexMessage, TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
@@ -97,6 +97,57 @@ async def callback(
     return "ok"
 
 
+def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
+    """Google Drive OAuth認証を促すFlex Messageを作成する"""
+    flex_content = {
+        "type": "bubble",
+        "size": "kilo",
+        "header": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "Google Drive 連携",
+                    "weight": "bold",
+                    "color": "#1f1f1f",
+                    "size": "xl",
+                }
+            ],
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "Botの機能を利用するには、Google Driveへのアクセス権限が必要よ。まずは以下から許可設定して。",
+                    "wrap": True,
+                    "color": "#666666",
+                    "size": "sm",
+                }
+            ],
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "primary",
+                    "height": "sm",
+                    "action": {"type": "uri", "label": "認証ページへ進む", "uri": auth_url},
+                    "color": "#0F9D58",
+                }
+            ],
+            "flex": 0,
+        },
+    }
+
+    return FlexMessage(alt_text="Google Drive連携の設定", contents=flex_content)
+
+
 def get_user_credentials_or_prompt(
     userid: str, line_messenger: LineMessenger, user_repository: UserRepository
 ):
@@ -107,9 +158,8 @@ def get_user_credentials_or_prompt(
 
     if not credentials:
         auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        line_messenger.reply_message(
-            [TextMessage(text=f"GoogleDriveの許可設定を最初にしてちょうだい。\n{auth_url}")]
-        )
+        flex_message = create_google_drive_auth_flex_message(auth_url)
+        line_messenger.reply_message([flex_message])
         return None
 
     return credentials
