@@ -12,7 +12,17 @@ from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import FlexMessage, TextMessage
+from linebot.v3.messaging import (
+    FlexBlockStyle,
+    FlexBox,
+    FlexBubble,
+    FlexBubbleStyles,
+    FlexButton,
+    FlexMessage,
+    FlexText,
+    TextMessage,
+    URIAction,
+)
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
@@ -99,65 +109,57 @@ async def callback(
 
 def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
     """Google Drive OAuth認証を促すFlex Messageを作成する
-    
+
     Args:
         auth_url: Google OAuth認証ページのURL
-        
+
     Returns:
         FlexMessage: Google Drive連携を促すフレックスメッセージ
     """
-    flex_content = {
-        "type": "bubble",
-        "size": "kilo",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "Google Drive 連携",
-                    "weight": "bold",
-                    "color": "#1f1f1f",
-                    "size": "xl",
-                }
-            ],
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "Botの機能を利用するには、Google Driveへのアクセス権限が必要よ。まずは以下から許可設定して。",
-                    "wrap": True,
-                    "color": "#666666",
-                    "size": "sm",
-                }
-            ],
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "height": "sm",
-                    "action": {"type": "uri", "label": "認証ページへ進む", "uri": auth_url},
-                    "color": "#0F9D58",
-                }
-            ],
-            "flex": 0,
-        },
-    }
+    header = FlexBox(
+        layout="vertical",
+        contents=[
+            FlexText(text="Google Drive 連携", weight="bold", color="#1f1f1f", size="xl"),
+        ],
+    )
+    body = FlexBox(
+        layout="vertical",
+        contents=[
+            FlexText(
+                text="Botの機能を利用するには、Google Driveへのアクセス権限が必要よ。まずは以下から許可設定して。",
+                wrap=True,
+                color="#666666",
+                size="sm",
+            )
+        ],
+        spacing="md",
+    )
+    footer = FlexBox(
+        layout="vertical",
+        spacing="sm",
+        contents=[
+            FlexButton(
+                style="primary",
+                height="sm",
+                action=URIAction(label="認証ページへ進む", uri=auth_url),
+                color="#0F9D58",
+            )
+        ],
+        flex=0,
+    )
 
-    return FlexMessage(alt_text="Google Drive連携の設定", contents=flex_content)
+    bubble = FlexBubble(
+        size="kilo",
+        header=header,
+        body=body,
+        footer=footer,
+        styles=FlexBubbleStyles(header=FlexBlockStyle(separator=False)),
+    )
+
+    return FlexMessage(alt_text="Google Drive連携の設定", contents=bubble)
 
 
-def get_user_credentials_or_prompt(
-    userid: str, line_messenger: LineMessenger, user_repository: UserRepository
-):
+def get_user_credentials_or_prompt(userid: str, line_messenger: LineMessenger, user_repository: UserRepository):
     """ユーザーのGoogle認可情報を取得し、未認可なら認可URLを返信して処理を終了する"""
     user_repository.ensure_user(userid)
     oauth_manager = GoogleDriveOAuthManager(user_repository)
