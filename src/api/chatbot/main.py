@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import BubbleContainer, FlexMessage, TextMessage
+from linebot.v3.messaging import FlexMessage, TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
@@ -152,9 +152,7 @@ def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
         },
     }
 
-    # BubbleContainerを使用してFlexMessageを作成
-    bubble_container = BubbleContainer.from_dict(flex_content)
-    return FlexMessage(alt_text="Google Drive連携の設定", contents=bubble_container)
+    return FlexMessage(alt_text="Google Drive連携の設定", contents=flex_content)
 
 
 def get_user_credentials_or_prompt(
