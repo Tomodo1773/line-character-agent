@@ -127,7 +127,7 @@ def test_spotify_agent():
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
     import os
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import patch
 
     import pytest
     from chatbot.agent import spotify_agent_node
