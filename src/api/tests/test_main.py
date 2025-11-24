@@ -92,8 +92,6 @@ def test_spotify_agent_mcp_fallback():
     - フォールバックメッセージが返されることを確認
     - メッセージ内容が「ごめんね。MCP サーバーに接続できなかったみたい。」であることを確認
     """
-    from unittest.mock import patch
-
     import chatbot.agent
 
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
