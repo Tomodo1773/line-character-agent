@@ -98,7 +98,14 @@ async def callback(
 
 
 def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
-    """Google Drive OAuth認証を促すFlex Messageを作成する"""
+    """Google Drive OAuth認証を促すFlex Messageを作成する
+    
+    Args:
+        auth_url: Google OAuth認証ページのURL
+        
+    Returns:
+        FlexMessage: Google Drive連携を促すフレックスメッセージ
+    """
     flex_content = {
         "type": "bubble",
         "size": "kilo",

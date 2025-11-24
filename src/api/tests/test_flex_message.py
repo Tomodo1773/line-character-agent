@@ -1,5 +1,7 @@
 """Tests for flex message generation functions."""
 
+from linebot.v3.messaging import FlexMessage
+
 from chatbot.main import create_google_drive_auth_flex_message
 
 
@@ -16,7 +18,6 @@ def test_create_google_drive_auth_flex_message():
     flex_message = create_google_drive_auth_flex_message(test_auth_url)
     
     # FlexMessageオブジェクトが返されることを確認
-    from linebot.v3.messaging import FlexMessage
     assert isinstance(flex_message, FlexMessage)
     
     # alt_textが設定されていることを確認
