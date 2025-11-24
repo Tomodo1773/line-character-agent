@@ -3,9 +3,10 @@ from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
+from linebot.v3.messaging import ApiClient, Configuration, ReplyMessageRequest
 
 from chatbot.agent import ChatbotAgent
-from chatbot.main import app
+from chatbot.main import app, create_google_drive_auth_flex_message
 
 client = TestClient(app)
 TEST_USER_ID = "test-user"
@@ -20,6 +21,24 @@ def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {"message": "The server is up and running."}
+
+
+def test_google_drive_auth_flex_message_serialization():
+    """
+    Google Drive 連携用のFlexメッセージがシリアライズ時にheader/body/footerを保持することを確認
+    """
+    auth_url = "https://example.com/auth"
+    flex_message = create_google_drive_auth_flex_message(auth_url)
+    request_payload = ReplyMessageRequest(reply_token="dummy", messages=[flex_message])
+    api_client = ApiClient(Configuration(access_token="dummy"))
+
+    serialized = api_client.sanitize_for_serialization(request_payload)
+    contents = serialized["messages"][0]["contents"]
+
+    assert contents["type"] == "bubble"
+    assert contents["header"]["contents"][0]["text"] == "Google Drive 連携"
+    assert contents["body"]["contents"][0]["text"].startswith("Botの機能を利用するには")
+    assert contents["footer"]["contents"][0]["action"]["uri"] == auth_url
 
 
 def test_chatbot_agent_response():

@@ -1,0 +1,30 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Python: FastAPI",
+			"type": "debugpy",
+			"request": "launch",
+			"module": "uvicorn",
+			"args": ["chatbot.main:app", "--reload"],
+			"console": "integratedTerminal",
+			"cwd": "${workspaceFolder}",
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}/chatbot"
+			}
+		},
+		{
+			"name": "Python: Run Agent",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/chatbot/agent/__init__.py",
+			"console": "integratedTerminal",
+			"cwd": "${workspaceFolder}",
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}"
+			}
+		}
+	]
+}
