@@ -1,6 +1,6 @@
 import asyncio
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -92,8 +92,6 @@ def test_spotify_agent_mcp_fallback():
     - フォールバックメッセージが返されることを確認
     - メッセージ内容が「ごめんね。MCP サーバーに接続できなかったみたい。」であることを確認
     """
-    from unittest.mock import patch
-
     import chatbot.agent
 
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
@@ -126,11 +124,15 @@ def test_spotify_agent():
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
-    from unittest.mock import AsyncMock, patch
+    import os
 
+    import pytest
     from chatbot.agent import spotify_agent_node
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
+
+    if not os.getenv("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY が設定されていないため、実際の OpenAI 呼び出しを行えません")
 
     @tool
     def dummy_tool(query: str) -> str:
@@ -180,7 +182,6 @@ def test_diary_agent():
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     """
     import os
-    from unittest.mock import patch
 
     import pytest
     from chatbot.agent import diary_agent_node
