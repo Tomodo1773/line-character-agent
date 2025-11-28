@@ -317,7 +317,8 @@ line-character-agent/
   "id": "line-user-id",        // ユーザーID（パーティションキー）
   "date": "2025-07-13T15:30:00+09:00", // 作成・更新日時（ISO形式）
   "userid": "line-user-id",    // LINEユーザーID
-  "google_tokens_enc": "暗号化された文字列" // Google OAuth認証トークン（暗号化済み）
+  "google_tokens_enc": "暗号化された文字列", // Google OAuth認証トークン（暗号化済み）
+  "drive_folder_id": "1AbCdEfGhIjKlMnOp" // Google Driveの保存先フォルダID
 }
 ```
 
