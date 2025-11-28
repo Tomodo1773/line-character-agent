@@ -40,7 +40,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           COSMOS_DB_ACCOUNT_URL: "hogehoge"
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
-          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           LINE_USER_ID: "hogehoge"
           SPAN_DAYS: "1"
         run: |
