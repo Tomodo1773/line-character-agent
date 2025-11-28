@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
-from google.oauth2.credentials import Credentials
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -37,8 +36,8 @@ from chatbot.models import (
 )
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger
-from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
+from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
@@ -168,9 +167,7 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
     return oauth_manager.get_user_credentials(userid)
 
 
-def reply_with_drive_auth_prompt(
-    userid: str, line_messenger: LineMessenger, user_repository: UserRepository
-) -> None:
+def reply_with_drive_auth_prompt(userid: str, line_messenger: LineMessenger, user_repository: UserRepository) -> None:
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     auth_url, _ = oauth_manager.generate_authorization_url(userid)
     flex_message = create_google_drive_auth_flex_message(auth_url)
@@ -178,10 +175,7 @@ def reply_with_drive_auth_prompt(
 
 
 def reply_with_drive_folder_id_request(line_messenger: LineMessenger) -> None:
-    message = (
-        "Google Driveで使う日記フォルダのIDを教えて。\n"
-        "drive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
-    )
+    message = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
     line_messenger.reply_message([TextMessage(text=message)])
 
 
@@ -272,7 +266,7 @@ async def handle_audio_async(event):
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not folder_id:
-        prompt_for_drive_folder_id(line_messenger)
+        reply_with_drive_folder_id_request(line_messenger)
         return
 
     drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
