@@ -1,7 +1,5 @@
 import datetime
 
-import datetime
-
 from langchain_core.documents import Document
 
 from function_app import upload_recent_diaries
