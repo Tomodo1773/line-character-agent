@@ -1,6 +1,4 @@
 import io
-import os
-
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -15,19 +13,28 @@ from google_auth import GOOGLE_SCOPES
 class GoogleDriveHandler:
     SCOPES = GOOGLE_SCOPES
 
-    def __init__(self, credentials: Credentials):
+    def __init__(self, credentials: Credentials, folder_id: str):
         if not credentials:
             raise ValueError("Google Drive credentials are required")
+
+        if not folder_id or not folder_id.strip():
+            raise ValueError("Google Drive folder ID is required")
 
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
 
         self.creds = credentials
         self.service = build("drive", "v3", credentials=self.creds)
+        self.folder_id = folder_id.strip()
+
+    def _resolve_folder_id(self, folder_id: str | None = None) -> str:
+        target = folder_id or self.folder_id
+        if not target:
+            raise ValueError("Google Drive folder ID is required")
+        return target
 
     def list(self, folder_id=None, modified_after=None):
-        if folder_id is None:
-            folder_id = os.environ.get("DRIVE_FOLDER_ID")
+        target_folder_id = self._resolve_folder_id(folder_id)
 
         # modified_after は RFC3339 (UTC, 末尾Z) 文字列で渡すことを想定
         time_filter = ""
@@ -38,7 +45,7 @@ class GoogleDriveHandler:
         page_token = None
         try:
             while True:
-                query = f"'{folder_id}' in parents and trashed = false{time_filter}"
+                query = f"'{target_folder_id}' in parents and trashed = false{time_filter}"
                 results = (
                     self.service.files()
                     .list(

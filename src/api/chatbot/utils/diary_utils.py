@@ -1,5 +1,4 @@
 import datetime
-import os
 import re
 from typing import Optional
 
@@ -76,7 +75,7 @@ def save_diary_to_drive(diary_content: str, drive_handler: GoogleDriveHandler) -
     """
     try:
         filename = generate_diary_filename()
-        folder_id = os.environ.get("DRIVE_FOLDER_ID")
+        folder_id = drive_handler.folder_id
 
         filename = check_filename_duplicate(drive_handler, folder_id, filename)
         filename_with_ext = f"{filename}.md"
@@ -158,7 +157,7 @@ def save_digest_to_drive(digest_content: str, diary_filename: str, drive_handler
         date_str = _convert_filename_to_date(diary_filename)
 
         filename = "digest.json"
-        folder_id = os.environ.get("DRIVE_FOLDER_ID")
+        folder_id = drive_handler.folder_id
 
         # 新しいダイジェストエントリ
         new_digest = {"date": date_str, "text": digest_content}

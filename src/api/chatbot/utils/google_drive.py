@@ -1,6 +1,5 @@
 import io
 import json
-import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -20,37 +19,48 @@ class GoogleDriveHandler:
 
     SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
 
-    def __init__(self, credentials: Credentials):
+    def __init__(self, credentials: Credentials, folder_id: str):
         """
         Google Drive APIクライアントを初期化する（OAuth資格情報のみ対応）
 
         Args:
             credentials: OAuth認証済みユーザーの資格情報
+            folder_id: 操作用のGoogle DriveフォルダID
         """
         if not credentials:
             raise ValueError("OAuth credentials must be provided for Google Drive access")
+        if not folder_id or not folder_id.strip():
+            raise ValueError("Google Drive folder ID must be provided")
         try:
             if credentials.expired and credentials.refresh_token:
                 credentials.refresh(Request())
             self.creds = credentials
             self.service = build("drive", "v3", credentials=self.creds)
+            self.folder_id = folder_id.strip()
             logger.info("Initialized Google Drive API client (OAuth only mode).")
         except Exception as e:
             logger.error(f"Failed to initialize Google Drive API client: {e}")
             raise
 
-    def list_files(self, folder_id: str) -> List[Dict]:
+    def _resolve_folder_id(self, folder_id: Optional[str] = None) -> str:
+        resolved = folder_id or self.folder_id
+        if not resolved:
+            raise ValueError("Google Drive folder ID is required")
+        return resolved
+
+    def list_files(self, folder_id: Optional[str] = None) -> List[Dict]:
         """
         指定されたフォルダ内のファイル一覧を取得する
 
         Args:
-            folder_id: フォルダID
+            folder_id: フォルダID（指定がない場合はコンストラクタで与えたIDを使用）
 
         Returns:
             ファイル情報のリスト
         """
         try:
-            query = f"'{folder_id}' in parents and trashed = false"
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"'{target_folder_id}' in parents and trashed = false"
             results = (
                 self.service.files().list(q=query, spaces="drive", fields="files(id, name, mimeType, modifiedTime)").execute()
             )
@@ -75,10 +85,8 @@ class GoogleDriveHandler:
             保存されたファイルのID
         """
         try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            file_metadata = {"name": filename, "mimeType": "text/markdown", "parents": [folder_id]}
+            target_folder_id = self._resolve_folder_id(folder_id)
+            file_metadata = {"name": filename, "mimeType": "text/markdown", "parents": [target_folder_id]}
 
             media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="text/markdown", resumable=True)
 
@@ -103,10 +111,8 @@ class GoogleDriveHandler:
             ファイルが存在する場合はTrue、存在しない場合はFalse
         """
         try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = '{filename}' and '{target_folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
 
             return len(results.get("files", [])) > 0
@@ -150,10 +156,8 @@ class GoogleDriveHandler:
             処理されたファイルのID
         """
         try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = '{filename}' and '{target_folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
 
@@ -188,7 +192,7 @@ class GoogleDriveHandler:
                 content = json.dumps(digest_data, ensure_ascii=False, indent=2)
 
                 media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="application/json", resumable=True)
-                metadata = {"name": filename, "parents": [folder_id]}
+                metadata = {"name": filename, "parents": [target_folder_id]}
                 file = self.service.files().create(body=metadata, media_body=media, fields="id").execute()
                 logger.info(f"Created new file {filename} in Google Drive. ID: {file.get('id')}")
                 return file.get("id")
@@ -225,10 +229,8 @@ class GoogleDriveHandler:
             ファイルの内容
         """
         try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = 'profile.md' and '{folder_id}' in parents and trashed = false"
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = 'profile.md' and '{target_folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
 
@@ -253,10 +255,8 @@ class GoogleDriveHandler:
             ファイルの内容
         """
         try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = 'digest.json' and '{folder_id}' in parents and trashed = false"
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = 'digest.json' and '{target_folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
 
@@ -281,10 +281,8 @@ class GoogleDriveHandler:
             ファイルの内容
         """
         try:
-            if folder_id is None:
-                folder_id = os.environ.get("DRIVE_FOLDER_ID")
-
-            query = f"name = 'dictionary.md' and '{folder_id}' in parents and trashed = false"
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = 'dictionary.md' and '{target_folder_id}' in parents and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             files = results.get("files", [])
 

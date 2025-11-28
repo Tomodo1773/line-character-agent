@@ -1,7 +1,8 @@
 import json
 import os
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
@@ -35,6 +36,14 @@ def _get_connection_verify():
     if lowered in {"true", "1", "yes"}:
         return True
     return verify_setting
+
+
+
+@dataclass
+class GoogleDriveUserContext:
+    userid: str
+    credentials: Credentials
+    drive_folder_id: Optional[str]
 
 
 def _get_cosmos_client() -> CosmosClient:
@@ -108,7 +117,10 @@ class UserTokenRepository:
         return {k: v for k, v in item.items() if not k.startswith("_")}
 
     def fetch_all_tokens(self) -> List[Dict[str, Any]]:
-        query = "SELECT c.id, c.userid, c.google_tokens_enc FROM c WHERE IS_DEFINED(c.google_tokens_enc)"
+        query = (
+            "SELECT c.id, c.userid, c.google_tokens_enc, c.drive_folder_id FROM c "
+            "WHERE IS_DEFINED(c.google_tokens_enc)"
+        )
         return list(self.container.query_items(query=query, enable_cross_partition_query=True))
 
     def fetch_user(self, userid: str) -> Dict[str, Any]:
@@ -131,8 +143,8 @@ class GoogleUserTokenManager:
     def __init__(self, repository: Optional[UserTokenRepository] = None):
         self.repository = repository or UserTokenRepository()
 
-    def get_all_user_credentials(self) -> List[Tuple[str, Credentials]]:
-        credentials_list: List[Tuple[str, Credentials]] = []
+    def get_all_user_credentials(self) -> List[GoogleDriveUserContext]:
+        user_contexts: List[GoogleDriveUserContext] = []
         user_records = self.repository.fetch_all_tokens()
 
         for record in user_records:
@@ -157,6 +169,12 @@ class GoogleUserTokenManager:
                     logger.error("Failed to refresh Google token for user %s: %s", userid, error)
                     continue
 
-            credentials_list.append((userid, credentials))
+            user_contexts.append(
+                GoogleDriveUserContext(
+                    userid=userid,
+                    credentials=credentials,
+                    drive_folder_id=(record.get("drive_folder_id") or None),
+                )
+            )
 
-        return credentials_list
+        return user_contexts
