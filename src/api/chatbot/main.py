@@ -37,6 +37,7 @@ from chatbot.models import (
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
+from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
@@ -159,19 +160,37 @@ def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
     return FlexMessage(alt_text="Google Drive連携の設定", contents=bubble)
 
 
-def get_user_credentials_or_prompt(userid: str, line_messenger: LineMessenger, user_repository: UserRepository):
-    """ユーザーのGoogle認可情報を取得し、未認可なら認可URLを返信して処理を終了する"""
+def get_user_credentials(userid: str, user_repository: UserRepository):
+    """ユーザーのGoogle認可情報を取得する"""
     user_repository.ensure_user(userid)
     oauth_manager = GoogleDriveOAuthManager(user_repository)
-    credentials = oauth_manager.get_user_credentials(userid)
+    return oauth_manager.get_user_credentials(userid)
 
-    if not credentials:
-        auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        flex_message = create_google_drive_auth_flex_message(auth_url)
-        line_messenger.reply_message([flex_message])
-        return None
 
-    return credentials
+def reply_with_drive_auth_prompt(userid: str, line_messenger: LineMessenger, user_repository: UserRepository) -> None:
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+    auth_url, _ = oauth_manager.generate_authorization_url(userid)
+    flex_message = create_google_drive_auth_flex_message(auth_url)
+    line_messenger.reply_message([flex_message])
+
+
+def reply_with_drive_folder_id_request(line_messenger: LineMessenger) -> None:
+    message = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+    line_messenger.reply_message([TextMessage(text=message)])
+
+
+def register_drive_folder_if_provided(
+    userid: str, text: str, line_messenger: LineMessenger, user_repository: UserRepository
+) -> bool:
+    folder_id = extract_drive_folder_id(text)
+    if not folder_id:
+        return False
+
+    user_repository.ensure_user(userid)
+    user_repository.save_drive_folder_id(userid, folder_id)
+    confirmation = TextMessage(text="フォルダIDを登録したわ。次からそのフォルダを使うね。")
+    line_messenger.reply_message([confirmation])
+    return True
 
 
 async def handle_text_async(event):
@@ -180,8 +199,17 @@ async def handle_text_async(event):
     cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
-    credentials = get_user_credentials_or_prompt(userid, line_messenger, user_repository)
+    if register_drive_folder_if_provided(userid, event.message.text, line_messenger, user_repository):
+        return
+
+    credentials = get_user_credentials(userid, user_repository)
     if not credentials:
+        reply_with_drive_auth_prompt(userid, line_messenger, user_repository)
+        return
+
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if not folder_id:
+        reply_with_drive_folder_id_request(line_messenger)
         return
 
     agent = ChatbotAgent()
@@ -231,11 +259,17 @@ async def handle_audio_async(event):
     cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
-    credentials = get_user_credentials_or_prompt(userid, line_messenger, user_repository)
+    credentials = get_user_credentials(userid, user_repository)
     if not credentials:
+        reply_with_drive_auth_prompt(userid, line_messenger, user_repository)
         return
 
-    drive_handler = GoogleDriveHandler(credentials=credentials)
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if not folder_id:
+        reply_with_drive_folder_id_request(line_messenger)
+        return
+
+    drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
     messages = []
     agent = ChatbotAgent()
 

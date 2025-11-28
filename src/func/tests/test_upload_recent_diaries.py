@@ -3,6 +3,7 @@ import datetime
 from langchain_core.documents import Document
 
 from function_app import upload_recent_diaries
+from google_auth import GoogleDriveUserContext
 
 
 def _fixed_now():
@@ -16,7 +17,7 @@ def test_excludes_and_orders_documents(mocker):
 
     token = mocker.Mock()
     mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
-        ("user-1", token)
+        GoogleDriveUserContext(userid="user-1", credentials=token, drive_folder_id="folder-1")
     ]
 
     mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
@@ -45,8 +46,8 @@ def test_multiple_users_isolated_uploads(mocker):
 
     creds1, creds2 = mocker.Mock(), mocker.Mock()
     mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
-        ("alice", creds1),
-        ("bob", creds2),
+        GoogleDriveUserContext(userid="alice", credentials=creds1, drive_folder_id="folder-a"),
+        GoogleDriveUserContext(userid="bob", credentials=creds2, drive_folder_id="folder-b"),
     ]
 
     drive1, drive2 = mocker.Mock(), mocker.Mock()
@@ -80,7 +81,7 @@ def test_modified_after_is_calculated_from_span_days(mocker, monkeypatch):
 
     token = mocker.Mock()
     mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
-        ("user-1", token)
+        GoogleDriveUserContext(userid="user-1", credentials=token, drive_folder_id="folder-1")
     ]
 
     mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
@@ -99,7 +100,7 @@ def test_no_files_skip_upload(mocker):
 
     token = mocker.Mock()
     mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
-        ("user-1", token)
+        GoogleDriveUserContext(userid="user-1", credentials=token, drive_folder_id="folder-1")
     ]
 
     mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
@@ -110,3 +111,20 @@ def test_no_files_skip_upload(mocker):
     upload_recent_diaries(span_days=1)
 
     mock_uploader.upload.assert_not_called()
+
+
+def test_skip_when_folder_id_missing(mocker):
+    """フォルダIDが未設定のユーザーはスキップされるか。"""
+
+    token = mocker.Mock()
+    mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
+        GoogleDriveUserContext(userid="user-1", credentials=token, drive_folder_id=None)
+    ]
+
+    drive_class = mocker.patch("function_app.GoogleDriveHandler")
+    uploader_class = mocker.patch("function_app.CosmosDBUploader")
+
+    upload_recent_diaries(span_days=1)
+
+    drive_class.assert_not_called()
+    uploader_class.assert_not_called()

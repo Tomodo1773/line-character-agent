@@ -26,23 +26,27 @@ def upload_recent_diaries(span_days: int = 1):
     excluded_files = {"dictionary.md", "digest.json", "digest.md", "profile.md"}
 
     token_manager = GoogleUserTokenManager()
-    user_credentials = token_manager.get_all_user_credentials()
+    user_contexts = token_manager.get_all_user_credentials()
 
-    if not user_credentials:
+    if not user_contexts:
         logger.warning("No Google Drive credentials found in users container.")
         return
 
-    for userid, credentials in user_credentials:
+    for context in user_contexts:
+        if not context.drive_folder_id:
+            logger.warning("Drive folder ID is missing for user %s. Skipping.", context.userid)
+            continue
+
         now_utc = datetime.datetime.now(datetime.timezone.utc)
         cutoff = now_utc - datetime.timedelta(days=span_days)
         cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        drive_handler = GoogleDriveHandler(credentials=credentials)
+        drive_handler = GoogleDriveHandler(credentials=context.credentials, folder_id=context.drive_folder_id)
         files = drive_handler.list(modified_after=cutoff_str)
         for file in files:
             logger.debug(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
 
-        uploader = CosmosDBUploader(userid=userid)
+        uploader = CosmosDBUploader(userid=context.userid)
 
         documents = []
         for file in files:
@@ -54,7 +58,9 @@ def upload_recent_diaries(span_days: int = 1):
             document = drive_handler.get(file["id"])
             if document:
                 documents.append(document)
-                logger.info("Document %s added to upload list for user %s.", document.metadata["source"], userid)
+                logger.info(
+                    "Document %s added to upload list for user %s.", document.metadata["source"], context.userid
+                )
 
         if documents:
             uploader.upload(documents)

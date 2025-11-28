@@ -71,6 +71,31 @@ class UserRepository(BaseRepository):
         decrypted = decrypt_dict(record.get("google_tokens_enc", ""))
         return decrypted
 
+    def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
+        if not folder_id:
+            raise ValueError("folder_id must be a non-empty string")
+
+        sanitized_id = folder_id.strip()
+        if not sanitized_id:
+            raise ValueError("folder_id must not be blank")
+
+        self._upsert_user(userid, {"drive_folder_id": sanitized_id})
+
+    def fetch_drive_folder_id(self, userid: str) -> str:
+        query = (
+            "SELECT TOP 1 c.drive_folder_id "
+            "FROM c WHERE c.userid = @userid "
+            "AND IS_DEFINED(c.drive_folder_id) "
+            "ORDER BY c.date DESC"
+        )
+        parameters = [{"name": "@userid", "value": userid}]
+        result = self.fetch(query, parameters)
+        if not result:
+            return ""
+
+        record = result[0]
+        return str(record.get("drive_folder_id", ""))
+
 
 class AgentRepository(BaseRepository):
     def __init__(self):

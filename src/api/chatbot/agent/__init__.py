@@ -116,6 +116,7 @@ def get_user_profile(userid: str) -> dict:
     global _cached
     if userid not in _cached["profile"]:
         logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
+        from chatbot.database.repositories import UserRepository
         from chatbot.utils.google_auth import GoogleDriveOAuthManager
         from chatbot.utils.google_drive import GoogleDriveHandler
         from chatbot.utils.google_drive_utils import get_digest_from_drive, get_profile_from_drive
@@ -129,7 +130,15 @@ def get_user_profile(userid: str) -> dict:
             _cached["digest"][userid] = ""
             return {"profile": "", "digest": ""}
 
-        drive_handler = GoogleDriveHandler(credentials=credentials)
+        user_repository = UserRepository()
+        folder_id = user_repository.fetch_drive_folder_id(userid)
+        if not folder_id:
+            logger.warning("Google Drive folder ID not found for user: %s", userid)
+            _cached["profile"][userid] = ""
+            _cached["digest"][userid] = ""
+            return {"profile": "", "digest": ""}
+
+        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
         user_profile = get_profile_from_drive(drive_handler)
         if user_profile and "content" in user_profile:
             _cached["profile"][userid] = user_profile["content"]
