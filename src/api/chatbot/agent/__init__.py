@@ -10,6 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
@@ -343,7 +344,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
 class ChatbotAgent:
     RECURSION_LIMIT = 20
 
-    def __init__(self, cached: dict = None) -> None:
+    def __init__(self, cached: dict | None = None, checkpointer: BaseCheckpointSaver | None = None) -> None:
         """Initialize agent with cached prompts"""
         global _cached
         if cached:
@@ -360,7 +361,7 @@ class ChatbotAgent:
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
-        self.checkpointer = get_checkpointer()
+        self.checkpointer = checkpointer or get_checkpointer()
         self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
     def _config(self, session_id: str) -> dict:

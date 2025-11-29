@@ -4,12 +4,14 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 from linebot.v3.messaging import ApiClient, Configuration, ReplyMessageRequest
+from langgraph.checkpoint.memory import MemorySaver
 
 from chatbot.agent import ChatbotAgent
 from chatbot.main import app, create_google_drive_auth_flex_message
 
 client = TestClient(app)
 TEST_USER_ID = "test-user"
+TEST_SESSION_ID = "test-session"
 
 
 def test_read_root():
@@ -48,10 +50,12 @@ def test_chatbot_agent_response():
     - レスポンスのmessages内、最新のcontentが空でないことを確認
     """
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
-        agent_graph = ChatbotAgent()
+        agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         messages = [{"type": "human", "content": "こんにちは"}]
 
-        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
+        response = asyncio.run(
+            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID)
+        )
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -64,7 +68,7 @@ def test_chatbot_agent_web_search_response():
     - レスポンスがYes（大文字・小文字を問わず）を含むことを確認
     """
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
-        agent_graph = ChatbotAgent()
+        agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         yesterday = date.today() - timedelta(days=1)
         messages = [
             {
@@ -73,7 +77,9 @@ def test_chatbot_agent_web_search_response():
             }
         ]
 
-        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
+        response = asyncio.run(
+            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID)
+        )
 
     assert "messages" in response
     assert "yes" in response["messages"][-1].content.lower()
@@ -124,11 +130,15 @@ def test_spotify_agent_mcp_fallback():
 
                 mock_router.return_value = Command(goto="spotify_agent")
 
-                agent_graph = ChatbotAgent()
+                agent_graph = ChatbotAgent(checkpointer=MemorySaver())
                 # B'zの曲検索をリクエスト
                 messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
-                response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID))
+                response = asyncio.run(
+                    agent_graph.ainvoke(
+                        messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID
+                    )
+                )
 
                 # レスポンスの検証
                 assert "messages" in response
