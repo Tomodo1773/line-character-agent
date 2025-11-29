@@ -3,14 +3,15 @@ import os
 import tempfile
 from typing import Optional
 
-from chatbot.utils.google_drive import GoogleDriveHandler
-from chatbot.utils.google_drive_utils import get_dictionary_from_drive
-from chatbot.utils import remove_trailing_newline
-from chatbot.utils.config import create_logger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
+
+from chatbot.utils import remove_trailing_newline
+from chatbot.utils.config import create_logger
+from chatbot.utils.google_drive import GoogleDriveHandler
+from chatbot.utils.google_drive_utils import get_dictionary_from_drive
 
 logger = create_logger(__name__)
 

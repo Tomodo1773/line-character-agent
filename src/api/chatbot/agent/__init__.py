@@ -1,5 +1,7 @@
+import atexit
 import os
 import sys
+from contextlib import AbstractContextManager
 from typing import Annotated, Literal
 
 from langchain.agents import create_agent
@@ -8,6 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
@@ -16,7 +19,7 @@ from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
 from chatbot.utils import get_japan_datetime, remove_trailing_newline
-from chatbot.utils.config import check_environment_variables, create_logger
+from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
 
 logger = create_logger(__name__)
 
@@ -49,6 +52,8 @@ class State(TypedDict):
 _cached = {"profile": {}, "prompts": {}, "digest": {}}
 _mcp_client = None
 _langsmith_client: Client | None = None
+_checkpointer_context: AbstractContextManager[PostgresSaver] | None = None
+_checkpointer: PostgresSaver | None = None
 
 
 def get_langsmith_client() -> Client:
@@ -57,6 +62,27 @@ def get_langsmith_client() -> Client:
     if _langsmith_client is None:
         _langsmith_client = Client()
     return _langsmith_client
+
+
+def get_checkpointer() -> PostgresSaver:
+    """PostgreSQLチェックポインタのシングルトンインスタンスを取得"""
+
+    global _checkpointer_context, _checkpointer
+    if _checkpointer is None:
+        conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
+        _checkpointer_context = PostgresSaver.from_conn_string(conn_string)
+        _checkpointer = _checkpointer_context.__enter__()
+        _checkpointer.setup()
+    return _checkpointer
+
+
+@atexit.register
+def close_checkpointer() -> None:
+    global _checkpointer_context, _checkpointer
+    if _checkpointer_context is not None:
+        _checkpointer_context.__exit__(None, None, None)
+        _checkpointer_context = None
+        _checkpointer = None
 
 
 async def get_mcp_client():
@@ -334,24 +360,31 @@ class ChatbotAgent:
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
-        self.graph = graph_builder.compile()
+        self.checkpointer = get_checkpointer()
+        self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
-    async def ainvoke(self, messages: list, userid: str):
-        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": self.RECURSION_LIMIT})
+    def _config(self, session_id: str) -> dict:
+        return {
+            "recursion_limit": self.RECURSION_LIMIT,
+            "configurable": {"thread_id": session_id},
+        }
 
-    async def astream(self, messages: list, userid: str):
+    async def ainvoke(self, messages: list, userid: str, session_id: str):
+        return await self.graph.ainvoke({"messages": messages, "userid": userid}, self._config(session_id))
+
+    async def astream(self, messages: list, userid: str, session_id: str):
         async for msg, metadata in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": self.RECURSION_LIMIT},
+            self._config(session_id),
             stream_mode="messages",
             # stream_mode=["messages", "values"],
         ):
             yield msg, metadata
 
-    async def astream_updates(self, messages: list, userid: str):
+    async def astream_updates(self, messages: list, userid: str, session_id: str):
         async for msg in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": self.RECURSION_LIMIT},
+            self._config(session_id),
             stream_mode="updates",
         ):
             yield msg
@@ -379,6 +412,7 @@ if __name__ == "__main__":
     agent_graph = ChatbotAgent()
 
     userid = "local-user"
+    session_id = "local-session"
 
     agent_graph.create_image()
     history = []
@@ -418,7 +452,7 @@ if __name__ == "__main__":
             # print(msg.content, end="", flush=True)
 
             # astream_updates
-            async for msg in agent_graph.astream_updates(messages=history, userid=userid):
+            async for msg in agent_graph.astream_updates(messages=history, userid=userid, session_id=session_id):
                 print(f"msg: {msg}")
                 print("\n")
 

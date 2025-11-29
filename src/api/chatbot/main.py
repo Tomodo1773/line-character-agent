@@ -27,7 +27,7 @@ from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageCo
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from chatbot.agent import ChatbotAgent
-from chatbot.database.repositories import AgentRepository, UserRepository
+from chatbot.database.repositories import UserRepository
 from chatbot.models import (
     ChatCompletionRequest,
     ChatCompletionStreamResponse,
@@ -196,7 +196,6 @@ def register_drive_folder_if_provided(
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messenger = LineMessenger(event)
-    cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
     if register_drive_folder_if_provided(userid, event.message.text, line_messenger, user_repository):
@@ -217,26 +216,18 @@ async def handle_text_async(event):
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
 
-    # CosmosDBから直近の会話履歴を取得
-    session = cosmos.fetch_messages()
-    messages = session.full_contents
-    messages.append({"type": "human", "content": event.message.text})
-
-    logger.info("Fetched recent chat history.")
+    session = user_repository.ensure_session(userid)
+    messages = [{"type": "human", "content": event.message.text}]
 
     try:
         # LLMでレスポンスメッセージを作成
-        response = await agent.ainvoke(messages=messages, userid=userid)
+        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
         content = response["messages"][-1].content
         logger.info(f"Generated text response: {content}")
 
         # メッセージを返信
         reply_messages = [TextMessage(text=content)]
         line_messenger.reply_message(reply_messages)
-
-        # 会話履歴を保存
-        add_messages = [{"type": "human", "content": event.message.text}, {"type": "ai", "content": content}]
-        cosmos.add_messages(userid, add_messages)
 
     except Exception as e:
         # メッセージを返信
@@ -256,7 +247,6 @@ def handle_text(event):
 async def handle_audio_async(event):
     logger.info(f"Start handling audio message: {event.message.id}")
     line_messenger = LineMessenger(event)
-    cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
     credentials = get_user_credentials(userid, user_repository)
@@ -270,6 +260,7 @@ async def handle_audio_async(event):
         return
 
     drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
+    session = user_repository.ensure_session(userid)
     messages = []
     agent = ChatbotAgent()
 
@@ -294,7 +285,7 @@ async def handle_audio_async(event):
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
         # キャラクターのコメントを追加（非同期化）
-        response = await agent.ainvoke(messages=messages, userid=userid)
+        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
         reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
@@ -311,9 +302,6 @@ async def handle_audio_async(event):
 
         # メッセージを保存
         messages.append({"type": "ai", "content": reaction})
-        add_messages = messages
-        cosmos.add_messages(userid, add_messages)
-
         try:
             if saved_filename:
                 digest = generate_diary_digest(diary_content)
@@ -364,19 +352,13 @@ async def create_chat_completion(
     api_key: str = Depends(get_api_key),
 ):
     """OpenAI互換のチャット補完APIエンドポイント"""
-
-    # CosmosDBから直近の会話履歴を取得
-    cosmos = AgentRepository()
-    session = cosmos.fetch_messages()
-    db_history = session.full_contents.copy() if session.full_contents else []
+    user_repository = UserRepository()
+    userid = "openai-compatible-api-user"
+    session = user_repository.ensure_session(userid)
 
     # request.messagesをdict形式に変換
-    req_msgs = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
+    messages = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
 
-    # 履歴に新規分をappend
-    messages = db_history + req_msgs
-
-    userid = "openai-compatible-api-user"
     agent = ChatbotAgent()
 
     async def generate_stream():
@@ -398,7 +380,7 @@ async def create_chat_completion(
 
         ai_response_content = ""
         try:
-            async for msg, metadata in agent.astream(messages=messages, userid=userid):
+            async for msg, metadata in agent.astream(messages=messages, userid=userid, session_id=session.session_id):
                 if msg.content and metadata["langgraph_node"] == "chatbot":
                     ai_response_content += msg.content[0]["text"]
                     chunk_response = ChatCompletionStreamResponse(
@@ -433,11 +415,6 @@ async def create_chat_completion(
             yield "data: [DONE]\n\n"
 
         # 新規分+AIレスポンスだけを保存
-        save_msgs = req_msgs.copy()
-        if ai_response_content:
-            save_msgs.append({"type": "ai", "content": ai_response_content})
-        if save_msgs:
-            cosmos.add_messages(userid, save_msgs)
 
     return StreamingResponse(
         generate_stream(),

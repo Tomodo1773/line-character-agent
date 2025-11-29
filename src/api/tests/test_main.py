@@ -146,9 +146,10 @@ def test_spotify_agent():
     import os
 
     import pytest
-    from chatbot.agent import spotify_agent_node
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
+
+    from chatbot.agent import spotify_agent_node
 
     if not os.getenv("OPENAI_API_KEY"):
         pytest.skip("OPENAI_API_KEY が設定されていないため、実際の OpenAI 呼び出しを行えません")
@@ -203,10 +204,11 @@ def test_diary_agent():
     import os
 
     import pytest
-    from chatbot.agent import diary_agent_node
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
     from langgraph.types import Command
+
+    from chatbot.agent import diary_agent_node
 
     if not os.getenv("OPENAI_API_KEY"):
         pytest.skip("OPENAI_API_KEY が設定されていないため、実際の OpenAI 呼び出しを行えません")
