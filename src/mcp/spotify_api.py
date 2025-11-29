@@ -3,10 +3,11 @@ import os
 from typing import Dict, List, Optional
 
 import spotipy
-import utils
 from dotenv import load_dotenv
 from spotipy.cache_handler import CacheHandler
 from spotipy.oauth2 import SpotifyOAuth
+
+import utils
 
 load_dotenv()
 

@@ -26,4 +26,3 @@ def extract_drive_folder_id(text: str) -> Optional[str]:
         return raw_id_match.group(0)
 
     return None
-

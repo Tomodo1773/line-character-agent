@@ -50,6 +50,7 @@ jobs:
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
           OPENAI_COMPATIBLE_API_KEY: "hogehoge"
           MCP_FUNCTION_URL: "hogehoge"
+          POSTGRES_CHECKPOINT_URL: "hogehoge"
         run: |
           cd src/api
           uv run pytest -s

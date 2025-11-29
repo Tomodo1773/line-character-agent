@@ -3,14 +3,15 @@ import os
 import tempfile
 from typing import Optional
 
-from chatbot.utils.google_drive import GoogleDriveHandler
-from chatbot.utils.google_drive_utils import get_dictionary_from_drive
-from chatbot.utils import remove_trailing_newline
-from chatbot.utils.config import create_logger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
+
+from chatbot.utils import remove_trailing_newline
+from chatbot.utils.config import create_logger
+from chatbot.utils.google_drive import GoogleDriveHandler
+from chatbot.utils.google_drive_utils import get_dictionary_from_drive
 
 logger = create_logger(__name__)
 
@@ -116,11 +117,7 @@ class DiaryTranscription:
         file_path = self._save_audio(audio_file)
         with open(file_path, "rb") as f:
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            transcript = client.audio.transcriptions.create(
-                model="gpt-4o-transcribe",
-                file=f,
-                response_format="text"
-            )
+            transcript = client.audio.transcriptions.create(model="gpt-4o-transcribe", file=f, response_format="text")
         return {"transcribed_text": transcript}
 
     def _save_audio(self, audio_file: bytes) -> str:

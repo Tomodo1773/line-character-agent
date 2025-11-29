@@ -8,6 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
@@ -317,7 +318,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
 class ChatbotAgent:
     RECURSION_LIMIT = 20
 
-    def __init__(self, cached: dict = None) -> None:
+    def __init__(self, cached: dict | None = None, checkpointer: BaseCheckpointSaver | None = None) -> None:
         """Initialize agent with cached prompts"""
         global _cached
         if cached:
@@ -334,24 +335,31 @@ class ChatbotAgent:
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
-        self.graph = graph_builder.compile()
+        self.checkpointer = checkpointer
+        self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
-    async def ainvoke(self, messages: list, userid: str):
-        return await self.graph.ainvoke({"messages": messages, "userid": userid}, {"recursion_limit": self.RECURSION_LIMIT})
+    def _config(self, session_id: str) -> dict:
+        return {
+            "recursion_limit": self.RECURSION_LIMIT,
+            "configurable": {"thread_id": session_id},
+        }
 
-    async def astream(self, messages: list, userid: str):
+    async def ainvoke(self, messages: list, userid: str, session_id: str):
+        return await self.graph.ainvoke({"messages": messages, "userid": userid}, self._config(session_id))
+
+    async def astream(self, messages: list, userid: str, session_id: str):
         async for msg, metadata in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": self.RECURSION_LIMIT},
+            self._config(session_id),
             stream_mode="messages",
             # stream_mode=["messages", "values"],
         ):
             yield msg, metadata
 
-    async def astream_updates(self, messages: list, userid: str):
+    async def astream_updates(self, messages: list, userid: str, session_id: str):
         async for msg in self.graph.astream(
             {"messages": messages, "userid": userid},
-            {"recursion_limit": self.RECURSION_LIMIT},
+            self._config(session_id),
             stream_mode="updates",
         ):
             yield msg
@@ -376,9 +384,13 @@ if __name__ == "__main__":
         logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
         sys.exit(1)
 
-    agent_graph = ChatbotAgent()
+    # CLI 実行時はインメモリのチェックポインタを使用
+    from langgraph.checkpoint.memory import MemorySaver
+
+    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
 
     userid = "local-user"
+    session_id = "local-session"
 
     agent_graph.create_image()
     history = []
@@ -418,7 +430,7 @@ if __name__ == "__main__":
             # print(msg.content, end="", flush=True)
 
             # astream_updates
-            async for msg in agent_graph.astream_updates(messages=history, userid=userid):
+            async for msg in agent_graph.astream_updates(messages=history, userid=userid, session_id=session_id):
                 print(f"msg: {msg}")
                 print("\n")
 

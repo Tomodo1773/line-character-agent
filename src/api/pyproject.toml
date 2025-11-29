@@ -20,11 +20,13 @@ dependencies = [
     "langchain-openai>=1.0,<2",
     "langchain-mcp-adapters>=0.1.12,<0.2",
     "langgraph>=1.0,<2",
+    "langgraph-checkpoint-postgres>=3.0.1,<4",
     "langsmith>=0.1.99",
     "google-auth>=2.40.3",
     "google-api-python-client>=2.171.0",
     "google-auth-httplib2>=0.2.0",
     "google-auth-oauthlib>=1.2.2",
+    "psycopg[binary,pool]>=3.2.13",
 ]
 
 [tool.uv]

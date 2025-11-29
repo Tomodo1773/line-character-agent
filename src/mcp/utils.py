@@ -1,9 +1,7 @@
-from collections import defaultdict
-from typing import Optional, Dict
 import functools
-from typing import Callable, TypeVar
+from collections import defaultdict
+from typing import Callable, Dict, Optional, TypeVar
 from urllib.parse import quote
-
 
 T = TypeVar("T")
 

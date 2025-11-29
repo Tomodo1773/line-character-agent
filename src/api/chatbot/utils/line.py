@@ -1,6 +1,5 @@
 import os
 
-from chatbot.utils.config import create_logger
 from dotenv import load_dotenv
 from linebot.v3.messaging import (
     ApiClient,
@@ -12,6 +11,8 @@ from linebot.v3.messaging import (
     ShowLoadingAnimationRequest,
 )
 from linebot.v3.webhooks import MessageEvent
+
+from chatbot.utils.config import create_logger
 
 logger = create_logger(__name__)
 

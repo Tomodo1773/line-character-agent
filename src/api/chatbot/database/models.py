@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict
+
 from pydantic import BaseModel
 
 
@@ -17,12 +18,8 @@ class NameData(DatabaseRecord):
     content: Dict[str, Any]
 
 
-class AgentSession(DatabaseRecord):
-    """エージェントセッションモデル"""
+class SessionMetadata(BaseModel):
+    """Cosmos DB 上で管理するセッションメタデータ"""
 
-    id: str
-    date: datetime
-    userid: str
-    messages: List[Dict[str, Any]]
-    full_contents: List[Dict[str, Any]]
-    filtered_contents: List[Dict[str, Any]]
+    session_id: str
+    last_accessed: datetime
