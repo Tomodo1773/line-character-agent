@@ -15,7 +15,8 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
   - MCPサーバー（Azure Functions）
 
 - **データベース・ストレージ**
-  - Azure Cosmos DB（会話履歴、日記エントリのベクトル検索）
+  - PostgreSQL（LangGraph checkpointer による会話履歴管理）
+  - Azure Cosmos DB（日記エントリのベクトル検索、ユーザー情報）
   - Google Drive（ユーザープロファイル、日記データ）
 
 - **監視・管理**
@@ -140,14 +141,14 @@ sequenceDiagram
     participant User as ユーザー
     participant Frontend as フロントエンド
     participant API as API Service
-    participant CosmosDB as Cosmos DB
+    participant Postgres as PostgreSQL (LangGraph Checkpointer)
     participant GoogleDrive as Google Drive
     participant MCP as MCPサーバー
     participant External as 外部API
 
     User->>Frontend: メッセージ送信
     Frontend->>API: リクエスト
-    API->>CosmosDB: 会話履歴取得
+    API->>Postgres: スレッドメタデータ取得
     API->>GoogleDrive: プロファイル・日記取得
     API->>API: エージェントルーティング
     
@@ -159,7 +160,7 @@ sequenceDiagram
     end
     
     API->>Frontend: 応答返信
-    API->>CosmosDB: 会話履歴保存
+    API->>Postgres: スレッドチェックポイント保存
 ```
 
 ## 事前準備
@@ -256,17 +257,10 @@ line-character-agent/
 
 ## データベース構成
 
-### Cosmos DB 構成
+### ストレージ構成
 
-本システムでは以下のCosmosDBデータベース・コンテナ構成を使用しています：
-
-- **diary データベース**
-  - `entries` コンテナ: 日記エントリのベクトル検索用
-- **main データベース**
-  - `chat` コンテナ: チャット履歴管理用
-  - `users` コンテナ: ユーザー情報管理用
-
-> **注意**: データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
+- **PostgreSQL**: LangGraph の PostgreSQL checkpointer が会話スレッド（メッセージ履歴、ステート）を自動管理します。テーブルはライブラリ側で自動作成され、環境変数 `POSTGRES_CHECKPOINT_URL` で接続文字列を指定します。
+- **Cosmos DB**: 日記エントリのベクトル検索とユーザー情報管理に利用します。データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
 
 ## データベーススキーマ
 
@@ -287,26 +281,6 @@ line-character-agent/
   "metadata": {
     "source": "2025年07月11日(金).md"
   }
-}
-```
-
-### Cosmos DB - チャット履歴（main/chat）
-
-```json
-{
-  "id": "session-uuid",        // セッションID（パーティションキー）
-  "date": "2025-07-13T15:30:00+09:00", // 作成日時（ISO形式）
-  "userid": "line-user-id",    // LINEユーザーID
-  "messages": [                 // LangChainメッセージ配列
-    {
-      "type": "human",
-      "content": "こんにちは"
-    },
-    {
-      "type": "ai",
-      "content": "こんにちは!元気ですか?"
-    }
-  ]
 }
 ```
 
