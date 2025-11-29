@@ -1,7 +1,5 @@
-import atexit
 import os
 import sys
-from contextlib import AbstractContextManager
 from typing import Annotated, Literal
 
 from langchain.agents import create_agent
@@ -11,7 +9,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
@@ -20,7 +17,7 @@ from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
 from chatbot.utils import get_japan_datetime, remove_trailing_newline
-from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
+from chatbot.utils.config import check_environment_variables, create_logger
 
 logger = create_logger(__name__)
 
@@ -53,8 +50,6 @@ class State(TypedDict):
 _cached = {"profile": {}, "prompts": {}, "digest": {}}
 _mcp_client = None
 _langsmith_client: Client | None = None
-_checkpointer_context: AbstractContextManager[PostgresSaver] | None = None
-_checkpointer: PostgresSaver | None = None
 
 
 def get_langsmith_client() -> Client:
@@ -63,27 +58,6 @@ def get_langsmith_client() -> Client:
     if _langsmith_client is None:
         _langsmith_client = Client()
     return _langsmith_client
-
-
-def get_checkpointer() -> PostgresSaver:
-    """PostgreSQLチェックポインタのシングルトンインスタンスを取得"""
-
-    global _checkpointer_context, _checkpointer
-    if _checkpointer is None:
-        conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
-        _checkpointer_context = PostgresSaver.from_conn_string(conn_string)
-        _checkpointer = _checkpointer_context.__enter__()
-        _checkpointer.setup()
-    return _checkpointer
-
-
-@atexit.register
-def close_checkpointer() -> None:
-    global _checkpointer_context, _checkpointer
-    if _checkpointer_context is not None:
-        _checkpointer_context.__exit__(None, None, None)
-        _checkpointer_context = None
-        _checkpointer = None
 
 
 async def get_mcp_client():
@@ -361,7 +335,7 @@ class ChatbotAgent:
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
-        self.checkpointer = checkpointer or get_checkpointer()
+        self.checkpointer = checkpointer
         self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
     def _config(self, session_id: str) -> dict:
@@ -410,7 +384,10 @@ if __name__ == "__main__":
         logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
         sys.exit(1)
 
-    agent_graph = ChatbotAgent()
+    # CLI 実行時はインメモリのチェックポインタを使用
+    from langgraph.checkpoint.memory import MemorySaver
+
+    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
 
     userid = "local-user"
     session_id = "local-session"

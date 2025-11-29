@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 # Azure Application Insights imports
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -25,6 +26,7 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from chatbot.agent import ChatbotAgent
 from chatbot.database.repositories import UserRepository
@@ -35,7 +37,7 @@ from chatbot.models import (
     ChatCompletionStreamResponseChoiceDelta,
 )
 from chatbot.utils.auth import verify_api_key
-from chatbot.utils.config import check_environment_variables, create_logger
+from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
@@ -46,6 +48,8 @@ from chatbot.utils.transcript import DiaryTranscription
 load_dotenv()
 
 logger = create_logger(__name__)
+# FastAPI アプリケーションのイベントループ（AsyncPostgresSaver と共有する）
+event_loop = None
 # 環境変数のチェック
 is_valid, missing_vars = check_environment_variables()
 if not is_valid:
@@ -53,12 +57,26 @@ if not is_valid:
     logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI アプリのライフサイクルで AsyncPostgresSaver を管理する"""
+    global event_loop
+    event_loop = asyncio.get_running_loop()
+    conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
+    async with AsyncPostgresSaver.from_conn_string(conn_string) as checkpointer:
+        await checkpointer.setup()
+        app.state.checkpointer = checkpointer
+        yield
+
+
 # アプリの設定
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
 app = FastAPI(
     title="LINEBOT-AI-AGENT",
     description="LINEBOT-AI-AGENT by FastAPI.",
+    lifespan=lifespan,
 )
 
 # Azure Application Insightsの初期化
@@ -211,7 +229,7 @@ async def handle_text_async(event):
         reply_with_drive_folder_id_request(line_messenger)
         return
 
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
@@ -241,7 +259,10 @@ async def handle_text_async(event):
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text(event):
-    asyncio.run(handle_text_async(event))
+    if event_loop is None:
+        logger.error("Event loop is not initialized. Cannot handle text message.")
+        return
+    asyncio.run_coroutine_threadsafe(handle_text_async(event), event_loop)
 
 
 async def handle_audio_async(event):
@@ -262,7 +283,7 @@ async def handle_audio_async(event):
     drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
     session = user_repository.ensure_session(userid)
     messages = []
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
@@ -323,7 +344,10 @@ async def handle_audio_async(event):
 
 @handler.add(MessageEvent, message=AudioMessageContent)
 def handle_audio(event):
-    asyncio.run(handle_audio_async(event))
+    if event_loop is None:
+        logger.error("Event loop is not initialized. Cannot handle audio message.")
+        return
+    asyncio.run_coroutine_threadsafe(handle_audio_async(event), event_loop)
 
 
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
@@ -359,7 +383,7 @@ async def create_chat_completion(
     # request.messagesをdict形式に変換
     messages = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
 
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     async def generate_stream():
         stream_id = f"chatcmpl-{str(uuid.uuid4())}"
