@@ -285,9 +285,11 @@ dependencies = [
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
     { name = "langgraph" },
+    { name = "langgraph-checkpoint-postgres" },
     { name = "langsmith" },
     { name = "line-bot-sdk" },
     { name = "opentelemetry-instrumentation-fastapi" },
+    { name = "psycopg", extra = ["binary", "pool"] },
     { name = "python-dotenv" },
     { name = "pytz" },
     { name = "uvicorn" },
@@ -315,9 +317,11 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = ">=0.1.12,<0.2" },
     { name = "langchain-openai", specifier = ">=1.0,<2" },
     { name = "langgraph", specifier = ">=1.0,<2" },
+    { name = "langgraph-checkpoint-postgres", specifier = ">=3.0.1,<4" },
     { name = "langsmith", specifier = ">=0.1.99" },
     { name = "line-bot-sdk", specifier = ">=3.11.0,<4" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.40b0,<1" },
+    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.13" },
     { name = "python-dotenv", specifier = ">=1.0.1,<2" },
     { name = "pytz", specifier = "~=2025.2" },
     { name = "uvicorn", specifier = ">=0.29.0,<0.30" },
@@ -825,6 +829,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0f/07/2b1c042fa87d40cf2db5ca27dc4e8dd86f9a0436a10aa4361a8982718ae7/langgraph_checkpoint-3.0.1.tar.gz", hash = "sha256:59222f875f85186a22c494aedc65c4e985a3df27e696e5016ba0b98a5ed2cee0", size = 137785, upload-time = "2025-11-04T21:55:47.774Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/48/e3/616e3a7ff737d98c1bbb5700dd62278914e2a9ded09a79a1fa93cf24ce12/langgraph_checkpoint-3.0.1-py3-none-any.whl", hash = "sha256:9b04a8d0edc0474ce4eaf30c5d731cee38f11ddff50a6177eead95b5c4e4220b", size = 46249, upload-time = "2025-11-04T21:55:46.472Z" },
+]
+
+[[package]]
+name = "langgraph-checkpoint-postgres"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langgraph-checkpoint" },
+    { name = "orjson" },
+    { name = "psycopg" },
+    { name = "psycopg-pool" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/5e/c96bbded68a72757607e653c0f9cfaa02078da17e0999626f3c1ddc65ce9/langgraph_checkpoint_postgres-3.0.1.tar.gz", hash = "sha256:4ff0f04a70ce8f5b49d373f521eba97ccf0bb61181de1535e5d91e99db2ce7da", size = 113134, upload-time = "2025-11-06T16:21:47.855Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0e/01/5a5de9187f8a7f55fa546eb815fbeb4a41b10688d9a77b84224cb98ae0de/langgraph_checkpoint_postgres-3.0.1-py3-none-any.whl", hash = "sha256:f79eb588b328f05d715c7ed35d20895cd0a126b524f95edbbebedc4a595f43dd", size = 40914, upload-time = "2025-11-06T16:21:46.303Z" },
 ]
 
 [[package]]
@@ -1365,6 +1384,55 @@ wheels = [
 ]
 
 [[package]]
+name = "psycopg"
+version = "3.2.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/05/d4a05988f15fcf90e0088c735b1f2fc04a30b7fc65461d6ec278f5f2f17a/psycopg-3.2.13.tar.gz", hash = "sha256:309adaeda61d44556046ec9a83a93f42bbe5310120b1995f3af49ab6d9f13c1d", size = 160626, upload-time = "2025-11-21T22:34:32.328Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/14/f2724bd1986158a348316e86fdd0837a838b14a711df3f00e47fba597447/psycopg-3.2.13-py3-none-any.whl", hash = "sha256:a481374514f2da627157f767a9336705ebefe93ea7a0522a6cbacba165da179a", size = 206797, upload-time = "2025-11-21T22:29:39.733Z" },
+]
+
+[package.optional-dependencies]
+binary = [
+    { name = "psycopg-binary", marker = "implementation_name != 'pypy'" },
+]
+pool = [
+    { name = "psycopg-pool" },
+]
+
+[[package]]
+name = "psycopg-binary"
+version = "3.2.13"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/f5/fc70804a999167daf5b876107b99e8fe91c3f785a31753c0e3e7b93446ba/psycopg_binary-3.2.13-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:9cfe87749d010dfd34534ba8c71aa0674db9a3fce65232c98989f77c742c9ce7", size = 4013844, upload-time = "2025-11-21T22:30:25.985Z" },
+    { url = "https://files.pythonhosted.org/packages/07/87/857639681f5dfcd567aaf199fe4e5b026a105b0462a604f4fb7eda0735d8/psycopg_binary-3.2.13-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8db77fac1dfe3f69c982db92a51fd78e1354fa8f523a6781a636123e5c7ffcde", size = 4077002, upload-time = "2025-11-21T22:30:29.539Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/1d/2cb7af6a31429b9022455c966d8408a2b5a19acd3de7610402381518e8f7/psycopg_binary-3.2.13-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cbbac4cd5b0e14b91ad8244268ca3fc2f527d1a337b489af57d7669c9d2e1a24", size = 4637181, upload-time = "2025-11-21T22:30:34.126Z" },
+    { url = "https://files.pythonhosted.org/packages/28/bd/ffde1ac7e6ab75646c253fbe0378772fb6f0229af8a05cd9862ee8aad0f0/psycopg_binary-3.2.13-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:a146f0a59a7e3ca92996f8133b1d5e5922e668f7c656b4a9201e702f4cf25896", size = 4737775, upload-time = "2025-11-21T22:30:38.408Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/74/3702732d01639c97943d56ec26860357dfacda0b5a708e82e794d07f499c/psycopg_binary-3.2.13-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:27150515de5f709e4142429db6fd36a1d01f0b8b17d915b5f7bb095364465398", size = 4421537, upload-time = "2025-11-21T22:30:42.696Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/8c/915a899857c2211196aa7f1749ba85bed421afaf72f185a0eb91e64ba550/psycopg_binary-3.2.13-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:9942255705255367d94368941e3a913b0daf74b47d191471dbe4dc0de9fbc769", size = 3877500, upload-time = "2025-11-21T22:30:47.064Z" },
+    { url = "https://files.pythonhosted.org/packages/36/d9/46060c183413bf62d47df98d7e3b30ab561639bcb583c3796cca30dafa43/psycopg_binary-3.2.13-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:75ebc8335f48c339ec24f4c371595f6b7043147fe6d18e619c8564428ab8adaf", size = 3560186, upload-time = "2025-11-21T22:30:54.522Z" },
+    { url = "https://files.pythonhosted.org/packages/56/cf/2987689614632898e4861e4122cd41937ea9b5afcbe3c3061c7265bfa6de/psycopg_binary-3.2.13-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:6fe2982a73b2ea473c9e2b91a35a21af3b03313bed188eccbcde4972483ac60a", size = 3601117, upload-time = "2025-11-21T22:31:01.218Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/ef/df7fa8a47ef47d08af8a792343811a98bc7ab48f763560fc1d5acc1f28af/psycopg_binary-3.2.13-cp311-cp311-win_amd64.whl", hash = "sha256:6a50db4661fae78779d3cc38a0a68cabc997ca9d485ec27443b109ef8ac1672a", size = 2912873, upload-time = "2025-11-21T22:31:05.473Z" },
+]
+
+[[package]]
+name = "psycopg-pool"
+version = "3.2.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b7/20/10064379ed363b7a2a6da3aca986a668c792a8145d7344854ab14c7d7292/psycopg_pool-3.2.8.tar.gz", hash = "sha256:854e17c2a637c3b9f8d8b24faad57d4cf850baf3fc03ca56ef7e5b4998e391b9", size = 29956, upload-time = "2025-11-21T22:34:35.453Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/5f/947b4b4e51d67c4c9e97626c815caa9b241a62fd66ddd0d00a4a572013f5/psycopg_pool-3.2.8-py3-none-any.whl", hash = "sha256:5474137f3a58e697e0141d0311e70ec067fc4466031496d7f9ef3e2c28a1dc09", size = 38507, upload-time = "2025-11-21T22:34:31Z" },
+]
+
+[[package]]
 name = "pyasn1"
 version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1831,6 +1899,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f8/b1/0c11f5058406b3af7609f121aaa6b609744687f1d158b3c3a5bf4cc94238/typing_inspection-0.4.1.tar.gz", hash = "sha256:6ae134cc0203c33377d43188d4064e9b357dba58cff3185f22924610e70a9d28", size = 75726, upload-time = "2025-05-21T18:55:23.885Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/17/69/cd203477f944c353c31bade965f880aa1061fd6bf05ded0726ca845b6ff7/typing_inspection-0.4.1-py3-none-any.whl", hash = "sha256:389055682238f53b04f7badcb49b989835495a96700ced5dab2d8feae4b26f51", size = 14552, upload-time = "2025-05-21T18:55:22.152Z" },
+]
+
+[[package]]
+name = "tzdata"
+version = "2025.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/32/1a225d6164441be760d75c2c42e2780dc0873fe382da3e98a2e1e48361e5/tzdata-2025.2.tar.gz", hash = "sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9", size = 196380, upload-time = "2025-03-23T13:54:43.652Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl", hash = "sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8", size = 347839, upload-time = "2025-03-23T13:54:41.845Z" },
 ]
 
 [[package]]

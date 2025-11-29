@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 # Azure Application Insights imports
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -25,9 +26,10 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from chatbot.agent import ChatbotAgent
-from chatbot.database.repositories import AgentRepository, UserRepository
+from chatbot.database.repositories import UserRepository
 from chatbot.models import (
     ChatCompletionRequest,
     ChatCompletionStreamResponse,
@@ -35,7 +37,7 @@ from chatbot.models import (
     ChatCompletionStreamResponseChoiceDelta,
 )
 from chatbot.utils.auth import verify_api_key
-from chatbot.utils.config import check_environment_variables, create_logger
+from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
@@ -46,6 +48,8 @@ from chatbot.utils.transcript import DiaryTranscription
 load_dotenv()
 
 logger = create_logger(__name__)
+# FastAPI アプリケーションのイベントループ（AsyncPostgresSaver と共有する）
+event_loop = None
 # 環境変数のチェック
 is_valid, missing_vars = check_environment_variables()
 if not is_valid:
@@ -53,12 +57,26 @@ if not is_valid:
     logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI アプリのライフサイクルで AsyncPostgresSaver を管理する"""
+    global event_loop
+    event_loop = asyncio.get_running_loop()
+    conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
+    async with AsyncPostgresSaver.from_conn_string(conn_string) as checkpointer:
+        await checkpointer.setup()
+        app.state.checkpointer = checkpointer
+        yield
+
+
 # アプリの設定
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
 app = FastAPI(
     title="LINEBOT-AI-AGENT",
     description="LINEBOT-AI-AGENT by FastAPI.",
+    lifespan=lifespan,
 )
 
 # Azure Application Insightsの初期化
@@ -196,7 +214,6 @@ def register_drive_folder_if_provided(
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messenger = LineMessenger(event)
-    cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
     if register_drive_folder_if_provided(userid, event.message.text, line_messenger, user_repository):
@@ -212,31 +229,23 @@ async def handle_text_async(event):
         reply_with_drive_folder_id_request(line_messenger)
         return
 
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
 
-    # CosmosDBから直近の会話履歴を取得
-    session = cosmos.fetch_messages()
-    messages = session.full_contents
-    messages.append({"type": "human", "content": event.message.text})
-
-    logger.info("Fetched recent chat history.")
+    session = user_repository.ensure_session(userid)
+    messages = [{"type": "human", "content": event.message.text}]
 
     try:
         # LLMでレスポンスメッセージを作成
-        response = await agent.ainvoke(messages=messages, userid=userid)
+        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
         content = response["messages"][-1].content
         logger.info(f"Generated text response: {content}")
 
         # メッセージを返信
         reply_messages = [TextMessage(text=content)]
         line_messenger.reply_message(reply_messages)
-
-        # 会話履歴を保存
-        add_messages = [{"type": "human", "content": event.message.text}, {"type": "ai", "content": content}]
-        cosmos.add_messages(userid, add_messages)
 
     except Exception as e:
         # メッセージを返信
@@ -250,13 +259,15 @@ async def handle_text_async(event):
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text(event):
-    asyncio.run(handle_text_async(event))
+    if event_loop is None:
+        logger.error("Event loop is not initialized. Cannot handle text message.")
+        return
+    asyncio.run_coroutine_threadsafe(handle_text_async(event), event_loop)
 
 
 async def handle_audio_async(event):
     logger.info(f"Start handling audio message: {event.message.id}")
     line_messenger = LineMessenger(event)
-    cosmos = AgentRepository()
     user_repository = UserRepository()
     userid = event.source.user_id
     credentials = get_user_credentials(userid, user_repository)
@@ -270,8 +281,9 @@ async def handle_audio_async(event):
         return
 
     drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
+    session = user_repository.ensure_session(userid)
     messages = []
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
@@ -294,7 +306,7 @@ async def handle_audio_async(event):
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
         # キャラクターのコメントを追加（非同期化）
-        response = await agent.ainvoke(messages=messages, userid=userid)
+        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
         reaction = response["messages"][-1].content
         logger.info(f"Generated character response: {reaction}")
 
@@ -311,9 +323,6 @@ async def handle_audio_async(event):
 
         # メッセージを保存
         messages.append({"type": "ai", "content": reaction})
-        add_messages = messages
-        cosmos.add_messages(userid, add_messages)
-
         try:
             if saved_filename:
                 digest = generate_diary_digest(diary_content)
@@ -335,7 +344,10 @@ async def handle_audio_async(event):
 
 @handler.add(MessageEvent, message=AudioMessageContent)
 def handle_audio(event):
-    asyncio.run(handle_audio_async(event))
+    if event_loop is None:
+        logger.error("Event loop is not initialized. Cannot handle audio message.")
+        return
+    asyncio.run_coroutine_threadsafe(handle_audio_async(event), event_loop)
 
 
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
@@ -364,20 +376,14 @@ async def create_chat_completion(
     api_key: str = Depends(get_api_key),
 ):
     """OpenAI互換のチャット補完APIエンドポイント"""
-
-    # CosmosDBから直近の会話履歴を取得
-    cosmos = AgentRepository()
-    session = cosmos.fetch_messages()
-    db_history = session.full_contents.copy() if session.full_contents else []
+    user_repository = UserRepository()
+    userid = "openai-compatible-api-user"
+    session = user_repository.ensure_session(userid)
 
     # request.messagesをdict形式に変換
-    req_msgs = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
+    messages = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
 
-    # 履歴に新規分をappend
-    messages = db_history + req_msgs
-
-    userid = "openai-compatible-api-user"
-    agent = ChatbotAgent()
+    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     async def generate_stream():
         stream_id = f"chatcmpl-{str(uuid.uuid4())}"
@@ -398,7 +404,7 @@ async def create_chat_completion(
 
         ai_response_content = ""
         try:
-            async for msg, metadata in agent.astream(messages=messages, userid=userid):
+            async for msg, metadata in agent.astream(messages=messages, userid=userid, session_id=session.session_id):
                 if msg.content and metadata["langgraph_node"] == "chatbot":
                     ai_response_content += msg.content[0]["text"]
                     chunk_response = ChatCompletionStreamResponse(
@@ -431,13 +437,6 @@ async def create_chat_completion(
             logger.error(f"Error during streaming: {e}")
             yield f"data: [ERROR] {str(e)}\n\n"
             yield "data: [DONE]\n\n"
-
-        # 新規分+AIレスポンスだけを保存
-        save_msgs = req_msgs.copy()
-        if ai_response_content:
-            save_msgs.append({"type": "ai", "content": ai_response_content})
-        if save_msgs:
-            cosmos.add_messages(userid, save_msgs)
 
     return StreamingResponse(
         generate_stream(),

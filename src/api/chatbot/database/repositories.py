@@ -3,16 +3,18 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 import pytz
-from langchain_core.messages import BaseMessage, messages_to_dict
 
 from chatbot.utils.crypto import decrypt_dict, encrypt_dict
 
 from .core import CosmosCore
 from .interfaces import BaseRepository
-from .models import AgentSession
+from .models import SessionMetadata
 
 
 class UserRepository(BaseRepository):
+    SESSION_TTL = timedelta(hours=1)
+    TIMEZONE = pytz.timezone("Asia/Tokyo")
+
     def __init__(self):
         self._core = CosmosCore("users")
 
@@ -50,6 +52,27 @@ class UserRepository(BaseRepository):
     def ensure_user(self, userid: str) -> None:
         if not self.fetch_user(userid):
             self._upsert_user(userid, {})
+
+    def ensure_session(self, userid: str) -> SessionMetadata:
+        now = datetime.now(self.TIMEZONE)
+        existing = self._sanitize_item(self.fetch_user(userid))
+        last_accessed_raw = existing.get("last_accessed")
+        last_accessed = datetime.fromisoformat(last_accessed_raw) if last_accessed_raw else None
+        has_valid_session = bool(last_accessed and (now - last_accessed) <= self.SESSION_TTL)
+
+        session_id = existing.get("session_id") if has_valid_session else None
+        if not session_id:
+            session_id = uuid.uuid4().hex
+
+        metadata = SessionMetadata(session_id=session_id, last_accessed=now)
+        self._upsert_user(
+            userid,
+            {
+                "session_id": metadata.session_id,
+                "last_accessed": metadata.last_accessed.isoformat(),
+            },
+        )
+        return metadata
 
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
         encrypted = encrypt_dict(tokens)
@@ -95,56 +118,3 @@ class UserRepository(BaseRepository):
 
         record = result[0]
         return str(record.get("drive_folder_id", ""))
-
-
-class AgentRepository(BaseRepository):
-    def __init__(self):
-        self._core = CosmosCore("chat")
-        self.sessionid = None
-        self.history = []
-        self.filtered_history = []
-
-    def save(self, data: Dict[str, Any]) -> None:
-        self._core.save(data)
-
-    def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._core.fetch(query, parameters)
-
-    def save_messages(self, userid: str, messages: BaseMessage) -> None:
-        messages_dict = messages_to_dict(messages)
-        history = [message["data"] for message in messages_dict]
-        self.save_list(userid, history)
-
-    def save_list(self, userid: str, messages: list) -> None:
-        data = {"id": self.sessionid, "userid": userid, "messages": messages}
-        self.save(data)
-
-    def add_messages(self, userid: str, add_messages: list) -> None:
-        if self.sessionid is None:
-            self.fetch_messages()
-        messages = self.history
-        messages.extend(add_messages)
-        self.save_list(userid, messages)
-
-    def fetch_messages(self, limit=1) -> AgentSession:
-        query = "SELECT * FROM c ORDER BY c.date DESC OFFSET 0 LIMIT @limit"
-        items = self.fetch(query=query, parameters=[{"name": "@limit", "value": limit}])
-
-        now = datetime.now(pytz.timezone("Asia/Tokyo"))
-        recent_items = [item for item in items if datetime.fromisoformat(item["date"]) > now - timedelta(hours=1)]
-
-        if not recent_items:
-            sessionid = uuid.uuid4().hex
-            messages = []
-            userid = ""  # デフォルト値または適切な値を設定
-        else:
-            sessionid = recent_items[0]["id"]
-            messages = recent_items[0].get("messages", [])
-            userid = recent_items[0].get("userid", "")
-
-        self.sessionid = sessionid
-        self.history = messages
-
-        return AgentSession(
-            id=sessionid, date=now, userid=userid, messages=messages, full_contents=messages, filtered_contents=[]
-        )

@@ -1,10 +1,11 @@
 import os
-from typing import List, Dict, Any
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List
+
+import pytz
 from azure.cosmos import CosmosClient, PartitionKey
 from fastapi import HTTPException
-from datetime import datetime
-import pytz
-import uuid
 
 
 class CosmosCore:

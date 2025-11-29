@@ -1,7 +1,8 @@
 import os
 
-from chatbot.utils.config import create_logger
 from dotenv import load_dotenv
+
+from chatbot.utils.config import create_logger
 
 load_dotenv()
 
