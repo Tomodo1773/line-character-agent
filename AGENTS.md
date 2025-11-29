@@ -31,6 +31,10 @@
 - MCP: `cd src/mcp && uv sync && uv run pytest`
 - 共通: 各サービスで `uv sync`。環境変数は各 `.env.sample` を参照。
 
+### Python 実行時の注意
+
+常に `uv run` を前置する。例: `uv run pytest` / `uv run python scripts/foo.py`。避ける: `python -m pytest`。理由: ロックに基づく一時環境で依存差異を吸収し再現性を確保するため。
+
 ## コーディング規約と命名
 
 - Python 3.11、インデント4スペース、行長127（ruff 設定)。
