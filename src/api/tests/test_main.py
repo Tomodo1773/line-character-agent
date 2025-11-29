@@ -53,9 +53,7 @@ def test_chatbot_agent_response():
         agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         messages = [{"type": "human", "content": "こんにちは"}]
 
-        response = asyncio.run(
-            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID)
-        )
+        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID))
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -77,9 +75,7 @@ def test_chatbot_agent_web_search_response():
             }
         ]
 
-        response = asyncio.run(
-            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID)
-        )
+        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID))
 
     assert "messages" in response
     assert "yes" in response["messages"][-1].content.lower()
@@ -134,11 +130,7 @@ def test_spotify_agent_mcp_fallback():
                 # B'zの曲検索をリクエスト
                 messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
-                response = asyncio.run(
-                    agent_graph.ainvoke(
-                        messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID
-                    )
-                )
+                response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID))
 
                 # レスポンスの検証
                 assert "messages" in response

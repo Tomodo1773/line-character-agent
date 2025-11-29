@@ -414,7 +414,6 @@ async def create_chat_completion(
             yield f"data: [ERROR] {str(e)}\n\n"
             yield "data: [DONE]\n\n"
 
-
     return StreamingResponse(
         generate_stream(),
         media_type="text/event-stream",

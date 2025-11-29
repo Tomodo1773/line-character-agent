@@ -57,9 +57,7 @@ class UserRepository(BaseRepository):
         now = datetime.now(self.TIMEZONE)
         existing = self._sanitize_item(self.fetch_user(userid))
         last_accessed_raw = existing.get("last_accessed")
-        last_accessed = (
-            datetime.fromisoformat(last_accessed_raw) if last_accessed_raw else None
-        )
+        last_accessed = datetime.fromisoformat(last_accessed_raw) if last_accessed_raw else None
         has_valid_session = bool(last_accessed and (now - last_accessed) <= self.SESSION_TTL)
 
         session_id = existing.get("session_id") if has_valid_session else None

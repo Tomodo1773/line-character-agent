@@ -117,11 +117,7 @@ class DiaryTranscription:
         file_path = self._save_audio(audio_file)
         with open(file_path, "rb") as f:
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            transcript = client.audio.transcriptions.create(
-                model="gpt-4o-transcribe",
-                file=f,
-                response_format="text"
-            )
+            transcript = client.audio.transcriptions.create(model="gpt-4o-transcribe", file=f, response_format="text")
         return {"transcribed_text": transcript}
 
     def _save_audio(self, audio_file: bytes) -> str:
