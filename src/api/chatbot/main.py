@@ -414,7 +414,6 @@ async def create_chat_completion(
             yield f"data: [ERROR] {str(e)}\n\n"
             yield "data: [DONE]\n\n"
 
-        # 新規分+AIレスポンスだけを保存
 
     return StreamingResponse(
         generate_stream(),
