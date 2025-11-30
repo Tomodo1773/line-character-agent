@@ -8,6 +8,7 @@
 			"module": "fastapi",
 			"args": [
 				"dev",
+				"--entrypoint",
 				"chatbot.main:app",
 				"--host",
 				"0.0.0.0",
