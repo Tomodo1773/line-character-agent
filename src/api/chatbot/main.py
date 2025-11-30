@@ -72,11 +72,16 @@ async def lifespan(app: FastAPI):
     conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
 
     # 接続プールを初期化
-    # 個人利用前提のため、min_size=1、max_size=3 で小規模に保つ
+    # 個人利用かつトラフィックが少ない前提のため max_size は 3 に抑える。
+    # Azure App Service / Neon Postgres では長時間アイドルした接続がサーバ側で切断されやすく、
+    # 切断済みのコネクションを再利用しようとすると「長時間放置後の最初の1リクエストだけ SSL 接続エラー」
+    # が発生することがある。そのため、min_size=0 / max_idle=60 としてアイドル接続を積極的にクローズし、
+    # アイドル後のリクエストでは新規接続が張られやすくなるようにしている。
     pool = AsyncConnectionPool(
         conninfo=conn_string,
-        min_size=1,
+        min_size=0,
         max_size=3,
+        max_idle=60,
         open=False,
     )
 
