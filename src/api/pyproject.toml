@@ -6,7 +6,7 @@ authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = "~=3.11.0"
 readme = "README.md"
 dependencies = [
-    "fastapi>=0.110.1,<0.111",
+    "fastapi[standard]>=0.122.0,<0.123",
     "uvicorn>=0.29.0,<0.30",
     "line-bot-sdk>=3.11.0,<4",
     "python-dotenv>=1.0.1,<2",

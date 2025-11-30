@@ -16,7 +16,7 @@
 
 - **依存関係インストール**: `cd src/api && uv sync`
 - **パッケージ追加**: `cd src/api && uv add <パッケージ名>`
-- **ローカル実行**: `cd src/api && uv run fastapi run chatbot.main:app --host 0.0.0.0 --port 3100 --reload`
+- **ローカル実行**: `cd src/api && uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 3100`
 - **テスト実行**: `cd src/api && uv run pytest`
 - **Lintチェック**: `cd src/api && uv run ruff check`
 - **コード整形**: `cd src/api && uv run ruff format`
