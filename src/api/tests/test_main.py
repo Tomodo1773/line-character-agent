@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -11,7 +12,11 @@ from chatbot.main import app, create_google_drive_auth_flex_message
 
 client = TestClient(app)
 TEST_USER_ID = "test-user"
-TEST_SESSION_ID = "test-session"
+
+
+def generate_test_session_id() -> str:
+    """テストごとにユニークなセッションIDを生成する"""
+    return uuid.uuid4().hex
 
 
 def test_read_root():
@@ -53,7 +58,9 @@ def test_chatbot_agent_response():
         agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         messages = [{"type": "human", "content": "こんにちは"}]
 
-        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID))
+        response = asyncio.run(
+            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+        )
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -75,7 +82,9 @@ def test_chatbot_agent_web_search_response():
             }
         ]
 
-        response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID))
+        response = asyncio.run(
+            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+        )
 
     assert "messages" in response
     assert "yes" in response["messages"][-1].content.lower()
@@ -130,7 +139,9 @@ def test_spotify_agent_mcp_fallback():
                 # B'zの曲検索をリクエスト
                 messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
-                response = asyncio.run(agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=TEST_SESSION_ID))
+                response = asyncio.run(
+                    agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+                )
 
                 # レスポンスの検証
                 assert "messages" in response
