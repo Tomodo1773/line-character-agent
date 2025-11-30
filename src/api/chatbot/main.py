@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -26,7 +27,8 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg import OperationalError as PsycopgOperationalError
+from psycopg_pool import AsyncConnectionPool
 
 from chatbot.agent import ChatbotAgent
 from chatbot.database.repositories import UserRepository
@@ -60,14 +62,46 @@ if not is_valid:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI アプリのライフサイクルで AsyncPostgresSaver を管理する"""
+    """FastAPI アプリのライフサイクルで AsyncPostgresSaver を管理する
+
+    AsyncConnectionPool を使用して、長時間アイドル後の接続タイムアウトエラーを防ぐ。
+    プールが接続の再確立を自動的に行うため、PaaS 環境でも安定して動作する。
+    """
     global event_loop
     event_loop = asyncio.get_running_loop()
     conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
-    async with AsyncPostgresSaver.from_conn_string(conn_string) as checkpointer:
+
+    # 接続プールを初期化
+    # 個人利用前提のため、min_size=1、max_size=3 で小規模に保つ
+    pool = AsyncConnectionPool(
+        conninfo=conn_string,
+        min_size=1,
+        max_size=3,
+        open=False,
+    )
+
+    try:
+        # プールを開く
+        await pool.open()
+        logger.info("PostgreSQL connection pool opened successfully")
+
+        # プールを使って AsyncPostgresSaver を初期化
+        checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
+        logger.info("AsyncPostgresSaver initialized with connection pool")
+
         app.state.checkpointer = checkpointer
+        app.state.pool = pool
+
         yield
+
+    except Exception as e:
+        logger.error(f"Failed to initialize PostgreSQL connection pool: {e}")
+        raise
+    finally:
+        # アプリシャットダウン時にプールをクローズ
+        await pool.close()
+        logger.info("PostgreSQL connection pool closed")
 
 
 # アプリの設定
@@ -247,6 +281,12 @@ async def handle_text_async(event):
         reply_messages = [TextMessage(text=content)]
         line_messenger.reply_message(reply_messages)
 
+    except PsycopgOperationalError as e:
+        # PostgreSQL接続エラー（タイムアウト等）の場合
+        logger.error(f"PostgreSQL connection error: {e}")
+        error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
+        line_messenger.reply_message([TextMessage(text=error_message)])
+
     except Exception as e:
         # メッセージを返信
         if hasattr(e, "status_code") and hasattr(e, "detail"):
@@ -334,6 +374,12 @@ async def handle_audio_async(event):
                         logger.error("Failed to save digest")
         except Exception as e:
             logger.error(f"Error occurred during digest processing: {e}")
+
+    except PsycopgOperationalError as e:
+        # PostgreSQL接続エラー（タイムアウト等）の場合
+        logger.error(f"PostgreSQL connection error during audio processing: {e}")
+        error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
+        line_messenger.reply_message([TextMessage(text=error_message)])
 
     except Exception as e:
         # メッセージを返信
