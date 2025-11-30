@@ -25,7 +25,7 @@
 
 ## ビルド・テスト・開発コマンド
 
-- API: `cd src/api && uv sync && uvicorn chatbot.main:app --reload`
+- API: `cd src/api && uv sync && uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 3100`
 - API テスト/静的解析: `uv run pytest`、`uv run ruff check`、`uv run ruff format`
 - Func: `cd src/func && uv sync`（実行は Azure Functions Core Tools を使用）
 - MCP: `cd src/mcp && uv sync && uv run pytest`

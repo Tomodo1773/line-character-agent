@@ -6,13 +6,12 @@ authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = "~=3.11.0"
 readme = "README.md"
 dependencies = [
-    "fastapi>=0.110.1,<0.111",
+    "fastapi[standard]>=0.122.0,<0.123",
     "uvicorn>=0.29.0,<0.30",
     "line-bot-sdk>=3.11.0,<4",
     "python-dotenv>=1.0.1,<2",
     "azure-cosmos>=4.6.0,<5",
     "pytz~=2025.2",
-    "gunicorn>=22.0.0,<23",
     "azure-monitor-opentelemetry>=1.0.0,<2",
     "opentelemetry-instrumentation-fastapi>=0.40b0,<1",
     "langchain>=1.0,<2",

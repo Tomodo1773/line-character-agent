@@ -2,7 +2,8 @@ param name string
 param location string = resourceGroup().location
 param tags object = {}
 
-param appCommandLine string = 'python -m gunicorn --workers 1 --timeout 120 --access-logfile "-" --error-logfile "-" --bind=0.0.0.0:8000 -k uvicorn.workers.UvicornWorker chatbot.main:app'
+// FastAPI CLI は PATH ではなく --entrypoint でモジュール指定する
+param appCommandLine string = 'python -m fastapi run --entrypoint chatbot.main:app --host 0.0.0.0 --port 8000 --proxy-headers'
 param appServicePlanId string
 @secure()
 param appSettings object = {}
