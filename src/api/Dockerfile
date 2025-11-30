@@ -15,4 +15,4 @@ RUN uv sync --frozen --no-dev
 
 COPY ./chatbot /src/chatbot
 
-CMD ["uv", "run", "uvicorn", "chatbot.main:app", "--host", "0.0.0.0", "--port", "3100", "--reload"]
+CMD ["uv", "run", "fastapi", "dev", "--entrypoint", "chatbot.main:app", "--host", "0.0.0.0", "--port", "3100"]
