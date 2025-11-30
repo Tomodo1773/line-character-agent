@@ -1,5 +1,6 @@
 import os
 import sys
+import uuid
 from typing import Annotated, Literal
 
 from langchain.agents import create_agent
@@ -390,7 +391,7 @@ if __name__ == "__main__":
     agent_graph = ChatbotAgent(checkpointer=MemorySaver())
 
     userid = "local-user"
-    session_id = "local-session"
+    session_id = uuid.uuid4().hex
 
     agent_graph.create_image()
     history = []
