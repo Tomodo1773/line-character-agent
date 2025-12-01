@@ -130,28 +130,28 @@ def test_spotify_agent_mcp_fallback():
     import chatbot.agent
 
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
-        # get_mcp_toolsを空のリストを返すようにモック
-        with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
-            mock_get_mcp_tools.return_value = []
+        # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
+        with patch("chatbot.agent.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
+            # get_mcp_toolsを空のリストを返すようにモック
+            with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+                mock_get_mcp_tools.return_value = []
 
-            # routerをモックしてspotify_agentに直接ルーティング
-            with patch.object(chatbot.agent, "router_node") as mock_router:
-                from langgraph.types import Command
+                # routerをモックしてspotify_agentに直接ルーティング
+                with patch.object(chatbot.agent, "router_node") as mock_router:
+                    mock_router.return_value = Command(goto="spotify_agent")
 
-                mock_router.return_value = Command(goto="spotify_agent")
+                    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+                    # B'zの曲検索をリクエスト
+                    messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
-                agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-                # B'zの曲検索をリクエスト
-                messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
+                    response = asyncio.run(
+                        agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+                    )
 
-                response = asyncio.run(
-                    agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-                )
-
-                # レスポンスの検証
-                assert "messages" in response
-                last_message = response["messages"][-1].content
-                assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
+                    # レスポンスの検証
+                    assert "messages" in response
+                    last_message = response["messages"][-1].content
+                    assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
 
 
 def test_spotify_agent():
