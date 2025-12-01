@@ -130,7 +130,9 @@ async def google_drive_oauth_callback(code: str, state: str):
             "message": "セッション情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"
         }
 
-    userid = user_data.get("userid") or session_id
+    userid = user_data.get("userid")
+    if not userid:
+        raise HTTPException(status_code=400, detail="User ID not found for the given session. OAuth flow must be initiated properly.")
 
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     line_messenger = LineMessenger(user_id=userid)
