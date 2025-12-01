@@ -269,11 +269,9 @@ async def handle_audio_async(event):
     if not credentials:
         oauth_manager = GoogleDriveOAuthManager(user_repository)
         auth_url, _ = oauth_manager.generate_authorization_url(session_id)
-        auth_message = """
-Google Drive へのアクセス許可がまだ設定されていないみたい。
+        auth_message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
-{auth_url}
-""".strip().format(auth_url=auth_url)
+{auth_url}""".format(auth_url=auth_url)
         line_messenger.reply_message([TextMessage(text=auth_message)])
         return
 
