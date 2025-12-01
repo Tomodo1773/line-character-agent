@@ -10,25 +10,6 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-REQUIRED_ENV_VARS = [
-    "LINE_CHANNEL_ACCESS_TOKEN",
-    "LINE_CHANNEL_SECRET",
-    "LANGSMITH_API_KEY",
-    "COSMOS_DB_ACCOUNT_URL",
-    "COSMOS_DB_ACCOUNT_KEY",
-    "OPENAI_COMPATIBLE_API_KEY",
-    "MCP_FUNCTION_URL",
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_OAUTH_REDIRECT_URI",
-    "GOOGLE_TOKEN_ENC_KEY",
-    "POSTGRES_CHECKPOINT_URL",
-]
-
-for key in REQUIRED_ENV_VARS:
-    os.environ.setdefault(key, "test-value")
-os.environ.setdefault("OPENAI_API_KEY", "test-value")
-
 from chatbot.agent import ChatbotAgent, ensure_google_settings_node
 from chatbot.main import app
 
@@ -45,7 +26,7 @@ def require_openai_api_key() -> None:
     """OpenAI API キーが未設定の場合はテストをスキップする"""
 
     api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key == "test-value":
+    if not api_key:
         pytest.skip("OPENAI_API_KEY が設定されていないためスキップします")
 
 
