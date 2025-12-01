@@ -184,12 +184,21 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
 
 
 def _extract_interrupt_message(interrupts) -> str:
-    for interrupt_item in interrupts:
-        value = getattr(interrupt_item, "value", None)
-        if isinstance(value, dict) and value.get("message"):
-            return str(value["message"])
-        if isinstance(value, str):
-            return value
+    """
+    interrupt payload は `ensure_google_settings_node` が投入する
+    `{type: missing_drive_folder_id, message: ...}` を想定する。
+    """
+    if not interrupts:
+        return "入力が必要みたい。フォルダのURLかIDを送ってね。"
+
+    value = getattr(interrupts[0], "value", None)
+    if isinstance(value, dict):
+        message = value.get("message")
+        if isinstance(message, str):
+            return message
+
+    if isinstance(value, str):
+        return value
 
     return "入力が必要みたい。フォルダのURLかIDを送ってね。"
 
