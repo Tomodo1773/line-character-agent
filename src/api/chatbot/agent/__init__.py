@@ -213,15 +213,14 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
         extracted_id = extract_drive_folder_id(str(user_input))
 
     if not extracted_id:
-        retry_payload = {
-            "type": "invalid_drive_folder_id",
-            "message": "フォルダIDをうまく読み取れなかったみたい。フォルダのURLかIDだけを送ってね。",
-        }
-        user_input = interrupt(retry_payload)
-        extracted_id = extract_drive_folder_id(str(user_input))
-
-    if not extracted_id:
-        raise ValueError("Valid Google Drive folder ID is required to continue the flow.")
+        failure_message = (
+            "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、"
+            "もう一度メッセージを送ってね。"
+        )
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=failure_message)]},
+        )
 
     user_repository.save_drive_folder_id(userid, extracted_id)
     confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
