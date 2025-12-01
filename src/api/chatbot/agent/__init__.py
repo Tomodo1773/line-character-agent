@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.types import Command
+from langgraph.types import Command, interrupt
 from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
@@ -204,16 +204,31 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
     latest_user_input = _extract_latest_user_content(state["messages"])
     extracted_id = extract_drive_folder_id(latest_user_input)
 
-    if extracted_id:
-        user_repository.save_drive_folder_id(userid, extracted_id)
-        confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
-        return Command(
-            goto="get_user_profile",
-            update={"messages": [AIMessage(content=confirmation)]},
-        )
+    if not extracted_id:
+        interrupt_payload = {
+            "type": "missing_drive_folder_id",
+            "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
+        }
+        user_input = interrupt(interrupt_payload)
+        extracted_id = extract_drive_folder_id(str(user_input))
 
-    prompt = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
-    return Command(goto="__end__", update={"messages": [AIMessage(content=prompt)]})
+    if not extracted_id:
+        retry_payload = {
+            "type": "invalid_drive_folder_id",
+            "message": "フォルダIDをうまく読み取れなかったみたい。フォルダのURLかIDだけを送ってね。",
+        }
+        user_input = interrupt(retry_payload)
+        extracted_id = extract_drive_folder_id(str(user_input))
+
+    if not extracted_id:
+        raise ValueError("Valid Google Drive folder ID is required to continue the flow.")
+
+    user_repository.save_drive_folder_id(userid, extracted_id)
+    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
+    return Command(
+        goto="get_user_profile",
+        update={"messages": [AIMessage(content=confirmation)]},
+    )
 
 
 @traceable(run_type="tool", name="Get User Profile")
@@ -396,7 +411,6 @@ class ChatbotAgent:
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
-        graph_builder.add_edge("ensure_google_settings", "get_user_profile")
         self.checkpointer = checkpointer
         self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
@@ -410,6 +424,9 @@ class ChatbotAgent:
         return await self.graph.ainvoke(
             {"messages": messages, "userid": userid, "session_id": session_id}, self._config(session_id)
         )
+
+    async def aresume(self, session_id: str, resume_value: str):
+        return await self.graph.ainvoke(Command(resume=resume_value), self._config(session_id))
 
     async def astream(self, messages: list, userid: str, session_id: str):
         async for msg, metadata in self.graph.astream(
@@ -427,6 +444,13 @@ class ChatbotAgent:
             stream_mode="updates",
         ):
             yield msg
+
+    def has_pending_interrupt(self, session_id: str) -> bool:
+        if not self.checkpointer:
+            return False
+
+        state = self.graph.get_state(self._config(session_id))
+        return bool(getattr(state, "interrupts", None))
 
     def create_image(self):
         # imagesフォルダがなければ作成

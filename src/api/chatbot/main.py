@@ -183,6 +183,17 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
     return oauth_manager.get_user_credentials(userid)
 
 
+def _extract_interrupt_message(interrupts) -> str:
+    for interrupt_item in interrupts:
+        value = getattr(interrupt_item, "value", None)
+        if isinstance(value, dict) and value.get("message"):
+            return str(value["message"])
+        if isinstance(value, str):
+            return value
+
+    return "入力が必要みたい。フォルダのURLかIDを送ってね。"
+
+
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messenger = LineMessenger(event)
@@ -194,15 +205,21 @@ async def handle_text_async(event):
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
 
-    messages = [{"type": "human", "content": event.message.text}]
-
     try:
-        # LLMでレスポンスメッセージを作成
-        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
+        messages = [{"type": "human", "content": event.message.text}]
+        if agent.has_pending_interrupt(session.session_id):
+            response = await agent.aresume(session.session_id, event.message.text)
+        else:
+            response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
+
+        if response.get("__interrupt__"):
+            prompt = _extract_interrupt_message(response["__interrupt__"])
+            line_messenger.reply_message([TextMessage(text=prompt)])
+            return
+
         content = response["messages"][-1].content
         logger.info(f"Generated text response: {content}")
 
-        # メッセージを返信
         reply_messages = [TextMessage(text=content)]
         line_messenger.reply_message(reply_messages)
 
@@ -384,21 +401,41 @@ async def create_chat_completion(
 
         ai_response_content = ""
         try:
-            async for msg, metadata in agent.astream(messages=messages, userid=userid, session_id=session.session_id):
-                if msg.content and metadata["langgraph_node"] == "chatbot":
-                    ai_response_content += msg.content[0]["text"]
-                    chunk_response = ChatCompletionStreamResponse(
-                        id=stream_id,
-                        created=created,
-                        choices=[
-                            ChatCompletionStreamResponseChoice(
-                                index=0,
-                                delta=ChatCompletionStreamResponseChoiceDelta(content=msg.content[0]["text"]),
-                                finish_reason=None,
-                            )
-                        ],
-                    )
-                    yield f"data: {chunk_response.model_dump_json()}\n\n"
+            if agent.has_pending_interrupt(session.session_id):
+                response = await agent.aresume(session.session_id, messages[-1]["content"])
+            else:
+                response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
+
+            if response.get("__interrupt__"):
+                prompt = _extract_interrupt_message(response["__interrupt__"])
+                ai_response_content = prompt
+                chunk_response = ChatCompletionStreamResponse(
+                    id=stream_id,
+                    created=created,
+                    choices=[
+                        ChatCompletionStreamResponseChoice(
+                            index=0,
+                            delta=ChatCompletionStreamResponseChoiceDelta(content=prompt),
+                            finish_reason=None,
+                        )
+                    ],
+                )
+                yield f"data: {chunk_response.model_dump_json()}\n\n"
+            else:
+                content = response["messages"][-1].content
+                ai_response_content = content
+                chunk_response = ChatCompletionStreamResponse(
+                    id=stream_id,
+                    created=created,
+                    choices=[
+                        ChatCompletionStreamResponseChoice(
+                            index=0,
+                            delta=ChatCompletionStreamResponseChoiceDelta(content=content),
+                            finish_reason=None,
+                        )
+                    ],
+                )
+                yield f"data: {chunk_response.model_dump_json()}\n\n"
 
             end_response = ChatCompletionStreamResponse(
                 id=stream_id,
