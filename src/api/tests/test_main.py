@@ -3,11 +3,14 @@ import uuid
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
-from linebot.v3.messaging import ApiClient, Configuration, ReplyMessageRequest
+from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
+from linebot.v3.messaging import ApiClient, Configuration, ReplyMessageRequest
 
-from chatbot.agent import ChatbotAgent
+from chatbot.agent import ChatbotAgent, ensure_google_settings_node
 from chatbot.main import app, create_google_drive_auth_flex_message
 
 client = TestClient(app)
@@ -55,7 +58,9 @@ def test_chatbot_agent_response():
     - レスポンスのmessages内、最新のcontentが空でないことを確認
     """
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
-        agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+        # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
+        with patch("chatbot.agent.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
+            agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         messages = [{"type": "human", "content": "こんにちは"}]
 
         response = asyncio.run(
@@ -73,7 +78,9 @@ def test_chatbot_agent_web_search_response():
     - レスポンスがYes（大文字・小文字を問わず）を含むことを確認
     """
     with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
-        agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+        # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
+        with patch("chatbot.agent.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
+            agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         yesterday = date.today() - timedelta(days=1)
         messages = [
             {
@@ -206,6 +213,85 @@ def test_spotify_agent():
         assert isinstance(returned_messages[0], AIMessage)
         # 応答が空でないことを確認
         assert len(returned_messages[0].content) > 0
+
+
+def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
+    """OAuth設定がない場合に認可URLを案内するレスポンスになることを検証"""
+
+    class DummyUserRepository:
+        def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
+            return None
+
+        def fetch_drive_folder_id(self, userid: str) -> str:  # pragma: no cover - no-op for test
+            return ""
+
+        def save_drive_folder_id(self, userid: str, folder_id: str) -> None:  # pragma: no cover
+            return None
+
+    dummy_manager = type(
+        "DummyManager",
+        (),
+        {
+            "get_user_credentials": lambda self, userid: None,
+            "generate_authorization_url": lambda self, state: ("https://example.com/auth", state),
+        },
+    )()
+
+    monkeypatch.setattr("chatbot.agent.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.agent.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+
+    state = {"userid": "user", "session_id": "session", "messages": []}
+
+    result = ensure_google_settings_node(state)
+
+    assert isinstance(result, Command)
+    assert result.goto == "__end__"
+    message = result.update["messages"][0]
+    assert isinstance(message, AIMessage)
+    assert "https://example.com/auth" in message.content
+
+
+def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
+    """フォルダIDが未設定の場合に入力を促し登録するフローを検証"""
+
+    saved_folder_ids: list[str] = []
+
+    class DummyUserRepository:
+        def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
+            return None
+
+        def fetch_drive_folder_id(self, userid: str) -> str:  # pragma: no cover
+            return ""
+
+        def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
+            saved_folder_ids.append(folder_id)
+
+    dummy_manager = type(
+        "DummyManager",
+        (),
+        {
+            "get_user_credentials": lambda self, userid: object(),
+            "generate_authorization_url": lambda self, state: ("https://example.com/auth", state),
+        },
+    )()
+
+    monkeypatch.setattr("chatbot.agent.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.agent.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr(
+        "chatbot.agent.interrupt",
+        lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
+    )
+
+    state = {"userid": "user", "session_id": "session", "messages": []}
+
+    result = ensure_google_settings_node(state)
+
+    assert isinstance(result, Command)
+    assert result.goto == "get_user_profile"
+    message = result.update["messages"][0]
+    assert isinstance(message, AIMessage)
+    assert "フォルダIDを登録" in message.content
+    assert saved_folder_ids == ["test-folder-id"]
 
 
 def test_diary_agent():
