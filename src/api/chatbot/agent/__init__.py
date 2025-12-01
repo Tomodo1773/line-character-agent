@@ -187,8 +187,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
         auth_url, _ = oauth_manager.generate_authorization_url(session_id)
-        message = """
-Google Drive へのアクセス許可がまだ設定されていないみたい。
+        message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
 {auth_url}
 """.strip().format(auth_url=auth_url)
