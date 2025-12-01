@@ -124,9 +124,13 @@ async def google_drive_oauth_callback(code: str, state: str):
     session_id = state
     user_repository = UserRepository()
     user_data = user_repository.fetch_user_by_session_id(session_id)
+    if not user_data:
+        logger.warning("No session found for the provided state; prompting user to restart OAuth.")
+        return {
+            "message": "セッション情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"
+        }
+
     userid = user_data.get("userid") or session_id
-    user_repository.ensure_user(userid)
-    user_repository.touch_session(userid, session_id)
 
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     line_messenger = LineMessenger(user_id=userid)
@@ -149,7 +153,7 @@ async def google_drive_oauth_callback(code: str, state: str):
         logger.error(f"Failed to handle OAuth callback: {e}")
         fallback_message = "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
         line_messenger.push_message([TextMessage(text=fallback_message)])
-        return {"message": "Authorization completed but resume failed.", "detail": str(e)}
+        return {"message": "Authorization completed but resume failed."}
 
 
 @app.post("/callback")
