@@ -41,13 +41,6 @@ def test_read_root():
     assert response.json() == {"message": "The server is up and running."}
 
 
-def test_google_drive_auth_flex_message_serialization():
-    """
-    Google Drive 連携用のFlexメッセージがシリアライズ時にheader/body/footerを保持することを確認
-    """
-    pytest.skip("Google Drive の Flex メッセージ生成は現行実装で使用しないためスキップします")
-
-
 def test_chatbot_agent_response():
     """
     ChatbotAgentのレスポンステスト
