@@ -1,8 +1,8 @@
-import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 import pytz
+import uuid
 
 from chatbot.utils.crypto import decrypt_dict, encrypt_dict
 
@@ -73,6 +73,27 @@ class UserRepository(BaseRepository):
             },
         )
         return metadata
+
+    def touch_session(self, userid: str, session_id: str) -> SessionMetadata:
+        if not session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        now = datetime.now(self.TIMEZONE)
+        metadata = SessionMetadata(session_id=session_id, last_accessed=now)
+        self._upsert_user(
+            userid,
+            {
+                "session_id": metadata.session_id,
+                "last_accessed": metadata.last_accessed.isoformat(),
+            },
+        )
+        return metadata
+
+    def fetch_user_by_session_id(self, session_id: str) -> Dict[str, Any]:
+        query = "SELECT TOP 1 * FROM c WHERE c.session_id = @session_id ORDER BY c.date DESC"
+        parameters = [{"name": "@session_id", "value": session_id}]
+        result = self.fetch(query, parameters)
+        return self._sanitize_item(result[0]) if result else {}
 
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
         encrypted = encrypt_dict(tokens)

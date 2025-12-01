@@ -17,8 +17,11 @@ from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
+from chatbot.database.repositories import UserRepository
 from chatbot.utils import get_japan_datetime, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
+from chatbot.utils.drive_folder import extract_drive_folder_id
+from chatbot.utils.google_auth import GoogleDriveOAuthManager
 
 logger = create_logger(__name__)
 
@@ -43,6 +46,7 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
+    session_id: str
     profile: dict = {}
     digest: dict = {}
 
@@ -155,6 +159,62 @@ def get_user_profile(userid: str) -> dict:
             logger.error("Failed to get digest content, using empty digest")
             _cached["digest"][userid] = ""
     return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
+
+
+def _extract_latest_user_content(messages: list) -> str:
+    """最新のユーザー入力を文字列として取り出す"""
+    if not messages:
+        return ""
+
+    latest_message = messages[-1]
+    if isinstance(latest_message, dict):
+        return str(latest_message.get("content", ""))
+
+    content = getattr(latest_message, "content", "")
+    return content if isinstance(content, str) else str(content)
+
+
+def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
+    """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
+
+    logger.info("--- Ensure Google Settings Node ---")
+    userid = state["userid"]
+    user_repository = UserRepository()
+    user_repository.ensure_user(userid)
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+    session_id = state["session_id"]
+
+    credentials = oauth_manager.get_user_credentials(userid)
+    if not credentials:
+        auth_url, _ = oauth_manager.generate_authorization_url(session_id)
+        message = """
+Google Drive へのアクセス許可がまだ設定されていないみたい。
+以下のURLから認可してね。
+{auth_url}
+""".strip().format(auth_url=auth_url)
+
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=message)]},
+        )
+
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if folder_id:
+        return Command(goto="get_user_profile")
+
+    latest_user_input = _extract_latest_user_content(state["messages"])
+    extracted_id = extract_drive_folder_id(latest_user_input)
+
+    if extracted_id:
+        user_repository.save_drive_folder_id(userid, extracted_id)
+        confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
+        return Command(
+            goto="get_user_profile",
+            update={"messages": [AIMessage(content=confirmation)]},
+        )
+
+    prompt = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+    return Command(goto="__end__", update={"messages": [AIMessage(content=prompt)]})
 
 
 @traceable(run_type="tool", name="Get User Profile")
@@ -330,12 +390,14 @@ class ChatbotAgent:
             _cached = cached
 
         graph_builder = StateGraph(State)
-        graph_builder.add_edge(START, "get_user_profile")
+        graph_builder.add_node("ensure_google_settings", ensure_google_settings_node)
+        graph_builder.add_edge(START, "ensure_google_settings")
         graph_builder.add_node("get_user_profile", get_user_profile_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
+        graph_builder.add_edge("ensure_google_settings", "get_user_profile")
         self.checkpointer = checkpointer
         self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
@@ -346,11 +408,13 @@ class ChatbotAgent:
         }
 
     async def ainvoke(self, messages: list, userid: str, session_id: str):
-        return await self.graph.ainvoke({"messages": messages, "userid": userid}, self._config(session_id))
+        return await self.graph.ainvoke(
+            {"messages": messages, "userid": userid, "session_id": session_id}, self._config(session_id)
+        )
 
     async def astream(self, messages: list, userid: str, session_id: str):
         async for msg, metadata in self.graph.astream(
-            {"messages": messages, "userid": userid},
+            {"messages": messages, "userid": userid, "session_id": session_id},
             self._config(session_id),
             stream_mode="messages",
             # stream_mode=["messages", "values"],
@@ -359,7 +423,7 @@ class ChatbotAgent:
 
     async def astream_updates(self, messages: list, userid: str, session_id: str):
         async for msg in self.graph.astream(
-            {"messages": messages, "userid": userid},
+            {"messages": messages, "userid": userid, "session_id": session_id},
             self._config(session_id),
             stream_mode="updates",
         ):

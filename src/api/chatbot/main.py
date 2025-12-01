@@ -14,17 +14,7 @@ from fastapi.security.api_key import APIKeyHeader
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    FlexBlockStyle,
-    FlexBox,
-    FlexBubble,
-    FlexBubbleStyles,
-    FlexButton,
-    FlexMessage,
-    FlexText,
-    TextMessage,
-    URIAction,
-)
+from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from psycopg import OperationalError as PsycopgOperationalError
@@ -41,7 +31,6 @@ from chatbot.models import (
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
-from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
@@ -132,17 +121,35 @@ async def root():
 
 @app.get("/auth/google/callback")
 async def google_drive_oauth_callback(code: str, state: str):
+    session_id = state
     user_repository = UserRepository()
-    user_repository.ensure_user(state)
+    user_data = user_repository.fetch_user_by_session_id(session_id)
+    userid = user_data.get("userid") or session_id
+    user_repository.ensure_user(userid)
+    user_repository.touch_session(userid, session_id)
+
     oauth_manager = GoogleDriveOAuthManager(user_repository)
-    credentials = oauth_manager.exchange_code_for_credentials(code)
-    oauth_manager.save_user_credentials(state, credentials)
+    line_messenger = LineMessenger(user_id=userid)
 
-    completion_message = "GoogleDriveの許可設定が完了したわ。最初のメッセージをもう一度送ってね。"
-    line_messenger = LineMessenger(user_id=state)
-    line_messenger.push_message([TextMessage(text=completion_message)])
+    try:
+        credentials = oauth_manager.exchange_code_for_credentials(code)
+        oauth_manager.save_user_credentials(userid, credentials)
 
-    return {"message": "Authorization completed. Please resend your first message on LINE."}
+        agent = ChatbotAgent(checkpointer=app.state.checkpointer)
+        resume_messages = [
+            {"type": "human", "content": "Google DriveのOAuth設定が完了しました"}
+        ]
+        response = await agent.ainvoke(messages=resume_messages, userid=userid, session_id=session_id)
+        content = response["messages"][-1].content
+        line_messenger.push_message([TextMessage(text=content)])
+
+        return {"message": "Authorization completed and conversation resumed."}
+
+    except Exception as e:
+        logger.error(f"Failed to handle OAuth callback: {e}")
+        fallback_message = "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
+        line_messenger.push_message([TextMessage(text=fallback_message)])
+        return {"message": "Authorization completed but resume failed.", "detail": str(e)}
 
 
 @app.post("/callback")
@@ -165,58 +172,6 @@ async def callback(
     return "ok"
 
 
-def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
-    """Google Drive OAuth認証を促すFlex Messageを作成する
-
-    Args:
-        auth_url: Google OAuth認証ページのURL
-
-    Returns:
-        FlexMessage: Google Drive連携を促すフレックスメッセージ
-    """
-    header = FlexBox(
-        layout="vertical",
-        contents=[
-            FlexText(text="Google Drive 連携", weight="bold", color="#1f1f1f", size="xl"),
-        ],
-    )
-    body = FlexBox(
-        layout="vertical",
-        contents=[
-            FlexText(
-                text="Botの機能を利用するには、Google Driveへのアクセス権限が必要よ。まずは以下から許可設定して。",
-                wrap=True,
-                color="#666666",
-                size="sm",
-            )
-        ],
-        spacing="md",
-    )
-    footer = FlexBox(
-        layout="vertical",
-        spacing="sm",
-        contents=[
-            FlexButton(
-                style="primary",
-                height="sm",
-                action=URIAction(label="認証ページへ進む", uri=auth_url),
-                color="#0F9D58",
-            )
-        ],
-        flex=0,
-    )
-
-    bubble = FlexBubble(
-        size="kilo",
-        header=header,
-        body=body,
-        footer=footer,
-        styles=FlexBubbleStyles(header=FlexBlockStyle(separator=False)),
-    )
-
-    return FlexMessage(alt_text="Google Drive連携の設定", contents=bubble)
-
-
 def get_user_credentials(userid: str, user_repository: UserRepository):
     """ユーザーのGoogle認可情報を取得する"""
     user_repository.ensure_user(userid)
@@ -224,56 +179,17 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
     return oauth_manager.get_user_credentials(userid)
 
 
-def reply_with_drive_auth_prompt(userid: str, line_messenger: LineMessenger, user_repository: UserRepository) -> None:
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
-    auth_url, _ = oauth_manager.generate_authorization_url(userid)
-    flex_message = create_google_drive_auth_flex_message(auth_url)
-    line_messenger.reply_message([flex_message])
-
-
-def reply_with_drive_folder_id_request(line_messenger: LineMessenger) -> None:
-    message = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
-    line_messenger.reply_message([TextMessage(text=message)])
-
-
-def register_drive_folder_if_provided(
-    userid: str, text: str, line_messenger: LineMessenger, user_repository: UserRepository
-) -> bool:
-    folder_id = extract_drive_folder_id(text)
-    if not folder_id:
-        return False
-
-    user_repository.ensure_user(userid)
-    user_repository.save_drive_folder_id(userid, folder_id)
-    confirmation = TextMessage(text="フォルダIDを登録したわ。次からそのフォルダを使うね。")
-    line_messenger.reply_message([confirmation])
-    return True
-
-
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messenger = LineMessenger(event)
     user_repository = UserRepository()
     userid = event.source.user_id
-    if register_drive_folder_if_provided(userid, event.message.text, line_messenger, user_repository):
-        return
-
-    credentials = get_user_credentials(userid, user_repository)
-    if not credentials:
-        reply_with_drive_auth_prompt(userid, line_messenger, user_repository)
-        return
-
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if not folder_id:
-        reply_with_drive_folder_id_request(line_messenger)
-        return
-
+    session = user_repository.ensure_session(userid)
     agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
 
-    session = user_repository.ensure_session(userid)
     messages = [{"type": "human", "content": event.message.text}]
 
     try:
@@ -315,18 +231,27 @@ async def handle_audio_async(event):
     line_messenger = LineMessenger(event)
     user_repository = UserRepository()
     userid = event.source.user_id
+    session = user_repository.ensure_session(userid)
+    session_id = session.session_id
     credentials = get_user_credentials(userid, user_repository)
     if not credentials:
-        reply_with_drive_auth_prompt(userid, line_messenger, user_repository)
+        oauth_manager = GoogleDriveOAuthManager(user_repository)
+        auth_url, _ = oauth_manager.generate_authorization_url(session_id)
+        auth_message = """
+Google Drive へのアクセス許可がまだ設定されていないみたい。
+以下のURLから認可してね。
+{auth_url}
+""".strip().format(auth_url=auth_url)
+        line_messenger.reply_message([TextMessage(text=auth_message)])
         return
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not folder_id:
-        reply_with_drive_folder_id_request(line_messenger)
+        folder_prompt = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+        line_messenger.reply_message([TextMessage(text=folder_prompt)])
         return
 
     drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-    session = user_repository.ensure_session(userid)
     messages = []
     agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
