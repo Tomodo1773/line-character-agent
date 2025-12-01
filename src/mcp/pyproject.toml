@@ -11,7 +11,7 @@ dependencies = [
     "azure-identity>=1.16.0,<2",
     "spotipy>=2.23.0,<3",
     "python-dotenv>=1.0.0,<2",
-    "openai>=1.40.0,<2",
+    "openai>=1.40.0,<3",
 ]
 
 [tool.uv]
