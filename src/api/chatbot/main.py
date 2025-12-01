@@ -151,9 +151,14 @@ async def google_drive_oauth_callback(code: str, state: str):
 
         return {"message": "Authorization completed and conversation resumed."}
 
-    except Exception as e:
+    except (ValueError, HTTPException) as e:
         logger.error(f"Failed to handle OAuth callback: {e}")
         fallback_message = "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
+        line_messenger.push_message([TextMessage(text=fallback_message)])
+        return {"message": "Authorization completed but resume failed."}
+    except Exception as e:
+        logger.exception(f"Unexpected error in OAuth callback: {e}")
+        fallback_message = "予期しないエラーが発生しました。もう一度試してね。"
         line_messenger.push_message([TextMessage(text=fallback_message)])
         return {"message": "Authorization completed but resume failed."}
 
@@ -271,7 +276,7 @@ async def handle_audio_async(event):
         auth_url, _ = oauth_manager.generate_authorization_url(session_id)
         auth_message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
-{auth_url}""".format(auth_url=auth_url)
+{auth_url}""".strip().format(auth_url=auth_url)
         line_messenger.reply_message([TextMessage(text=auth_message)])
         return
 
@@ -408,7 +413,6 @@ async def create_chat_completion(
         )
         yield f"data: {start_response.model_dump_json()}\n\n"
 
-        ai_response_content = ""
         try:
             if agent.has_pending_interrupt(session.session_id):
                 response = await agent.aresume(session.session_id, messages[-1]["content"])
@@ -417,7 +421,6 @@ async def create_chat_completion(
 
             if response.get("__interrupt__"):
                 prompt = _extract_interrupt_message(response["__interrupt__"])
-                ai_response_content = prompt
                 chunk_response = ChatCompletionStreamResponse(
                     id=stream_id,
                     created=created,
@@ -432,7 +435,6 @@ async def create_chat_completion(
                 yield f"data: {chunk_response.model_dump_json()}\n\n"
             else:
                 content = response["messages"][-1].content
-                ai_response_content = content
                 chunk_response = ChatCompletionStreamResponse(
                     id=stream_id,
                     created=created,

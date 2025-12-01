@@ -3,7 +3,6 @@ import uuid
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver

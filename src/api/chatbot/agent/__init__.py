@@ -162,7 +162,15 @@ def get_user_profile(userid: str) -> dict:
 
 
 def _extract_latest_user_content(messages: list) -> str:
-    """最新のユーザー入力を文字列として取り出す"""
+    """
+    最新のユーザー入力を文字列として取り出す
+
+    Args:
+        messages (list): メッセージのリスト（各要素はdictまたはcontent属性を持つオブジェクト）
+
+    Returns:
+        str: 最新メッセージのコンテンツ。メッセージが空の場合は空文字列
+    """
     if not messages:
         return ""
 
@@ -189,8 +197,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
         auth_url, _ = oauth_manager.generate_authorization_url(session_id)
         message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
-{auth_url}
-""".strip().format(auth_url=auth_url)
+{auth_url}""".strip().format(auth_url=auth_url)
 
         return Command(
             goto="__end__",
