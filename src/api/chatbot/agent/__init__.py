@@ -18,7 +18,7 @@ from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
 from chatbot.database.repositories import UserRepository
-from chatbot.utils import get_japan_datetime, remove_trailing_newline
+from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import check_environment_variables, create_logger
 from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
@@ -305,7 +305,7 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
     llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
 
-    chatbot_chain = prompt | llm_with_tools | StrOutputParser() | remove_trailing_newline
+    chatbot_chain = prompt | llm_with_tools | StrOutputParser()
     content = await chatbot_chain.ainvoke({"messages": state["messages"]})
 
     return Command(

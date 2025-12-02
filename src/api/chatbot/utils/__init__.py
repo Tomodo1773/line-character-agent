@@ -5,16 +5,6 @@ import pytz
 from langchain_core.messages.base import BaseMessage
 
 
-def remove_trailing_newline(text: str) -> str:
-    """
-    入力されたテキストの最後の改行を削除する関数
-
-    :param text: 入力テキスト
-    :return: 最後の改行が削除されたテキスト
-    """
-    return text.rstrip("\n")
-
-
 def get_japan_datetime() -> str:
     """
     日本時間の日次と曜日を取得して返す関数
