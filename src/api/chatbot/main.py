@@ -122,18 +122,19 @@ async def root():
 
 @app.get("/auth/google/callback")
 async def google_drive_oauth_callback(code: str, state: str):
-    session_id = state
     user_repository = UserRepository()
-    user_data = user_repository.fetch_user_by_session_id(session_id)
+    # state には userid を渡している前提
+    userid = state
+    user_data = user_repository.fetch_user(userid)
     if not user_data:
-        logger.warning("No session found for the provided state; prompting user to restart OAuth.")
-        return {"message": "セッション情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"}
+        logger.warning("No user found for the provided state; prompting user to restart OAuth.")
+        return {"message": "ユーザー情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"}
 
-    userid = user_data.get("userid")
-    if not userid:
-        raise HTTPException(
-            status_code=400, detail="User ID not found for the given session. OAuth flow must be initiated properly."
-        )
+    # セッションIDが既に保存されていればそれを使い、なければ新規に発行する
+    session_id = user_data.get("session_id")
+    if not session_id:
+        session = user_repository.ensure_session(userid)
+        session_id = session.session_id
 
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     line_messenger = LineMessenger(user_id=userid)
@@ -298,11 +299,11 @@ async def handle_audio_async(event):
     user_repository = UserRepository()
     userid = event.source.user_id
     session = user_repository.ensure_session(userid)
-    session_id = session.session_id
     credentials = get_user_credentials(userid, user_repository)
     if not credentials:
         oauth_manager = GoogleDriveOAuthManager(user_repository)
-        auth_url, _ = oauth_manager.generate_authorization_url(session_id)
+        # OAuth の state には userid を渡す
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
         auth_message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
 {auth_url}""".strip().format(auth_url=auth_url)

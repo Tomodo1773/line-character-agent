@@ -46,7 +46,6 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
-    session_id: str
     profile: dict = {}
     digest: dict = {}
 
@@ -189,12 +188,12 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
     userid = state["userid"]
     user_repository = UserRepository()
     oauth_manager = GoogleDriveOAuthManager(user_repository)
-    session_id = state["session_id"]
 
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
         logger.info("Google credentials not found for user. Generating auth URL.")
-        auth_url, _ = oauth_manager.generate_authorization_url(session_id)
+        # OAuth の state には userid を渡す
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
         message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
 {auth_url}""".strip().format(auth_url=auth_url)
@@ -431,7 +430,8 @@ class ChatbotAgent:
 
     async def ainvoke(self, messages: list, userid: str, session_id: str):
         return await self.graph.ainvoke(
-            {"messages": messages, "userid": userid, "session_id": session_id}, self._config(session_id)
+            {"messages": messages, "userid": userid},
+            self._config(session_id),
         )
 
     async def aresume(self, session_id: str, resume_value: str):
@@ -439,7 +439,7 @@ class ChatbotAgent:
 
     async def astream(self, messages: list, userid: str, session_id: str):
         async for msg, metadata in self.graph.astream(
-            {"messages": messages, "userid": userid, "session_id": session_id},
+            {"messages": messages, "userid": userid},
             self._config(session_id),
             stream_mode="messages",
             # stream_mode=["messages", "values"],
@@ -448,7 +448,7 @@ class ChatbotAgent:
 
     async def astream_updates(self, messages: list, userid: str, session_id: str):
         async for msg in self.graph.astream(
-            {"messages": messages, "userid": userid, "session_id": session_id},
+            {"messages": messages, "userid": userid},
             self._config(session_id),
             stream_mode="updates",
         ):

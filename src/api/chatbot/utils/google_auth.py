@@ -33,10 +33,15 @@ class GoogleDriveOAuthManager:
             }
         }
 
-    def generate_authorization_url(self, state: str) -> Tuple[str, str]:
+    def generate_authorization_url(self, userid: str) -> Tuple[str, str]:
+        """
+        指定したユーザーIDを OAuth の state として利用して認可 URL を生成する。
+
+        これにより、コールバック側では state から直接 userid を復元できる。
+        """
         flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
         auth_url, flow_state = flow.authorization_url(
-            access_type="offline", include_granted_scopes="true", prompt="consent", state=state
+            access_type="offline", include_granted_scopes="true", prompt="consent", state=userid
         )
         logger.info("Generated Google OAuth authorization URL")
         return auth_url, flow_state

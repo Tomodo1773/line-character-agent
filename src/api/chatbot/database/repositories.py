@@ -108,27 +108,6 @@ class UserRepository(BaseRepository):
         )
         return metadata
 
-    def fetch_user_by_session_id(self, session_id: str) -> Dict[str, Any]:
-        """
-        指定されたセッションIDに紐づくユーザー情報を取得します。
-
-        Args:
-            session_id (str): 検索対象のセッションID。
-
-        Returns:
-            Dict[str, Any]: ユーザー情報の辞書。該当するユーザーが見つからない場合は空の辞書を返します。
-
-        Raises:
-            ValueError: session_idが空文字列の場合
-        """
-        if not session_id:
-            raise ValueError("session_id must be a non-empty string")
-
-        query = "SELECT TOP 1 * FROM c WHERE c.session_id = @session_id ORDER BY c.date DESC"
-        parameters = [{"name": "@session_id", "value": session_id}]
-        result = self.fetch(query, parameters)
-        return self._sanitize_item(result[0]) if result else {}
-
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
         encrypted = encrypt_dict(tokens)
         self._upsert_user(userid, {"google_tokens_enc": encrypted})
