@@ -37,7 +37,7 @@ PROMPT_EXTRACTION_ERROR_MESSAGE = "ごめんね。プロンプトの読み込み
 
 # Optional, add tracing in LangSmith
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
 
 
 class State(TypedDict):
