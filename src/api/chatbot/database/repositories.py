@@ -74,40 +74,6 @@ class UserRepository(BaseRepository):
         )
         return metadata
 
-    def touch_session(self, userid: str, session_id: str) -> SessionMetadata:
-        """
-        既存のセッションIDを用いて、該当ユーザーのセッションの最終アクセス時刻（タイムスタンプ）のみを更新します。
-
-        このメソッドは新たなセッションIDの生成は行わず、指定されたsession_idが既存のものであることを前提とします。
-        `ensure_session`メソッドとの違いは、`ensure_session`はセッションIDの有効期限切れ時に新規生成を行うのに対し、
-        本メソッドはセッションIDを変更せず、タイムスタンプのみを更新する点です。
-
-        Args:
-            userid (str): ユーザーID
-            session_id (str): 既存のセッションID
-
-        Returns:
-            SessionMetadata: 更新後のセッションメタデータ
-
-        Raises:
-            ValueError: useridまたはsession_idが空文字列の場合
-        """
-        if not userid:
-            raise ValueError("userid must be a non-empty string")
-        if not session_id:
-            raise ValueError("session_id must be a non-empty string")
-
-        now = datetime.now(self.TIMEZONE)
-        metadata = SessionMetadata(session_id=session_id, last_accessed=now)
-        self._upsert_user(
-            userid,
-            {
-                "session_id": metadata.session_id,
-                "last_accessed": metadata.last_accessed.isoformat(),
-            },
-        )
-        return metadata
-
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
         encrypted = encrypt_dict(tokens)
         self._upsert_user(userid, {"google_tokens_enc": encrypted})
