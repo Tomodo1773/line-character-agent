@@ -188,7 +188,6 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
     logger.info("--- Ensure Google Settings Node ---")
     userid = state["userid"]
     user_repository = UserRepository()
-    user_repository.ensure_user(userid)
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     session_id = state["session_id"]
 
@@ -221,8 +220,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     if not extracted_id:
         failure_message = (
-            "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、"
-            "もう一度メッセージを送ってね。"
+            "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
         )
         return Command(
             goto="__end__",
@@ -451,11 +449,11 @@ class ChatbotAgent:
         ):
             yield msg
 
-    def has_pending_interrupt(self, session_id: str) -> bool:
+    async def has_pending_interrupt(self, session_id: str) -> bool:
         if not self.checkpointer:
             return False
 
-        state = self.graph.get_state(self._config(session_id))
+        state = await self.graph.aget_state(self._config(session_id))
         return bool(getattr(state, "interrupts", None))
 
     def create_image(self):
