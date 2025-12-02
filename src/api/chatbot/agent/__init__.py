@@ -193,6 +193,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
+        logger.info("Google credentials not found for user. Generating auth URL.")
         auth_url, _ = oauth_manager.generate_authorization_url(session_id)
         message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
@@ -205,12 +206,14 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if folder_id:
+        logger.info("Google Drive folder ID already set for user. Going to get_user_profile node.")
         return Command(goto="get_user_profile")
 
     latest_user_input = _extract_latest_user_content(state["messages"])
     extracted_id = extract_drive_folder_id(latest_user_input)
 
     if not extracted_id:
+        logger.info("Drive folder ID not found in user input. Generating interrupt for missing folder ID.")
         interrupt_payload = {
             "type": "missing_drive_folder_id",
             "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
@@ -219,6 +222,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
         extracted_id = extract_drive_folder_id(str(user_input))
 
     if not extracted_id:
+        logger.info("Failed to extract Drive folder ID after interrupt. Ending process.")
         failure_message = (
             "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
         )
@@ -229,6 +233,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     user_repository.save_drive_folder_id(userid, extracted_id)
     confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
+    logger.info("Drive folder ID saved for user. Going to get_user_profile node.")
     return Command(
         goto="get_user_profile",
         update={"messages": [AIMessage(content=confirmation)]},
