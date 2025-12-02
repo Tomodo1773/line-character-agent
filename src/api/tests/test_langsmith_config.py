@@ -14,7 +14,7 @@ def test_langchain_project_default_value():
         
         # モジュールをリロードしてデフォルト値を確認
         # agent/__init__.pyの該当行を再実行する
-        test_value = os.getenv("LANGCHAIN_PROJECT", "LINE-AI-BOT")
+        test_value = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
         
         assert test_value == "LINE-AI-BOT"
 
@@ -27,17 +27,18 @@ def test_langchain_project_custom_value():
     
     with patch.dict(os.environ, {"LANGCHAIN_PROJECT": custom_project}):
         # 環境変数から値を取得
-        test_value = os.getenv("LANGCHAIN_PROJECT", "LINE-AI-BOT")
+        test_value = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
         
         assert test_value == custom_project
 
 
 def test_langchain_project_empty_string():
     """
-    LANGCHAIN_PROJECT環境変数が空文字列の場合、空文字列が使用されることを検証
+    LANGCHAIN_PROJECT環境変数が空文字列の場合、デフォルト値"LINE-AI-BOT"が使用されることを検証
+    空文字列はLangSmithで有効な値ではないため、デフォルト値にフォールバックする
     """
     with patch.dict(os.environ, {"LANGCHAIN_PROJECT": ""}):
-        # 空文字列の場合は空文字列が返される
-        test_value = os.getenv("LANGCHAIN_PROJECT", "LINE-AI-BOT")
+        # 空文字列の場合はデフォルト値にフォールバック
+        test_value = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
         
-        assert test_value == ""
+        assert test_value == "LINE-AI-BOT"
