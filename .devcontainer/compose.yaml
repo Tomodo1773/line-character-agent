@@ -8,9 +8,9 @@ services:
     privileged: true
     environment:
       DOCKER_TLS_CERTDIR: ""
-      UV_CACHE_DIR: /workspaces/workspace/.uv-cache
+      UV_CACHE_DIR: /workspace/.uv-cache
     volumes:
-      - ..:/workspaces/workspace:cached
+      - ..:/workspace:cached
       - ${HOME}/.gitconfig:/home/vscode/.gitconfig_host
       - ${HOME}/.config/gh:/home/vscode/.config/gh:cached
       - dind-var-lib-docker:/var/lib/docker
