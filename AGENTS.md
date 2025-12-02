@@ -25,11 +25,13 @@
 
 ## ビルド・テスト・開発コマンド
 
-- API: `cd src/api && uv sync && uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 3100`
-- API テスト/静的解析: `uv run pytest`、`uv run ruff check`、`uv run ruff format`
-- Func: `cd src/func && uv sync`（実行は Azure Functions Core Tools を使用）
-- MCP: `cd src/mcp && uv sync && uv run pytest`
-- 共通: 各サービスで `uv sync`。環境変数は各 `.env.sample` を参照。
+各サービスで `uv sync` 後に以下を実行。環境変数は各 `.env.sample` を参照。
+
+| サービス | 起動 | テスト |
+|----------|------|--------|
+| API | `cd src/api && uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 3100` | `uv run pytest` |
+| Func | Azure Functions Core Tools を使用 | `uv run pytest` |
+| MCP | Azure Functions Core Tools を使用 | `uv run pytest` |
 
 ### Python 実行時の注意
 
@@ -41,6 +43,18 @@
 - 命名: ファイル/関数/変数は `snake_case`、クラスは `PascalCase`。
 - import 順: 標準 → サードパーティ → ローカル。原則として絶対インポート。
 - 整形/Lint: ruff を使用（`pre-commit` 対応）。push 前に `pre-commit run -a`。
+
+### Format/Lint
+
+全サービス（api, func, mcp）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
+
+```bash
+# 各サービスディレクトリで実行
+uv run ruff check --fix .  # Lint（自動修正）
+uv run ruff format .       # Format
+```
+
+CI やレビューで ruff エラーがあると merge できないため、commit 前に必ず確認する。
 
 ## 実装方針
 
