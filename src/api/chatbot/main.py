@@ -4,6 +4,7 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
+from typing import Any, Tuple
 
 # Azure Application Insights imports
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -14,17 +15,7 @@ from fastapi.security.api_key import APIKeyHeader
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    FlexBlockStyle,
-    FlexBox,
-    FlexBubble,
-    FlexBubbleStyles,
-    FlexButton,
-    FlexMessage,
-    FlexText,
-    TextMessage,
-    URIAction,
-)
+from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from psycopg import OperationalError as PsycopgOperationalError
@@ -41,7 +32,6 @@ from chatbot.models import (
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
 from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
-from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
@@ -133,16 +123,50 @@ async def root():
 @app.get("/auth/google/callback")
 async def google_drive_oauth_callback(code: str, state: str):
     user_repository = UserRepository()
-    user_repository.ensure_user(state)
+    # state には userid を渡している前提
+    userid = state
+    user_data = user_repository.fetch_user(userid)
+    if not user_data:
+        logger.warning("No user found for the provided state; prompting user to restart OAuth.")
+        return {"message": "ユーザー情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"}
+
+    # セッションIDが既に保存されていればそれを使い、なければ新規に発行する
+    session_id = user_data.get("session_id")
+    if not session_id:
+        session = user_repository.ensure_session(userid)
+        session_id = session.session_id
+
     oauth_manager = GoogleDriveOAuthManager(user_repository)
-    credentials = oauth_manager.exchange_code_for_credentials(code)
-    oauth_manager.save_user_credentials(state, credentials)
+    line_messenger = LineMessenger(user_id=userid)
 
-    completion_message = "GoogleDriveの許可設定が完了したわ。最初のメッセージをもう一度送ってね。"
-    line_messenger = LineMessenger(user_id=state)
-    line_messenger.push_message([TextMessage(text=completion_message)])
+    try:
+        credentials = oauth_manager.exchange_code_for_credentials(code)
+        oauth_manager.save_user_credentials(userid, credentials)
 
-    return {"message": "Authorization completed. Please resend your first message on LINE."}
+        agent = ChatbotAgent(checkpointer=app.state.checkpointer)
+        resume_messages = [{"type": "human", "content": "Google DriveのOAuth設定が完了しました"}]
+        response = await agent.ainvoke(messages=resume_messages, userid=userid, session_id=session_id)
+        reply_text, is_interrupt = extract_agent_text(response)
+        line_messenger.push_message([TextMessage(text=reply_text)])
+
+        return {
+            "message": "Authorization completed and conversation resumed."
+            if not is_interrupt
+            else "Authorization completed and awaiting additional input."
+        }
+
+    except (ValueError, HTTPException) as e:
+        logger.error(f"Failed to handle OAuth callback: {e}")
+        fallback_message = (
+            "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
+        )
+        line_messenger.push_message([TextMessage(text=fallback_message)])
+        return {"message": "Authorization completed but resume failed."}
+    except Exception as e:
+        logger.exception(f"Unexpected error in OAuth callback: {e}")
+        fallback_message = "予期しないエラーが発生しました。もう一度試してね。"
+        line_messenger.push_message([TextMessage(text=fallback_message)])
+        return {"message": "Authorization completed but resume failed."}
 
 
 @app.post("/callback")
@@ -165,58 +189,6 @@ async def callback(
     return "ok"
 
 
-def create_google_drive_auth_flex_message(auth_url: str) -> FlexMessage:
-    """Google Drive OAuth認証を促すFlex Messageを作成する
-
-    Args:
-        auth_url: Google OAuth認証ページのURL
-
-    Returns:
-        FlexMessage: Google Drive連携を促すフレックスメッセージ
-    """
-    header = FlexBox(
-        layout="vertical",
-        contents=[
-            FlexText(text="Google Drive 連携", weight="bold", color="#1f1f1f", size="xl"),
-        ],
-    )
-    body = FlexBox(
-        layout="vertical",
-        contents=[
-            FlexText(
-                text="Botの機能を利用するには、Google Driveへのアクセス権限が必要よ。まずは以下から許可設定して。",
-                wrap=True,
-                color="#666666",
-                size="sm",
-            )
-        ],
-        spacing="md",
-    )
-    footer = FlexBox(
-        layout="vertical",
-        spacing="sm",
-        contents=[
-            FlexButton(
-                style="primary",
-                height="sm",
-                action=URIAction(label="認証ページへ進む", uri=auth_url),
-                color="#0F9D58",
-            )
-        ],
-        flex=0,
-    )
-
-    bubble = FlexBubble(
-        size="kilo",
-        header=header,
-        body=body,
-        footer=footer,
-        styles=FlexBubbleStyles(header=FlexBlockStyle(separator=False)),
-    )
-
-    return FlexMessage(alt_text="Google Drive連携の設定", contents=bubble)
-
-
 def get_user_credentials(userid: str, user_repository: UserRepository):
     """ユーザーのGoogle認可情報を取得する"""
     user_repository.ensure_user(userid)
@@ -224,30 +196,53 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
     return oauth_manager.get_user_credentials(userid)
 
 
-def reply_with_drive_auth_prompt(userid: str, line_messenger: LineMessenger, user_repository: UserRepository) -> None:
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
-    auth_url, _ = oauth_manager.generate_authorization_url(userid)
-    flex_message = create_google_drive_auth_flex_message(auth_url)
-    line_messenger.reply_message([flex_message])
+def _extract_interrupt_message(interrupts) -> str:
+    """
+    interrupt payload は `ensure_google_settings_node` が投入する
+    `{type: missing_drive_folder_id, message: ...}` を想定する。
+    """
+    if not interrupts:
+        return "入力が必要みたい。フォルダのURLかIDを送ってね。"
+
+    value = getattr(interrupts[0], "value", None)
+    if isinstance(value, dict):
+        message = value.get("message")
+        if isinstance(message, str):
+            return message
+
+    if isinstance(value, str):
+        return value
+
+    return "入力が必要みたい。フォルダのURLかIDを送ってね。"
 
 
-def reply_with_drive_folder_id_request(line_messenger: LineMessenger) -> None:
-    message = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
-    line_messenger.reply_message([TextMessage(text=message)])
+def extract_agent_text(response: dict[str, Any]) -> Tuple[str, bool]:
+    """
+    LangGraphのレスポンスから表示用テキストとinterruptフラグを取り出す。
 
+    戻り値:
+        (text, is_interrupt)
+        - is_interrupt=True のとき text は __interrupt__ 由来
+        - is_interrupt=False のとき text は messages[-1].content 由来
+    """
+    if response.get("__interrupt__"):
+        text = _extract_interrupt_message(response["__interrupt__"])
+        return text, True
 
-def register_drive_folder_if_provided(
-    userid: str, text: str, line_messenger: LineMessenger, user_repository: UserRepository
-) -> bool:
-    folder_id = extract_drive_folder_id(text)
-    if not folder_id:
-        return False
+    messages = response.get("messages") or []
+    if not messages:
+        raise ValueError("Agent response has no messages or __interrupt__.")
 
-    user_repository.ensure_user(userid)
-    user_repository.save_drive_folder_id(userid, folder_id)
-    confirmation = TextMessage(text="フォルダIDを登録したわ。次からそのフォルダを使うね。")
-    line_messenger.reply_message([confirmation])
-    return True
+    last = messages[-1]
+    if isinstance(last, dict):
+        content = last.get("content", "")
+    else:
+        content = getattr(last, "content", "")
+
+    if not isinstance(content, str):
+        content = str(content)
+
+    return content, False
 
 
 async def handle_text_async(event):
@@ -255,35 +250,23 @@ async def handle_text_async(event):
     line_messenger = LineMessenger(event)
     user_repository = UserRepository()
     userid = event.source.user_id
-    if register_drive_folder_if_provided(userid, event.message.text, line_messenger, user_repository):
-        return
-
-    credentials = get_user_credentials(userid, user_repository)
-    if not credentials:
-        reply_with_drive_auth_prompt(userid, line_messenger, user_repository)
-        return
-
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if not folder_id:
-        reply_with_drive_folder_id_request(line_messenger)
-        return
-
+    session = user_repository.ensure_session(userid)
     agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
 
-    session = user_repository.ensure_session(userid)
-    messages = [{"type": "human", "content": event.message.text}]
-
     try:
-        # LLMでレスポンスメッセージを作成
-        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
-        content = response["messages"][-1].content
-        logger.info(f"Generated text response: {content}")
+        messages = [{"type": "human", "content": event.message.text}]
+        if await agent.has_pending_interrupt(session.session_id):
+            response = await agent.aresume(session.session_id, event.message.text)
+        else:
+            response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
 
-        # メッセージを返信
-        reply_messages = [TextMessage(text=content)]
+        reply_text, _ = extract_agent_text(response)
+        logger.info(f"Generated text response: {reply_text}")
+
+        reply_messages = [TextMessage(text=reply_text)]
         line_messenger.reply_message(reply_messages)
 
     except PsycopgOperationalError as e:
@@ -315,18 +298,27 @@ async def handle_audio_async(event):
     line_messenger = LineMessenger(event)
     user_repository = UserRepository()
     userid = event.source.user_id
+    session = user_repository.ensure_session(userid)
     credentials = get_user_credentials(userid, user_repository)
     if not credentials:
-        reply_with_drive_auth_prompt(userid, line_messenger, user_repository)
+        oauth_manager = GoogleDriveOAuthManager(user_repository)
+        # OAuth の state には userid を渡す
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
+        auth_message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
+以下のURLから認可してね。
+{auth_url}""".strip().format(auth_url=auth_url)
+        line_messenger.reply_message([TextMessage(text=auth_message)])
         return
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not folder_id:
-        reply_with_drive_folder_id_request(line_messenger)
+        folder_prompt = (
+            "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+        )
+        line_messenger.reply_message([TextMessage(text=folder_prompt)])
         return
 
     drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-    session = user_repository.ensure_session(userid)
     messages = []
     agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
@@ -352,7 +344,7 @@ async def handle_audio_async(event):
 
         # キャラクターのコメントを追加（非同期化）
         response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
-        reaction = response["messages"][-1].content
+        reaction, _ = extract_agent_text(response)
         logger.info(f"Generated character response: {reaction}")
 
         # メッセージを返信
@@ -453,23 +445,25 @@ async def create_chat_completion(
         )
         yield f"data: {start_response.model_dump_json()}\n\n"
 
-        ai_response_content = ""
         try:
-            async for msg, metadata in agent.astream(messages=messages, userid=userid, session_id=session.session_id):
-                if msg.content and metadata["langgraph_node"] == "chatbot":
-                    ai_response_content += msg.content[0]["text"]
-                    chunk_response = ChatCompletionStreamResponse(
-                        id=stream_id,
-                        created=created,
-                        choices=[
-                            ChatCompletionStreamResponseChoice(
-                                index=0,
-                                delta=ChatCompletionStreamResponseChoiceDelta(content=msg.content[0]["text"]),
-                                finish_reason=None,
-                            )
-                        ],
+            if await agent.has_pending_interrupt(session.session_id):
+                response = await agent.aresume(session.session_id, messages[-1]["content"])
+            else:
+                response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
+
+            reply_text, _ = extract_agent_text(response)
+            chunk_response = ChatCompletionStreamResponse(
+                id=stream_id,
+                created=created,
+                choices=[
+                    ChatCompletionStreamResponseChoice(
+                        index=0,
+                        delta=ChatCompletionStreamResponseChoiceDelta(content=reply_text),
+                        finish_reason=None,
                     )
-                    yield f"data: {chunk_response.model_dump_json()}\n\n"
+                ],
+            )
+            yield f"data: {chunk_response.model_dump_json()}\n\n"
 
             end_response = ChatCompletionStreamResponse(
                 id=stream_id,

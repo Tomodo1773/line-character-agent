@@ -12,13 +12,16 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.types import Command
+from langgraph.types import Command, interrupt
 from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
+from chatbot.database.repositories import UserRepository
 from chatbot.utils import get_japan_datetime, remove_trailing_newline
 from chatbot.utils.config import check_environment_variables, create_logger
+from chatbot.utils.drive_folder import extract_drive_folder_id
+from chatbot.utils.google_auth import GoogleDriveOAuthManager
 
 logger = create_logger(__name__)
 
@@ -155,6 +158,85 @@ def get_user_profile(userid: str) -> dict:
             logger.error("Failed to get digest content, using empty digest")
             _cached["digest"][userid] = ""
     return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
+
+
+def _extract_latest_user_content(messages: list) -> str:
+    """
+    最新のユーザー入力を文字列として取り出す
+
+    Args:
+        messages (list): メッセージのリスト（各要素はdictまたはcontent属性を持つオブジェクト）
+
+    Returns:
+        str: 最新メッセージのコンテンツ。メッセージが空の場合は空文字列
+    """
+    if not messages:
+        return ""
+
+    latest_message = messages[-1]
+    if isinstance(latest_message, dict):
+        return str(latest_message.get("content", ""))
+
+    content = getattr(latest_message, "content", "")
+    return content if isinstance(content, str) else str(content)
+
+
+def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
+    """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
+
+    logger.info("--- Ensure Google Settings Node ---")
+    userid = state["userid"]
+    user_repository = UserRepository()
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+
+    credentials = oauth_manager.get_user_credentials(userid)
+    if not credentials:
+        logger.info("Google credentials not found for user. Generating auth URL.")
+        # OAuth の state には userid を渡す
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
+        message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
+以下のURLから認可してね。
+{auth_url}""".strip().format(auth_url=auth_url)
+
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=message)]},
+        )
+
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if folder_id:
+        logger.info("Google Drive folder ID already set for user. Going to get_user_profile node.")
+        return Command(goto="get_user_profile")
+
+    latest_user_input = _extract_latest_user_content(state["messages"])
+    extracted_id = extract_drive_folder_id(latest_user_input)
+
+    if not extracted_id:
+        logger.info("Drive folder ID not found in user input. Generating interrupt for missing folder ID.")
+        interrupt_payload = {
+            "type": "missing_drive_folder_id",
+            "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
+        }
+        user_input = interrupt(interrupt_payload)
+        extracted_id = extract_drive_folder_id(str(user_input))
+
+    if not extracted_id:
+        logger.info("Failed to extract Drive folder ID after interrupt. Ending process.")
+        failure_message = (
+            "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
+        )
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=failure_message)]},
+        )
+
+    user_repository.save_drive_folder_id(userid, extracted_id)
+    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
+    logger.info("Drive folder ID saved for user. Going to get_user_profile node.")
+    return Command(
+        goto="get_user_profile",
+        update={"messages": [AIMessage(content=confirmation)]},
+    )
 
 
 @traceable(run_type="tool", name="Get User Profile")
@@ -330,7 +412,8 @@ class ChatbotAgent:
             _cached = cached
 
         graph_builder = StateGraph(State)
-        graph_builder.add_edge(START, "get_user_profile")
+        graph_builder.add_node("ensure_google_settings", ensure_google_settings_node)
+        graph_builder.add_edge(START, "ensure_google_settings")
         graph_builder.add_node("get_user_profile", get_user_profile_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
@@ -346,7 +429,13 @@ class ChatbotAgent:
         }
 
     async def ainvoke(self, messages: list, userid: str, session_id: str):
-        return await self.graph.ainvoke({"messages": messages, "userid": userid}, self._config(session_id))
+        return await self.graph.ainvoke(
+            {"messages": messages, "userid": userid},
+            self._config(session_id),
+        )
+
+    async def aresume(self, session_id: str, resume_value: str):
+        return await self.graph.ainvoke(Command(resume=resume_value), self._config(session_id))
 
     async def astream(self, messages: list, userid: str, session_id: str):
         async for msg, metadata in self.graph.astream(
@@ -364,6 +453,13 @@ class ChatbotAgent:
             stream_mode="updates",
         ):
             yield msg
+
+    async def has_pending_interrupt(self, session_id: str) -> bool:
+        if not self.checkpointer:
+            return False
+
+        state = await self.graph.aget_state(self._config(session_id))
+        return bool(getattr(state, "interrupts", None))
 
     def create_image(self):
         # imagesフォルダがなければ作成

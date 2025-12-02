@@ -78,6 +78,19 @@ class UserRepository(BaseRepository):
         encrypted = encrypt_dict(tokens)
         self._upsert_user(userid, {"google_tokens_enc": encrypted})
 
+    def clear_google_tokens(self, userid: str) -> None:
+        """
+        指定ユーザーの Google 認可トークン情報を削除する。
+
+        リフレッシュトークン失効などで再認可が必要になった場合に使用する。
+        """
+        existing = self._sanitize_item(self.fetch_user(userid))
+        if not existing:
+            return
+
+        existing.pop("google_tokens_enc", None)
+        self.save({**existing, "id": userid, "userid": userid})
+
     def fetch_google_tokens(self, userid: str) -> Dict[str, Any]:
         query = (
             "SELECT TOP 1 c.google_tokens_enc "

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 from cryptography.fernet import Fernet, InvalidToken
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
@@ -36,7 +37,6 @@ def _get_connection_verify():
     if lowered in {"true", "1", "yes"}:
         return True
     return verify_setting
-
 
 
 @dataclass
@@ -117,10 +117,7 @@ class UserTokenRepository:
         return {k: v for k, v in item.items() if not k.startswith("_")}
 
     def fetch_all_tokens(self) -> List[Dict[str, Any]]:
-        query = (
-            "SELECT c.id, c.userid, c.google_tokens_enc, c.drive_folder_id FROM c "
-            "WHERE IS_DEFINED(c.google_tokens_enc)"
-        )
+        query = "SELECT c.id, c.userid, c.google_tokens_enc, c.drive_folder_id FROM c WHERE IS_DEFINED(c.google_tokens_enc)"
         return list(self.container.query_items(query=query, enable_cross_partition_query=True))
 
     def fetch_user(self, userid: str) -> Dict[str, Any]:
@@ -136,6 +133,20 @@ class UserTokenRepository:
         sanitized_existing = self._sanitize_item(existing)
         data = {**sanitized_existing, "id": userid, "userid": sanitized_existing.get("userid", userid)}
         data["google_tokens_enc"] = encrypted
+        self.container.upsert_item(data)
+
+    def clear_google_tokens(self, userid: str) -> None:
+        """
+        指定ユーザーの Google 認可トークン情報を削除する。
+
+        リフレッシュトークン失効などで再認可が必要になった場合に使用する。
+        """
+        existing = self.fetch_user(userid)
+        if not existing:
+            return
+
+        existing.pop("google_tokens_enc", None)
+        data = {**existing, "id": userid, "userid": existing.get("userid", userid)}
         self.container.upsert_item(data)
 
 
@@ -165,8 +176,18 @@ class GoogleUserTokenManager:
                     credentials.refresh(Request())
                     self.repository.save_google_tokens(userid, credentials_to_dict(credentials))
                     logger.info("Refreshed Google token for user: %s", userid)
+                except RefreshError as error:
+                    # リフレッシュトークン失効とみなし、トークンを削除して次回以降のフローで再認可を促す
+                    logger.warning(
+                        "Failed to refresh Google token for user %s due to RefreshError "
+                        "(likely expired or revoked). Clearing stored tokens. error=%s",
+                        userid,
+                        error,
+                    )
+                    self.repository.clear_google_tokens(userid)
+                    continue
                 except Exception as error:
-                    logger.error("Failed to refresh Google token for user %s: %s", userid, error)
+                    logger.error("Unexpected error while refreshing Google token for user %s: %s", userid, error)
                     continue
 
             user_contexts.append(
