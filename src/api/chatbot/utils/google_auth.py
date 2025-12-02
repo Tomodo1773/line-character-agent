@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -81,13 +82,34 @@ class GoogleDriveOAuthManager:
         logger.info("Saved Google Drive credentials for user: %s", userid)
 
     def get_user_credentials(self, userid: str) -> Optional[Credentials]:
+        """
+        ユーザーの資格情報を取得する。
+
+        - 有効な資格情報が無い場合は None を返す。
+        - アクセストークン期限切れかつリフレッシュトークンがある場合は refresh を行う。
+        - リフレッシュトークンが期限切れ・無効（RefreshError）の場合はトークンを削除し、None を返す。
+        """
         token_data = self.user_repository.fetch_google_tokens(userid)
         credentials = self.credentials_from_dict(token_data)
         if not credentials:
             return None
 
         if credentials.expired and credentials.refresh_token:
-            credentials.refresh(Request())
-            self.save_user_credentials(userid, credentials)
+            try:
+                credentials.refresh(Request())
+                self.save_user_credentials(userid, credentials)
+            except RefreshError as error:
+                logger.warning(
+                    "Google token refresh failed for user %s due to RefreshError (likely expired or revoked). "
+                    "Clearing stored tokens. error=%s",
+                    userid,
+                    error,
+                )
+                # リフレッシュトークン失効とみなしてトークンをクリアし、再認可を促す
+                self.user_repository.clear_google_tokens(userid)
+                return None
+            except Exception as error:  # ネットワークエラー等
+                logger.error("Unexpected error while refreshing Google token for user %s: %s", userid, error)
+                return None
 
         return credentials
