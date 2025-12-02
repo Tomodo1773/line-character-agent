@@ -11,7 +11,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from chatbot.agent import ChatbotAgent, ensure_google_settings_node
-from chatbot.main import app
+from chatbot.main import app, extract_agent_text
 
 client = TestClient(app)
 TEST_USER_ID = "test-user"
@@ -286,6 +286,32 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
     assert isinstance(message, AIMessage)
     assert "フォルダIDを登録" in message.content
     assert saved_folder_ids == ["test-folder-id"]
+
+
+def test_extract_agent_text_non_interrupt():
+    """__interrupt__ が無い場合に messages[-1].content からテキストを取得できることを検証"""
+    response = {"messages": [{"content": "hello"}]}
+
+    text, is_interrupt = extract_agent_text(response)
+
+    assert text == "hello"
+    assert is_interrupt is False
+
+
+def test_extract_agent_text_with_interrupt():
+    """__interrupt__ がある場合に interrupt メッセージが優先されることを検証"""
+
+    class DummyInterrupt:
+        def __init__(self, value):
+            self.value = value
+
+    interrupts = [DummyInterrupt({"message": "need input"})]
+    response = {"__interrupt__": interrupts, "messages": [{"content": "ignored"}]}
+
+    text, is_interrupt = extract_agent_text(response)
+
+    assert text == "need input"
+    assert is_interrupt is True
 
 
 def test_diary_agent():

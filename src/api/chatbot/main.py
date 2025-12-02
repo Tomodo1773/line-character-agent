@@ -4,6 +4,7 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
+from typing import Any, Tuple
 
 # Azure Application Insights imports
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -126,13 +127,13 @@ async def google_drive_oauth_callback(code: str, state: str):
     user_data = user_repository.fetch_user_by_session_id(session_id)
     if not user_data:
         logger.warning("No session found for the provided state; prompting user to restart OAuth.")
-        return {
-            "message": "セッション情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"
-        }
+        return {"message": "セッション情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"}
 
     userid = user_data.get("userid")
     if not userid:
-        raise HTTPException(status_code=400, detail="User ID not found for the given session. OAuth flow must be initiated properly.")
+        raise HTTPException(
+            status_code=400, detail="User ID not found for the given session. OAuth flow must be initiated properly."
+        )
 
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     line_messenger = LineMessenger(user_id=userid)
@@ -142,18 +143,22 @@ async def google_drive_oauth_callback(code: str, state: str):
         oauth_manager.save_user_credentials(userid, credentials)
 
         agent = ChatbotAgent(checkpointer=app.state.checkpointer)
-        resume_messages = [
-            {"type": "human", "content": "Google DriveのOAuth設定が完了しました"}
-        ]
+        resume_messages = [{"type": "human", "content": "Google DriveのOAuth設定が完了しました"}]
         response = await agent.ainvoke(messages=resume_messages, userid=userid, session_id=session_id)
-        content = response["messages"][-1].content
-        line_messenger.push_message([TextMessage(text=content)])
+        reply_text, is_interrupt = extract_agent_text(response)
+        line_messenger.push_message([TextMessage(text=reply_text)])
 
-        return {"message": "Authorization completed and conversation resumed."}
+        return {
+            "message": "Authorization completed and conversation resumed."
+            if not is_interrupt
+            else "Authorization completed and awaiting additional input."
+        }
 
     except (ValueError, HTTPException) as e:
         logger.error(f"Failed to handle OAuth callback: {e}")
-        fallback_message = "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
+        fallback_message = (
+            "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
+        )
         line_messenger.push_message([TextMessage(text=fallback_message)])
         return {"message": "Authorization completed but resume failed."}
     except Exception as e:
@@ -210,6 +215,35 @@ def _extract_interrupt_message(interrupts) -> str:
     return "入力が必要みたい。フォルダのURLかIDを送ってね。"
 
 
+def extract_agent_text(response: dict[str, Any]) -> Tuple[str, bool]:
+    """
+    LangGraphのレスポンスから表示用テキストとinterruptフラグを取り出す。
+
+    戻り値:
+        (text, is_interrupt)
+        - is_interrupt=True のとき text は __interrupt__ 由来
+        - is_interrupt=False のとき text は messages[-1].content 由来
+    """
+    if response.get("__interrupt__"):
+        text = _extract_interrupt_message(response["__interrupt__"])
+        return text, True
+
+    messages = response.get("messages") or []
+    if not messages:
+        raise ValueError("Agent response has no messages or __interrupt__.")
+
+    last = messages[-1]
+    if isinstance(last, dict):
+        content = last.get("content", "")
+    else:
+        content = getattr(last, "content", "")
+
+    if not isinstance(content, str):
+        content = str(content)
+
+    return content, False
+
+
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messenger = LineMessenger(event)
@@ -223,20 +257,15 @@ async def handle_text_async(event):
 
     try:
         messages = [{"type": "human", "content": event.message.text}]
-        if agent.has_pending_interrupt(session.session_id):
+        if await agent.has_pending_interrupt(session.session_id):
             response = await agent.aresume(session.session_id, event.message.text)
         else:
             response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
 
-        if response.get("__interrupt__"):
-            prompt = _extract_interrupt_message(response["__interrupt__"])
-            line_messenger.reply_message([TextMessage(text=prompt)])
-            return
+        reply_text, _ = extract_agent_text(response)
+        logger.info(f"Generated text response: {reply_text}")
 
-        content = response["messages"][-1].content
-        logger.info(f"Generated text response: {content}")
-
-        reply_messages = [TextMessage(text=content)]
+        reply_messages = [TextMessage(text=reply_text)]
         line_messenger.reply_message(reply_messages)
 
     except PsycopgOperationalError as e:
@@ -282,7 +311,9 @@ async def handle_audio_async(event):
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not folder_id:
-        folder_prompt = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+        folder_prompt = (
+            "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+        )
         line_messenger.reply_message([TextMessage(text=folder_prompt)])
         return
 
@@ -312,7 +343,7 @@ async def handle_audio_async(event):
 
         # キャラクターのコメントを追加（非同期化）
         response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
-        reaction = response["messages"][-1].content
+        reaction, _ = extract_agent_text(response)
         logger.info(f"Generated character response: {reaction}")
 
         # メッセージを返信
@@ -414,39 +445,24 @@ async def create_chat_completion(
         yield f"data: {start_response.model_dump_json()}\n\n"
 
         try:
-            if agent.has_pending_interrupt(session.session_id):
+            if await agent.has_pending_interrupt(session.session_id):
                 response = await agent.aresume(session.session_id, messages[-1]["content"])
             else:
                 response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
 
-            if response.get("__interrupt__"):
-                prompt = _extract_interrupt_message(response["__interrupt__"])
-                chunk_response = ChatCompletionStreamResponse(
-                    id=stream_id,
-                    created=created,
-                    choices=[
-                        ChatCompletionStreamResponseChoice(
-                            index=0,
-                            delta=ChatCompletionStreamResponseChoiceDelta(content=prompt),
-                            finish_reason=None,
-                        )
-                    ],
-                )
-                yield f"data: {chunk_response.model_dump_json()}\n\n"
-            else:
-                content = response["messages"][-1].content
-                chunk_response = ChatCompletionStreamResponse(
-                    id=stream_id,
-                    created=created,
-                    choices=[
-                        ChatCompletionStreamResponseChoice(
-                            index=0,
-                            delta=ChatCompletionStreamResponseChoiceDelta(content=content),
-                            finish_reason=None,
-                        )
-                    ],
-                )
-                yield f"data: {chunk_response.model_dump_json()}\n\n"
+            reply_text, _ = extract_agent_text(response)
+            chunk_response = ChatCompletionStreamResponse(
+                id=stream_id,
+                created=created,
+                choices=[
+                    ChatCompletionStreamResponseChoice(
+                        index=0,
+                        delta=ChatCompletionStreamResponseChoiceDelta(content=reply_text),
+                        finish_reason=None,
+                    )
+                ],
+            )
+            yield f"data: {chunk_response.model_dump_json()}\n\n"
 
             end_response = ChatCompletionStreamResponse(
                 id=stream_id,
