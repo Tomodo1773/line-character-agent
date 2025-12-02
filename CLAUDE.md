@@ -62,7 +62,7 @@
 
 ### 主な構成要素
 
-- **ChatbotAgent** (`src/api/chatbot/agent/`) - LangGraphベースのエージェント実装
+- **ChatbotAgent** (`src/api/chatbot/agent/character.py`) - LangGraphベースのエージェント実装
 - **データベース層** (`src/api/chatbot/database/`) - Cosmos DBリポジトリおよびモデル
 - **LINE連携** (`src/api/chatbot/utils/line.py`) - LINE Messaging APIラッパー
 - **認証** (`src/api/chatbot/utils/auth.py`) - OpenAI互換エンドポイント用APIキー認証

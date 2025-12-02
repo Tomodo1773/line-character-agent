@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-from chatbot.agent import ChatbotAgent, ensure_google_settings_node
+from chatbot.agent.character import ChatbotAgent, ensure_google_settings_node
 from chatbot.main import app, extract_agent_text
 
 client = TestClient(app)
@@ -49,9 +49,9 @@ def test_chatbot_agent_response():
     """
     require_openai_api_key()
 
-    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
+    with patch("chatbot.agent.character.get_user_profile", return_value={"profile": "", "digest": ""}):
         # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-        with patch("chatbot.agent.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
+        with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
             agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         messages = [{"type": "human", "content": "こんにちは"}]
 
@@ -71,9 +71,9 @@ def test_chatbot_agent_web_search_response():
     """
     require_openai_api_key()
 
-    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
+    with patch("chatbot.agent.character.get_user_profile", return_value={"profile": "", "digest": ""}):
         # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-        with patch("chatbot.agent.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
+        with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
             agent_graph = ChatbotAgent(checkpointer=MemorySaver())
         yesterday = date.today() - timedelta(days=1)
         messages = [
@@ -127,17 +127,17 @@ def test_spotify_agent_mcp_fallback():
     """
     require_openai_api_key()
 
-    import chatbot.agent
+    import chatbot.agent.character
 
-    with patch("chatbot.agent.get_user_profile", return_value={"profile": "", "digest": ""}):
+    with patch("chatbot.agent.character.get_user_profile", return_value={"profile": "", "digest": ""}):
         # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-        with patch("chatbot.agent.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
+        with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
             # get_mcp_toolsを空のリストを返すようにモック
-            with patch.object(chatbot.agent, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+            with patch.object(chatbot.agent.character, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
                 mock_get_mcp_tools.return_value = []
 
                 # routerをモックしてspotify_agentに直接ルーティング
-                with patch.object(chatbot.agent, "router_node") as mock_router:
+                with patch.object(chatbot.agent.character, "router_node") as mock_router:
                     mock_router.return_value = Command(goto="spotify_agent")
 
                     agent_graph = ChatbotAgent(checkpointer=MemorySaver())
@@ -164,7 +164,7 @@ def test_spotify_agent():
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
 
-    from chatbot.agent import spotify_agent_node
+    from chatbot.agent.character import spotify_agent_node
 
     require_openai_api_key()
 
@@ -178,7 +178,7 @@ def test_spotify_agent():
         # ダミーツールを返す（実際のツールは使用しない）
         return [dummy_tool]
 
-    with patch("chatbot.agent.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+    with patch("chatbot.agent.character.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
         mock_get_mcp_tools.side_effect = fake_get_mcp_tools
 
         # spotify_agent_node を直接呼び出す
@@ -231,8 +231,8 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
         },
     )()
 
-    monkeypatch.setattr("chatbot.agent.UserRepository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.agent.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
@@ -269,10 +269,10 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
         },
     )()
 
-    monkeypatch.setattr("chatbot.agent.UserRepository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.agent.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
     monkeypatch.setattr(
-        "chatbot.agent.interrupt",
+        "chatbot.agent.character.interrupt",
         lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
     )
 
@@ -324,7 +324,7 @@ def test_diary_agent():
     from langchain_core.tools import tool
     from langgraph.types import Command
 
-    from chatbot.agent import diary_agent_node
+    from chatbot.agent.character import diary_agent_node
 
     require_openai_api_key()
 
@@ -340,7 +340,7 @@ def test_diary_agent():
 
         return "dummy diary response"
 
-    with patch("chatbot.agent.diary_search_tool", dummy_diary_tool):
+    with patch("chatbot.agent.character.diary_search_tool", dummy_diary_tool):
         initial_state = {
             "messages": [HumanMessage(content="こんにちは")],
             "userid": TEST_USER_ID,

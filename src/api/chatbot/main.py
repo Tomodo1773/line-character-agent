@@ -21,7 +21,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from psycopg import OperationalError as PsycopgOperationalError
 from psycopg_pool import AsyncConnectionPool
 
-from chatbot.agent import ChatbotAgent
+from chatbot.agent.character import ChatbotAgent
 from chatbot.database.repositories import UserRepository
 from chatbot.models import (
     ChatCompletionRequest,
