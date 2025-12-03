@@ -42,6 +42,7 @@ jobs:
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
           LINE_USER_ID: "hogehoge"
           SPAN_DAYS: "1"
+          LANGCHAIN_PROJECT: "LINE-AI-BOT-TEST"
         run: |
           cd src/func
           uv run pytest -s
