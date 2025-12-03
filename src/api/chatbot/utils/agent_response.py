@@ -1,7 +1,7 @@
 from typing import Any, Tuple
 
 
-def _extract_interrupt_message(interrupts) -> str:
+def _extract_interrupt_message(interrupts: list[Any]) -> str:
     """
     interrupt payload は `ensure_google_settings_node` が投入する
     `{type: missing_drive_folder_id, message: ...}` を想定する。
