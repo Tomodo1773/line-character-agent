@@ -57,7 +57,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             userid=state["userid"], messages=state.get("messages", []), success_goto="transcribe_diary_node"
         )
 
-    @traceable(run_type="tool", name="Transcribe Diary")
+    @traceable(run_type="chain", name="Transcribe Diary")
     def transcribe_diary_node(state: DiaryWorkflowState) -> Command[str]:
         logger.info("--- Diary Workflow: transcribe_diary ---")
         drive_handler = _create_drive_handler(state["userid"])
@@ -95,7 +95,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             update={"messages": [message], "saved_filename": saved_filename, "drive_handler": drive_handler},
         )
 
-    @traceable(run_type="tool", name="Generate Digest")
+    @traceable(run_type="chain", name="Generate Digest")
     def generate_digest_node(state: DiaryWorkflowState) -> Command[str]:
         logger.info("--- Diary Workflow: generate_digest ---")
         diary_text = state.get("diary_text")
@@ -116,7 +116,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
 
         return Command(goto="invoke_character_comment_node", update=update)
 
-    @traceable(run_type="tool", name="Invoke Character Comment")
+    @traceable(run_type="chain", name="Invoke Character Comment")
     async def invoke_character_comment_node(state: DiaryWorkflowState) -> dict:
         logger.info("--- Diary Workflow: invoke_character_comment ---")
         diary_text = state.get("diary_text")
