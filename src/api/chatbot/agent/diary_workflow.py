@@ -142,10 +142,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     graph_builder.add_node("save_diary_node", save_diary_node)
     graph_builder.add_node("generate_digest_node", generate_digest_node)
     graph_builder.add_node("invoke_character_comment_node", invoke_character_comment_node)
-    graph_builder.add_edge("ensure_google_settings_node", "transcribe_diary_node")
-    graph_builder.add_edge("transcribe_diary_node", "save_diary_node")
-    graph_builder.add_edge("save_diary_node", "generate_digest_node")
-    graph_builder.add_edge("generate_digest_node", "invoke_character_comment_node")
+    # 静的エッジは不要なため削除（動的ルーティングは各ノード関数内のCommandで制御）
 
     return graph_builder.compile()
 
