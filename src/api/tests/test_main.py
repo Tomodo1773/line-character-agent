@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-from chatbot.agent.character import ChatbotAgent, ensure_google_settings_node
+from chatbot.agent import ChatbotAgent, ensure_google_settings_node
 from chatbot.main import app, extract_agent_text
 
 client = TestClient(app)
@@ -127,17 +127,17 @@ def test_spotify_agent_mcp_fallback():
     """
     require_openai_api_key()
 
-    import chatbot.agent.character
+    from chatbot.agent import character
 
     with patch("chatbot.agent.character.get_user_profile", return_value={"profile": "", "digest": ""}):
         # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
         with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto="get_user_profile")):
             # get_mcp_toolsを空のリストを返すようにモック
-            with patch.object(chatbot.agent.character, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+            with patch.object(character, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
                 mock_get_mcp_tools.return_value = []
 
                 # routerをモックしてspotify_agentに直接ルーティング
-                with patch.object(chatbot.agent.character, "router_node") as mock_router:
+                with patch.object(character, "router_node") as mock_router:
                     mock_router.return_value = Command(goto="spotify_agent")
 
                     agent_graph = ChatbotAgent(checkpointer=MemorySaver())
@@ -164,7 +164,7 @@ def test_spotify_agent():
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.tools import tool
 
-    from chatbot.agent.character import spotify_agent_node
+    from chatbot.agent import spotify_agent_node
 
     require_openai_api_key()
 
@@ -324,7 +324,7 @@ def test_diary_agent():
     from langchain_core.tools import tool
     from langgraph.types import Command
 
-    from chatbot.agent.character import diary_agent_node
+    from chatbot.agent import diary_agent_node
 
     require_openai_api_key()
 
