@@ -185,7 +185,13 @@ def ensure_google_settings_command(userid: str, messages: list, success_goto: st
     """
     Google DriveのOAuth設定とフォルダIDの有無を確認するコマンドを生成する。
 
-    success_goto: 設定が揃った場合に遷移するノード名。
+    Args:
+        userid (str): ユーザーID。
+        messages (list): メッセージのリスト。
+        success_goto (str): 設定が揃った場合に遷移するノード名。
+
+    Returns:
+        Command[str]: 実行コマンド
     """
 
     logger.info("--- Ensure Google Settings Command ---")
