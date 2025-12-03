@@ -4,7 +4,6 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Tuple
 
 # Azure Application Insights imports
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -22,6 +21,7 @@ from psycopg import OperationalError as PsycopgOperationalError
 from psycopg_pool import AsyncConnectionPool
 
 from chatbot.agent import ChatbotAgent
+from chatbot.agent.diary_workflow import get_diary_workflow
 from chatbot.database.repositories import UserRepository
 from chatbot.models import (
     ChatCompletionRequest,
@@ -29,13 +29,11 @@ from chatbot.models import (
     ChatCompletionStreamResponseChoice,
     ChatCompletionStreamResponseChoiceDelta,
 )
+from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
-from chatbot.utils.diary_utils import generate_diary_digest, save_diary_to_drive, save_digest_to_drive
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
-from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
-from chatbot.utils.transcript import DiaryTranscription
 
 load_dotenv()
 
@@ -196,55 +194,6 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
     return oauth_manager.get_user_credentials(userid)
 
 
-def _extract_interrupt_message(interrupts) -> str:
-    """
-    interrupt payload は `ensure_google_settings_node` が投入する
-    `{type: missing_drive_folder_id, message: ...}` を想定する。
-    """
-    if not interrupts:
-        return "入力が必要みたい。フォルダのURLかIDを送ってね。"
-
-    value = getattr(interrupts[0], "value", None)
-    if isinstance(value, dict):
-        message = value.get("message")
-        if isinstance(message, str):
-            return message
-
-    if isinstance(value, str):
-        return value
-
-    return "入力が必要みたい。フォルダのURLかIDを送ってね。"
-
-
-def extract_agent_text(response: dict[str, Any]) -> Tuple[str, bool]:
-    """
-    LangGraphのレスポンスから表示用テキストとinterruptフラグを取り出す。
-
-    戻り値:
-        (text, is_interrupt)
-        - is_interrupt=True のとき text は __interrupt__ 由来
-        - is_interrupt=False のとき text は messages[-1].content 由来
-    """
-    if response.get("__interrupt__"):
-        text = _extract_interrupt_message(response["__interrupt__"])
-        return text, True
-
-    messages = response.get("messages") or []
-    if not messages:
-        raise ValueError("Agent response has no messages or __interrupt__.")
-
-    last = messages[-1]
-    if isinstance(last, dict):
-        content = last.get("content", "")
-    else:
-        content = getattr(last, "content", "")
-
-    if not isinstance(content, str):
-        content = str(content)
-
-    return content, False
-
-
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     line_messenger = LineMessenger(event)
@@ -299,28 +248,6 @@ async def handle_audio_async(event):
     user_repository = UserRepository()
     userid = event.source.user_id
     session = user_repository.ensure_session(userid)
-    credentials = get_user_credentials(userid, user_repository)
-    if not credentials:
-        oauth_manager = GoogleDriveOAuthManager(user_repository)
-        # OAuth の state には userid を渡す
-        auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        auth_message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
-以下のURLから認可してね。
-{auth_url}""".strip().format(auth_url=auth_url)
-        line_messenger.reply_message([TextMessage(text=auth_message)])
-        return
-
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if not folder_id:
-        folder_prompt = (
-            "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
-        )
-        line_messenger.reply_message([TextMessage(text=folder_prompt)])
-        return
-
-    drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-    messages = []
-    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
     # ローディングアニメーションを表示
     line_messenger.show_loading_animation()
@@ -328,58 +255,47 @@ async def handle_audio_async(event):
     # 音声データを取得
     audio = line_messenger.get_content()
 
+    workflow = get_diary_workflow(agent_checkpointer=app.state.checkpointer)
     try:
-        # audioから日記を取得
-        diary_content = DiaryTranscription(drive_handler).invoke(audio)
-        reaction_prompt = f"""以下の日記に対して一言だけ感想を言って。
-内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
-{diary_content}
-"""
-        messages.append({"type": "human", "content": reaction_prompt})
-        logger.info("Generated diary transcription")
+        result = await workflow.ainvoke(
+            {"messages": [], "userid": userid, "session_id": session.session_id, "audio": audio},
+            {"configurable": {"thread_id": session.session_id}},
+        )
 
-        saved_filename = save_diary_to_drive(diary_content, drive_handler)
+        if result.get("__interrupt__"):
+            interrupt_message, _ = extract_agent_text(result)
+            line_messenger.reply_message([TextMessage(text=interrupt_message)])
+            return
+
+        diary_text = result.get("diary_text")
+        saved_filename = result.get("saved_filename")
+        message_updates = result.get("messages") or []
+
+        reply_texts: list[str] = []
+        if diary_text:
+            reply_texts.append(diary_text)
+
+        for message in message_updates:
+            content = message.get("content") if isinstance(message, dict) else getattr(message, "content", None)
+            if content:
+                reply_texts.append(str(content))
+
+        if not reply_texts:
+            fallback, _ = extract_agent_text(result)
+            reply_texts.append(fallback)
+
+        reply_messages = [TextMessage(text=text) for text in reply_texts]
+        line_messenger.reply_message(reply_messages)
+
         if saved_filename:
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
-        # キャラクターのコメントを追加（非同期化）
-        response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
-        reaction, _ = extract_agent_text(response)
-        logger.info(f"Generated character response: {reaction}")
-
-        # メッセージを返信
-        reply_messages = [TextMessage(text=diary_content)]  # 日記の内容は常に送信
-
-        if saved_filename:
-            save_message = f"日記を'{saved_filename}'に保存したわよ。"
-            reply_messages.append(TextMessage(text=save_message))
-
-        if reaction:
-            reply_messages.append(TextMessage(text=reaction))
-        line_messenger.reply_message(reply_messages)
-
-        # メッセージを保存
-        messages.append({"type": "ai", "content": reaction})
-        try:
-            if saved_filename:
-                digest = generate_diary_digest(diary_content)
-                if digest:
-                    success = save_digest_to_drive(digest, saved_filename, drive_handler)
-                    if success:
-                        logger.info("Saved digest successfully")
-                    else:
-                        logger.error("Failed to save digest")
-        except Exception as e:
-            logger.error(f"Error occurred during digest processing: {e}")
-
     except PsycopgOperationalError as e:
-        # PostgreSQL接続エラー（タイムアウト等）の場合
         logger.error(f"PostgreSQL connection error during audio processing: {e}")
         error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
         line_messenger.reply_message([TextMessage(text=error_message)])
 
     except Exception as e:
-        # メッセージを返信
         error_message = f"Error: {e}"
         line_messenger.reply_message([TextMessage(text=error_message)])
         logger.error(f"Returned error message to the user: {e}")
