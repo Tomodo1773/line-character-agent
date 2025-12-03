@@ -14,16 +14,16 @@
 				"PYTHONPATH": "${workspaceFolder}/chatbot"
 			}
 		},
-                {
-                        "name": "Python: Run Agent",
-                        "type": "debugpy",
-                        "request": "launch",
-                        "program": "${workspaceFolder}/chatbot/agent/character.py",
-                        "console": "integratedTerminal",
-                        "cwd": "${workspaceFolder}",
-                        "envFile": "${workspaceFolder}/.env",
-                        "env": {
-                                "PYTHONPATH": "${workspaceFolder}"
+		{
+			"name": "Python: Run Agent",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/chatbot/agent/character.py",
+			"console": "integratedTerminal",
+			"cwd": "${workspaceFolder}",
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}"
 			}
 		}
 	]
