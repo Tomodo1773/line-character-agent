@@ -181,11 +181,20 @@ def _extract_latest_user_content(messages: list) -> str:
     return content if isinstance(content, str) else str(content)
 
 
-def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
-    """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
+def ensure_google_settings_command(userid: str, messages: list, success_goto: str) -> Command[str]:
+    """
+    Google DriveのOAuth設定とフォルダIDの有無を確認するコマンドを生成する。
 
-    logger.info("--- Ensure Google Settings Node ---")
-    userid = state["userid"]
+    Args:
+        userid (str): ユーザーID。
+        messages (list): メッセージのリスト。
+        success_goto (str): 設定が揃った場合に遷移するノード名。
+
+    Returns:
+        Command[str]: 実行コマンド
+    """
+
+    logger.info("--- Ensure Google Settings Command ---")
     user_repository = UserRepository()
     oauth_manager = GoogleDriveOAuthManager(user_repository)
 
@@ -205,10 +214,10 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if folder_id:
-        logger.info("Google Drive folder ID already set for user. Going to get_user_profile node.")
-        return Command(goto="get_user_profile")
+        logger.info("Google Drive folder ID already set for user. Going to %s node.", success_goto)
+        return Command(goto=success_goto)
 
-    latest_user_input = _extract_latest_user_content(state["messages"])
+    latest_user_input = _extract_latest_user_content(messages)
     extracted_id = extract_drive_folder_id(latest_user_input)
 
     if not extracted_id:
@@ -232,10 +241,21 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     user_repository.save_drive_folder_id(userid, extracted_id)
     confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
-    logger.info("Drive folder ID saved for user. Going to get_user_profile node.")
+    logger.info("Drive folder ID saved for user. Going to %s node.", success_goto)
     return Command(
-        goto="get_user_profile",
+        goto=success_goto,
         update={"messages": [AIMessage(content=confirmation)]},
+    )
+
+
+@traceable(run_type="tool", name="Ensure Google Settings")
+def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
+    """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
+
+    return ensure_google_settings_command(
+        userid=state["userid"],
+        messages=state["messages"],
+        success_goto="get_user_profile",
     )
 
 
