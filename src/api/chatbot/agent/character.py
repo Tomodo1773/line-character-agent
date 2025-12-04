@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.types import Command, interrupt
+from langgraph.types import Command
 from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
@@ -247,15 +247,17 @@ def ensure_google_settings_command(
 
     # フォルダID未登録で、待ち状態でない場合はインタラプトを発生させる
     logger.info("Drive folder ID not found. Generating interrupt to request folder ID.")
-    interrupt_payload = {
-        "type": "missing_drive_folder_id",
-        "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
-    }
-    interrupt(interrupt_payload)
-    # インタラプト後は待ち状態に設定
+    # まず、ユーザーにメッセージを送り、待ち状態を設定する
+    interrupt_message = (
+        "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+    )
+
+    # 状態を更新してからインタラプトを発生させる
+    # interrupt() は Command の update が永続化された後に呼び出される必要がある
+    # そのため、メッセージと状態更新を返してから、別の呼び出しで interrupt を発生させる
     return Command(
         goto="__end__",
-        update={"awaiting_folder_id": True},
+        update={"messages": [AIMessage(content=interrupt_message)], "awaiting_folder_id": True},
     )
 
 

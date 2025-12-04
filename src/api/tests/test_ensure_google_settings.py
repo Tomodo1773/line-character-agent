@@ -43,8 +43,8 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
     assert result.update["awaiting_folder_id"] is False
 
 
-def test_ensure_google_settings_node_triggers_interrupt(monkeypatch):
-    """フォルダIDが未設定の場合にinterruptを発生させて待ち状態に設定することを検証"""
+def test_ensure_google_settings_node_triggers_waiting_state(monkeypatch):
+    """フォルダIDが未設定の場合に待ち状態に設定してメッセージを返すことを検証"""
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -65,14 +65,8 @@ def test_ensure_google_settings_node_triggers_interrupt(monkeypatch):
         },
     )()
 
-    interrupt_called = []
-
-    def mock_interrupt(payload):
-        interrupt_called.append(payload)
-
     monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
     monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
-    monkeypatch.setattr("chatbot.agent.character.interrupt", mock_interrupt)
 
     state = {"userid": "user", "session_id": "session", "messages": [], "awaiting_folder_id": False}
 
@@ -81,8 +75,10 @@ def test_ensure_google_settings_node_triggers_interrupt(monkeypatch):
     assert isinstance(result, Command)
     assert result.goto == "__end__"
     assert result.update["awaiting_folder_id"] is True
-    assert len(interrupt_called) == 1
-    assert interrupt_called[0]["type"] == "missing_drive_folder_id"
+    # 状態ベースの実装では interrupt() を呼び出さず、代わりにメッセージと状態を返す
+    assert "messages" in result.update
+    assert len(result.update["messages"]) == 1
+    assert "フォルダID" in result.update["messages"][0].content
 
 
 def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
