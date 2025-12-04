@@ -12,13 +12,13 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent import ChatbotAgent
-from chatbot.agent.character import ensure_google_settings_command
 from chatbot.database.repositories import UserRepository
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
+from chatbot.utils.google_settings import ensure_google_settings
 from chatbot.utils.transcript import DiaryTranscription
 
 
@@ -59,8 +59,8 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
         state: DiaryWorkflowState,
     ) -> Command[Literal["transcribe_diary_node", "__end__"]]:
         logger.info("--- Diary Workflow: ensure_google_settings ---")
-        return ensure_google_settings_command(
-            userid=state["userid"], messages=state.get("messages", []), success_goto="transcribe_diary_node"
+        return ensure_google_settings(
+            userid=state["userid"], success_goto="transcribe_diary_node"
         )
 
     @traceable(run_type="chain", name="Transcribe Diary")
