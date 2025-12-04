@@ -25,6 +25,10 @@ from chatbot.utils.google_auth import GoogleDriveOAuthManager
 
 logger = create_logger(__name__)
 
+# Optional, add tracing in LangSmith (via LangChain)
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
+
 # ############################################
 # 定数
 # ############################################
@@ -34,10 +38,6 @@ PROMPT_EXTRACTION_ERROR_MESSAGE = "ごめんね。プロンプトの読み込み
 # ############################################
 # 事前準備
 # ############################################
-
-# Optional, add tracing in LangSmith
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
 
 
 class State(TypedDict):
@@ -160,27 +160,6 @@ def get_user_profile(userid: str) -> dict:
     return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
 
 
-def _extract_latest_user_content(messages: list) -> str:
-    """
-    最新のユーザー入力を文字列として取り出す
-
-    Args:
-        messages (list): メッセージのリスト（各要素はdictまたはcontent属性を持つオブジェクト）
-
-    Returns:
-        str: 最新メッセージのコンテンツ。メッセージが空の場合は空文字列
-    """
-    if not messages:
-        return ""
-
-    latest_message = messages[-1]
-    if isinstance(latest_message, dict):
-        return str(latest_message.get("content", ""))
-
-    content = getattr(latest_message, "content", "")
-    return content if isinstance(content, str) else str(content)
-
-
 def ensure_google_settings_command(userid: str, messages: list, success_goto: str) -> Command[str]:
     """
     Google DriveのOAuth設定とフォルダIDの有無を確認するコマンドを生成する。
@@ -217,20 +196,16 @@ def ensure_google_settings_command(userid: str, messages: list, success_goto: st
         logger.info("Google Drive folder ID already set for user. Going to %s node.", success_goto)
         return Command(goto=success_goto)
 
-    latest_user_input = _extract_latest_user_content(messages)
-    extracted_id = extract_drive_folder_id(latest_user_input)
+    logger.info("Google Drive folder ID not set for user. Requesting folder ID via interrupt.")
+    interrupt_payload = {
+        "type": "missing_drive_folder_id",
+        "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
+    }
+    user_input = interrupt(interrupt_payload)
+    extracted_id = extract_drive_folder_id(str(user_input))
 
     if not extracted_id:
-        logger.info("Drive folder ID not found in user input. Generating interrupt for missing folder ID.")
-        interrupt_payload = {
-            "type": "missing_drive_folder_id",
-            "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
-        }
-        user_input = interrupt(interrupt_payload)
-        extracted_id = extract_drive_folder_id(str(user_input))
-
-    if not extracted_id:
-        logger.info("Failed to extract Drive folder ID after interrupt. Ending process.")
+        logger.info("Failed to extract Drive folder ID from interrupt response. Ending process.")
         failure_message = (
             "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
         )

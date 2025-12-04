@@ -29,9 +29,9 @@ def _set_if_undefined(var: str) -> None:
 # 必要な環境変数を設定
 _set_if_undefined("OPENAI_API_KEY")
 
-# Optional, add tracing in LangSmith
+# Optional, add tracing in LangSmith (via LangChain)
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = "LINE-AI-BOT"
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
 
 system_prompt = """
 # 命令文
