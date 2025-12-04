@@ -37,6 +37,7 @@ class DiaryWorkflowState(TypedDict):
     digest_saved: NotRequired[bool]
     character_comment: NotRequired[str | None]
     drive_handler: NotRequired[GoogleDriveHandler | None]
+    awaiting_folder_id: NotRequired[bool]
 
 
 logger = create_logger(__name__)
@@ -60,7 +61,10 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     ) -> Command[Literal["transcribe_diary_node", "__end__"]]:
         logger.info("--- Diary Workflow: ensure_google_settings ---")
         return ensure_google_settings_command(
-            userid=state["userid"], messages=state.get("messages", []), success_goto="transcribe_diary_node"
+            userid=state["userid"],
+            messages=state.get("messages", []),
+            success_goto="transcribe_diary_node",
+            awaiting_folder_id=state.get("awaiting_folder_id", False),
         )
 
     @traceable(run_type="chain", name="Transcribe Diary")

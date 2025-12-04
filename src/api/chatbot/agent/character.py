@@ -48,6 +48,7 @@ class State(TypedDict):
     userid: str
     profile: dict = {}
     digest: dict = {}
+    awaiting_folder_id: bool
 
 
 # グローバル変数
@@ -181,7 +182,9 @@ def _extract_latest_user_content(messages: list) -> str:
     return content if isinstance(content, str) else str(content)
 
 
-def ensure_google_settings_command(userid: str, messages: list, success_goto: str) -> Command[str]:
+def ensure_google_settings_command(
+    userid: str, messages: list, success_goto: str, awaiting_folder_id: bool = False
+) -> Command[str]:
     """
     Google DriveのOAuth設定とフォルダIDの有無を確認するコマンドを生成する。
 
@@ -189,6 +192,7 @@ def ensure_google_settings_command(userid: str, messages: list, success_goto: st
         userid (str): ユーザーID。
         messages (list): メッセージのリスト。
         success_goto (str): 設定が揃った場合に遷移するノード名。
+        awaiting_folder_id (bool): フォルダID入力待ち状態かどうか。
 
     Returns:
         Command[str]: 実行コマンド
@@ -209,42 +213,49 @@ def ensure_google_settings_command(userid: str, messages: list, success_goto: st
 
         return Command(
             goto="__end__",
-            update={"messages": [AIMessage(content=message)]},
+            update={"messages": [AIMessage(content=message)], "awaiting_folder_id": False},
         )
 
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if folder_id:
         logger.info("Google Drive folder ID already set for user. Going to %s node.", success_goto)
-        return Command(goto=success_goto)
+        return Command(goto=success_goto, update={"awaiting_folder_id": False})
 
-    latest_user_input = _extract_latest_user_content(messages)
-    extracted_id = extract_drive_folder_id(latest_user_input)
+    # フォルダID登録待ち状態の場合、ユーザー入力からフォルダIDを抽出して登録
+    if awaiting_folder_id:
+        logger.info("Awaiting folder ID. Attempting to extract from latest user message.")
+        latest_user_input = _extract_latest_user_content(messages)
+        extracted_id = extract_drive_folder_id(latest_user_input)
 
-    if not extracted_id:
-        logger.info("Drive folder ID not found in user input. Generating interrupt for missing folder ID.")
-        interrupt_payload = {
-            "type": "missing_drive_folder_id",
-            "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
-        }
-        user_input = interrupt(interrupt_payload)
-        extracted_id = extract_drive_folder_id(str(user_input))
+        if extracted_id:
+            user_repository.save_drive_folder_id(userid, extracted_id)
+            confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
+            logger.info("Drive folder ID saved for user. Going to %s node.", success_goto)
+            return Command(
+                goto=success_goto,
+                update={"messages": [AIMessage(content=confirmation)], "awaiting_folder_id": False},
+            )
+        else:
+            logger.info("Failed to extract Drive folder ID from user input.")
+            failure_message = (
+                "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
+            )
+            return Command(
+                goto="__end__",
+                update={"messages": [AIMessage(content=failure_message)], "awaiting_folder_id": True},
+            )
 
-    if not extracted_id:
-        logger.info("Failed to extract Drive folder ID after interrupt. Ending process.")
-        failure_message = (
-            "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
-        )
-        return Command(
-            goto="__end__",
-            update={"messages": [AIMessage(content=failure_message)]},
-        )
-
-    user_repository.save_drive_folder_id(userid, extracted_id)
-    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
-    logger.info("Drive folder ID saved for user. Going to %s node.", success_goto)
+    # フォルダID未登録で、待ち状態でない場合はインタラプトを発生させる
+    logger.info("Drive folder ID not found. Generating interrupt to request folder ID.")
+    interrupt_payload = {
+        "type": "missing_drive_folder_id",
+        "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
+    }
+    interrupt(interrupt_payload)
+    # インタラプト後は待ち状態に設定
     return Command(
-        goto=success_goto,
-        update={"messages": [AIMessage(content=confirmation)]},
+        goto="__end__",
+        update={"awaiting_folder_id": True},
     )
 
 
@@ -256,6 +267,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
         userid=state["userid"],
         messages=state["messages"],
         success_goto="get_user_profile",
+        awaiting_folder_id=state.get("awaiting_folder_id", False),
     )
 
 
