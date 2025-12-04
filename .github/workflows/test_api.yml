@@ -43,7 +43,6 @@ jobs:
           GOOGLE_TOKEN_ENC_KEY: "hogehoge"
           LINE_CHANNEL_ACCESS_TOKEN: "hogehoge"
           LINE_CHANNEL_SECRET: "hogehoge"
-          LINE_USER_ID: "hogehoge"
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           COSMOS_DB_ACCOUNT_URL: "hogehoge"
