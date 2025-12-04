@@ -234,7 +234,7 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
     monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
     monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
-    state = {"userid": "user", "session_id": "session", "messages": []}
+    state = {"userid": "user", "session_id": "session", "messages": [], "awaiting_folder_id": False}
 
     result = ensure_google_settings_node(state)
 
@@ -243,10 +243,53 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
     message = result.update["messages"][0]
     assert isinstance(message, AIMessage)
     assert "https://example.com/auth" in message.content
+    assert result.update["awaiting_folder_id"] is False
+
+
+def test_ensure_google_settings_node_triggers_interrupt(monkeypatch):
+    """フォルダIDが未設定の場合にinterruptを発生させて待ち状態に設定することを検証"""
+
+    class DummyUserRepository:
+        def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
+            return None
+
+        def fetch_drive_folder_id(self, userid: str) -> str:  # pragma: no cover
+            return ""
+
+        def save_drive_folder_id(self, userid: str, folder_id: str) -> None:  # pragma: no cover
+            return None
+
+    dummy_manager = type(
+        "DummyManager",
+        (),
+        {
+            "get_user_credentials": lambda self, userid: object(),
+            "generate_authorization_url": lambda self, state: ("https://example.com/auth", state),
+        },
+    )()
+
+    interrupt_called = []
+
+    def mock_interrupt(payload):
+        interrupt_called.append(payload)
+
+    monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.character.interrupt", mock_interrupt)
+
+    state = {"userid": "user", "session_id": "session", "messages": [], "awaiting_folder_id": False}
+
+    result = ensure_google_settings_node(state)
+
+    assert isinstance(result, Command)
+    assert result.goto == "__end__"
+    assert result.update["awaiting_folder_id"] is True
+    assert len(interrupt_called) == 1
+    assert interrupt_called[0]["type"] == "missing_drive_folder_id"
 
 
 def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
-    """フォルダIDが未設定の場合に入力を促し登録するフローを検証"""
+    """フォルダID入力待ち状態でユーザーがフォルダIDを送信した場合に登録するフローを検証"""
 
     saved_folder_ids: list[str] = []
 
@@ -271,12 +314,14 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
 
     monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
     monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
-    monkeypatch.setattr(
-        "chatbot.agent.character.interrupt",
-        lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
-    )
 
-    state = {"userid": "user", "session_id": "session", "messages": []}
+    # awaiting_folder_id=True の状態でフォルダIDを含むメッセージを送信
+    state = {
+        "userid": "user",
+        "session_id": "session",
+        "messages": [{"type": "human", "content": "https://drive.google.com/drive/folders/test-folder-id"}],
+        "awaiting_folder_id": True,
+    }
 
     result = ensure_google_settings_node(state)
 
@@ -286,6 +331,7 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
     assert isinstance(message, AIMessage)
     assert "フォルダIDを登録" in message.content
     assert saved_folder_ids == ["test-folder-id"]
+    assert result.update["awaiting_folder_id"] is False
 
 
 def test_extract_agent_text_non_interrupt():
