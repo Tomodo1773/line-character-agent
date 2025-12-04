@@ -245,16 +245,15 @@ def ensure_google_settings_command(
                 update={"messages": [AIMessage(content=failure_message)], "awaiting_folder_id": True},
             )
 
-    # フォルダID未登録で、待ち状態でない場合はインタラプトを発生させる
-    logger.info("Drive folder ID not found. Generating interrupt to request folder ID.")
-    # まず、ユーザーにメッセージを送り、待ち状態を設定する
+    # フォルダID未登録で、待ち状態でない場合はユーザーに入力を促す
+    logger.info("Drive folder ID not found. Requesting folder ID from user.")
+    # ユーザーにメッセージを送り、待ち状態を設定する
     interrupt_message = (
         "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
     )
 
-    # 状態を更新してからインタラプトを発生させる
-    # interrupt() は Command の update が永続化された後に呼び出される必要がある
-    # そのため、メッセージと状態更新を返してから、別の呼び出しで interrupt を発生させる
+    # メッセージと awaiting_folder_id=True を返すことで、次回の実行時にフォルダID抽出ロジックに進む
+    # 状態ベースの実装により、interrupt() を使わずに人間の入力を待つことができる
     return Command(
         goto="__end__",
         update={"messages": [AIMessage(content=interrupt_message)], "awaiting_folder_id": True},
