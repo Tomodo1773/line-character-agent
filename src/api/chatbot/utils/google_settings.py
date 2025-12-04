@@ -72,9 +72,9 @@ def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid
     logger.info("Google credentials not found for user. Generating auth URL.")
     # OAuth の state には userid を渡す
     auth_url, _ = oauth_manager.generate_authorization_url(userid)
-    message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
+    message = f"""Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
-{auth_url}""".strip().format(auth_url=auth_url)
+{auth_url}""".strip()
 
     return Command(
         goto="__end__",
