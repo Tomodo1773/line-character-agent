@@ -12,16 +12,14 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.types import Command, interrupt
+from langgraph.types import Command
 from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.tools import diary_search_tool
-from chatbot.database.repositories import UserRepository
 from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import check_environment_variables, create_logger
-from chatbot.utils.drive_folder import extract_drive_folder_id
-from chatbot.utils.google_auth import GoogleDriveOAuthManager
+from chatbot.utils.google_settings import ensure_google_settings
 
 logger = create_logger(__name__)
 
@@ -160,74 +158,11 @@ def get_user_profile(userid: str) -> dict:
     return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
 
 
-def ensure_google_settings_command(userid: str, messages: list, success_goto: str) -> Command[str]:
-    """
-    Google DriveのOAuth設定とフォルダIDの有無を確認するコマンドを生成する。
-
-    Args:
-        userid (str): ユーザーID。
-        messages (list): メッセージのリスト。
-        success_goto (str): 設定が揃った場合に遷移するノード名。
-
-    Returns:
-        Command[str]: 実行コマンド
-    """
-
-    logger.info("--- Ensure Google Settings Command ---")
-    user_repository = UserRepository()
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
-
-    credentials = oauth_manager.get_user_credentials(userid)
-    if not credentials:
-        logger.info("Google credentials not found for user. Generating auth URL.")
-        # OAuth の state には userid を渡す
-        auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        message = """Google Drive へのアクセス許可がまだ設定されていないみたい。
-以下のURLから認可してね。
-{auth_url}""".strip().format(auth_url=auth_url)
-
-        return Command(
-            goto="__end__",
-            update={"messages": [AIMessage(content=message)]},
-        )
-
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if folder_id:
-        logger.info("Google Drive folder ID already set for user. Going to %s node.", success_goto)
-        return Command(goto=success_goto)
-
-    logger.info("Google Drive folder ID not set for user. Requesting folder ID via interrupt.")
-    interrupt_payload = {
-        "type": "missing_drive_folder_id",
-        "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
-    }
-    user_input = interrupt(interrupt_payload)
-    extracted_id = extract_drive_folder_id(str(user_input))
-
-    if not extracted_id:
-        logger.info("Failed to extract Drive folder ID from interrupt response. Ending process.")
-        failure_message = (
-            "フォルダIDを読み取れなかったよ。drive.google.comのフォルダURLかIDを送って、もう一度メッセージを送ってね。"
-        )
-        return Command(
-            goto="__end__",
-            update={"messages": [AIMessage(content=failure_message)]},
-        )
-
-    user_repository.save_drive_folder_id(userid, extracted_id)
-    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
-    logger.info("Drive folder ID saved for user. Going to %s node.", success_goto)
-    return Command(
-        goto=success_goto,
-        update={"messages": [AIMessage(content=confirmation)]},
-    )
-
-
 @traceable(run_type="tool", name="Ensure Google Settings")
 def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
     """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
 
-    return ensure_google_settings_command(
+    return ensure_google_settings(
         userid=state["userid"],
         messages=state["messages"],
         success_goto="get_user_profile",

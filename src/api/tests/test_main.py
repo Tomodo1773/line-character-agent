@@ -231,8 +231,8 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
         },
     )()
 
-    monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.utils.google_settings.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.utils.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
@@ -269,10 +269,10 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
         },
     )()
 
-    monkeypatch.setattr("chatbot.agent.character.UserRepository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.agent.character.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.utils.google_settings.UserRepository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.utils.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
     monkeypatch.setattr(
-        "chatbot.agent.character.interrupt",
+        "chatbot.utils.google_settings.interrupt",
         lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
     )
 
