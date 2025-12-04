@@ -67,6 +67,36 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 3. **diary_search**: 日記内容のRAG検索・ベクトル化による過去日記検索
 4. **chatbot**: メイン会話処理（ユーザープロファイル・日記ダイジェスト参照、Web検索対応）
 
+## 日記登録ワークフロー
+
+![日記登録ワークフロー](./src/api/images/diary_workflow_graph.png)
+
+### ワークフロー構成
+
+音声日記の登録処理は、LangGraphを活用した以下のワークフローで実現されています：
+
+1. **ensure_google_settings_node**: Google Drive設定の確認
+   - ユーザーのGoogle Drive認証情報と保存先フォルダIDをチェック
+   - 設定が不足している場合は対話的に取得
+
+2. **transcribe_diary_node**: 音声の文字起こし
+   - AI音声認識により音声データをテキスト化
+   - Google Driveのユーザー辞書を使用して誤字を自動修正
+
+3. **save_diary_node**: 日記の保存
+   - 文字起こしされた内容をMarkdown形式でGoogle Driveに保存
+   - ファイル名は日付ベースで自動生成（例：`2025年12月04日(水).md`）
+
+4. **generate_digest_node**: ダイジェストの生成
+   - 複数日分の日記内容を要約したダイジェストを生成
+   - ダイジェストファイルもGoogle Driveに保存
+
+5. **invoke_character_comment_node**: キャラクターコメントの生成
+   - 日記内容に対してAIキャラクターが感想コメントを生成
+   - LINEを通じてユーザーに返信
+
+各ノードは独立してトレース可能で、LangSmithによる実行モニタリングに対応しています。
+
 ## 技術スタック
 
 ### フロントエンド
