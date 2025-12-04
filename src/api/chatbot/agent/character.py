@@ -25,6 +25,10 @@ from chatbot.utils.google_auth import GoogleDriveOAuthManager
 
 logger = create_logger(__name__)
 
+# Optional, add tracing in LangSmith (via LangChain)
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
+
 # ############################################
 # 定数
 # ############################################
@@ -34,10 +38,6 @@ PROMPT_EXTRACTION_ERROR_MESSAGE = "ごめんね。プロンプトの読み込み
 # ############################################
 # 事前準備
 # ############################################
-
-# Optional, add tracing in LangSmith
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
 
 
 class State(TypedDict):
