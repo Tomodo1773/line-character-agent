@@ -21,7 +21,7 @@ from psycopg import OperationalError as PsycopgOperationalError
 from psycopg_pool import AsyncConnectionPool
 
 from chatbot.agent import ChatbotAgent
-from chatbot.agent.diary_workflow import get_diary_workflow
+from chatbot.agent.diary_workflow import DiaryWorkflowError, get_diary_workflow
 from chatbot.database.repositories import UserRepository
 from chatbot.models import (
     ChatCompletionRequest,
@@ -290,6 +290,11 @@ async def handle_audio_async(event):
         if saved_filename:
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
+    except DiaryWorkflowError as e:
+        # ワークフロー内でのドメインエラーはメッセージとしてそのままユーザーに返す
+        error_message = str(e)
+        line_messenger.reply_message([TextMessage(text=error_message)])
+        logger.error(f"Diary workflow error: {e}")
     except PsycopgOperationalError as e:
         logger.error(f"PostgreSQL connection error during audio processing: {e}")
         error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"

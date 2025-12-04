@@ -1,7 +1,7 @@
 """LangGraphベースの日記登録ワークフロー定義。"""
 
 import os
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -20,6 +20,10 @@ from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_driv
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.transcript import DiaryTranscription
+
+
+class DiaryWorkflowError(Exception):
+    """日記登録ワークフロー内でのドメインエラーを表す例外。"""
 
 
 class DiaryWorkflowState(TypedDict):
@@ -51,38 +55,40 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     graph_builder = StateGraph(DiaryWorkflowState)
 
     @traceable(run_type="tool", name="Ensure Google Settings")
-    def ensure_google_settings_node(state: DiaryWorkflowState) -> Command[str]:
+    def ensure_google_settings_node(
+        state: DiaryWorkflowState,
+    ) -> Command[Literal["transcribe_diary_node", "__end__"]]:
         logger.info("--- Diary Workflow: ensure_google_settings ---")
         return ensure_google_settings_command(
             userid=state["userid"], messages=state.get("messages", []), success_goto="transcribe_diary_node"
         )
 
     @traceable(run_type="chain", name="Transcribe Diary")
-    def transcribe_diary_node(state: DiaryWorkflowState) -> Command[str]:
+    def transcribe_diary_node(state: DiaryWorkflowState) -> Command[Literal["save_diary_node"]]:
         logger.info("--- Diary Workflow: transcribe_diary ---")
         drive_handler = _create_drive_handler(state["userid"])
         audio = state.get("audio")
 
         if not drive_handler:
-            message = AIMessage(content="Google Driveの設定が見つからなかったよ。もう一度確認してみて。")
-            return Command(goto="__end__", update={"messages": [message]})
+            message = "Google Driveの設定が見つからなかったよ。もう一度確認してみて。"
+            raise DiaryWorkflowError(message)
 
         if not audio:
-            message = AIMessage(content="音声を受け取れなかったみたい。もう一度送ってね。")
-            return Command(goto="__end__", update={"messages": [message]})
+            message = "音声を受け取れなかったみたい。もう一度送ってね。"
+            raise DiaryWorkflowError(message)
 
         diary_text = DiaryTranscription(drive_handler).invoke(audio)
         return Command(goto="save_diary_node", update={"drive_handler": drive_handler, "diary_text": diary_text})
 
     @traceable(run_type="tool", name="Save Diary")
-    def save_diary_node(state: DiaryWorkflowState) -> Command[str]:
+    def save_diary_node(state: DiaryWorkflowState) -> Command[Literal["generate_digest_node"]]:
         logger.info("--- Diary Workflow: save_diary ---")
         diary_text = state.get("diary_text")
         drive_handler = state.get("drive_handler")
 
         if not diary_text or not drive_handler:
-            message = AIMessage(content="日記の文字起こしに失敗しちゃった。もう一度試してね。")
-            return Command(goto="__end__", update={"messages": [message]})
+            message = "日記の文字起こしに失敗しちゃった。もう一度試してね。"
+            raise DiaryWorkflowError(message)
 
         saved_filename = save_diary_to_drive(diary_text, drive_handler)
         if saved_filename:
@@ -96,7 +102,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
         )
 
     @traceable(run_type="chain", name="Generate Digest")
-    def generate_digest_node(state: DiaryWorkflowState) -> Command[str]:
+    def generate_digest_node(state: DiaryWorkflowState) -> Command[Literal["invoke_character_comment_node"]]:
         logger.info("--- Diary Workflow: generate_digest ---")
         diary_text = state.get("diary_text")
         saved_filename = state.get("saved_filename")
@@ -117,11 +123,14 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
         return Command(goto="invoke_character_comment_node", update=update)
 
     @traceable(run_type="chain", name="Invoke Character Comment")
-    async def invoke_character_comment_node(state: DiaryWorkflowState) -> dict:
+    async def invoke_character_comment_node(
+        state: DiaryWorkflowState,
+    ) -> Command[Literal["__end__"]]:
         logger.info("--- Diary Workflow: invoke_character_comment ---")
         diary_text = state.get("diary_text")
         if not diary_text:
-            return {"messages": [AIMessage(content="日記の文字起こしが空だったからコメントは省略するね。")]}
+            message = AIMessage(content="日記の文字起こしが空だったからコメントは省略するね。")
+            return Command(goto="__end__", update={"messages": [message]})
 
         agent = ChatbotAgent(checkpointer=agent_checkpointer)
         reaction_prompt = """以下の日記に対して一言だけ感想を言って。
@@ -134,7 +143,10 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             session_id=state["session_id"],
         )
         reaction, _ = extract_agent_text(response)
-        return {"character_comment": reaction, "messages": [AIMessage(content=reaction)]}
+        return Command(
+            goto="__end__",
+            update={"character_comment": reaction, "messages": [AIMessage(content=reaction)]},
+        )
 
     graph_builder.add_node("ensure_google_settings_node", ensure_google_settings_node)
     graph_builder.add_edge(START, "ensure_google_settings_node")
@@ -142,7 +154,6 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     graph_builder.add_node("save_diary_node", save_diary_node)
     graph_builder.add_node("generate_digest_node", generate_digest_node)
     graph_builder.add_node("invoke_character_comment_node", invoke_character_comment_node)
-    # 静的エッジは不要なため削除（動的ルーティングは各ノード関数内のCommandで制御）
 
     return graph_builder.compile()
 
