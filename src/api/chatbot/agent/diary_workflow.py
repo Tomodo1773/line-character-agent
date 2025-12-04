@@ -60,7 +60,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     ) -> Command[Literal["transcribe_diary_node", "__end__"]]:
         logger.info("--- Diary Workflow: ensure_google_settings ---")
         return ensure_google_settings(
-            userid=state["userid"], messages=state.get("messages", []), success_goto="transcribe_diary_node"
+            userid=state["userid"], success_goto="transcribe_diary_node"
         )
 
     @traceable(run_type="chain", name="Transcribe Diary")

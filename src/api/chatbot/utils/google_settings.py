@@ -15,7 +15,7 @@ from chatbot.utils.google_auth import GoogleDriveOAuthManager
 logger = create_logger(__name__)
 
 
-def ensure_google_settings(userid: str, messages: list, success_goto: str) -> Command[str]:
+def ensure_google_settings(userid: str, success_goto: str) -> Command[str]:
     """
     Google DriveのOAuth設定とフォルダIDの有無を確認し、適切なCommandを返す。
 
@@ -26,7 +26,6 @@ def ensure_google_settings(userid: str, messages: list, success_goto: str) -> Co
 
     Args:
         userid (str): ユーザーID。
-        messages (list): メッセージのリスト。
         success_goto (str): 設定が揃った場合に遷移するノード名。
 
     Returns:

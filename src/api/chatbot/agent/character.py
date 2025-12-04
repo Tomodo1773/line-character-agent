@@ -164,7 +164,6 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profi
 
     return ensure_google_settings(
         userid=state["userid"],
-        messages=state["messages"],
         success_goto="get_user_profile",
     )
 
