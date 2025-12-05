@@ -150,7 +150,7 @@ class GoogleDriveHandler:
         Args:
             new_digest: 追加するダイジェストエントリ
             filename: ファイル名
-            folder_id: 保存先フォルダID（指定がない場合は環境変数から取得）
+            folder_id: 保存先フォルダID（指定がない場合はコンストラクタで指定したIDを使用）
 
         Returns:
             処理されたファイルのID
@@ -162,40 +162,33 @@ class GoogleDriveHandler:
             files = results.get("files", [])
 
             if files:
-                # ファイルが存在する場合は内容を取得して更新
                 file_id = files[0]["id"]
                 existing_content = self.get_file_content(file_id)
+                digest_data = (
+                    json.loads(existing_content) if existing_content.strip() else self._create_default_digest_structure()
+                )
 
-                if existing_content.strip():
-                    digest_data = json.loads(existing_content)
-                else:
-                    digest_data = self._create_default_digest_structure()
-
-                # recentセクションに新しいダイジェストを追加
-                digest_data["recent"].insert(0, new_digest)
+                digest_data["daily"].insert(0, new_digest)
                 digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
 
                 updated_content = json.dumps(digest_data, ensure_ascii=False, indent=2)
-
                 media = MediaIoBaseUpload(
                     io.BytesIO(updated_content.encode("utf-8")), mimetype="application/json", resumable=True
                 )
                 self.service.files().update(fileId=file_id, media_body=media).execute()
                 logger.info(f"Updated file {filename} in Google Drive. ID: {file_id}")
                 return file_id
-            else:
-                # ファイルが存在しない場合は新規作成
-                digest_data = self._create_default_digest_structure()
-                digest_data["recent"].append(new_digest)
-                digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
 
-                content = json.dumps(digest_data, ensure_ascii=False, indent=2)
+            digest_data = self._create_default_digest_structure()
+            digest_data["daily"].append(new_digest)
+            digest_data["lastUpdated"] = datetime.now().strftime("%Y-%m-%d")
 
-                media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="application/json", resumable=True)
-                metadata = {"name": filename, "parents": [target_folder_id]}
-                file = self.service.files().create(body=metadata, media_body=media, fields="id").execute()
-                logger.info(f"Created new file {filename} in Google Drive. ID: {file.get('id')}")
-                return file.get("id")
+            content = json.dumps(digest_data, ensure_ascii=False, indent=2)
+            media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="application/json", resumable=True)
+            metadata = {"name": filename, "parents": [target_folder_id]}
+            file = self.service.files().create(body=metadata, media_body=media, fields="id").execute()
+            logger.info(f"Created new file {filename} in Google Drive. ID: {file.get('id')}")
+            return file.get("id")
         except HttpError as error:
             logger.error(f"An error occurred while working with JSON file: {error}")
             return ""
@@ -211,9 +204,9 @@ class GoogleDriveHandler:
             デフォルトのダイジェストデータ構造
         """
         return {
-            "version": "1.0",
+            "version": "2.0",
             "lastUpdated": datetime.now().strftime("%Y-%m-%d"),
-            "recent": [],
+            "daily": [],
             "monthly": [],
             "yearly": [],
         }
