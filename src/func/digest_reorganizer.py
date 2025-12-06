@@ -28,22 +28,68 @@ DEFAULT_DIGEST = {
 }
 
 SYSTEM_PROMPT = """
-あなたは日記ダイジェスト整理担当のエージェントです。
+あなたは日記ダイジェスト整理担当のエージェントです。先月までの日ごとデータを月ごとにまとめ、昨年までの月ごとデータを年ごとにまとめる作業を行います。
 対象ファイル: /digest.json
 
-スキーマ（version 2.0）:
-- lastUpdated: YYYY-MM-DD（最終更新日）
-- daily: [{"date": "YYYY-MM-DD", "text": "..."}] 当月の出来事のみを保持
-- monthly: [{"month": "YYYY-MM", "summary": "月の要約", "highlights": [{"date": "YYYY-MM-DD", "text": "印象的な出来事"}]}]
-- yearly: [{"year": "YYYY", "summary": "年の要約", "highlights": [{"month": "YYYY-MM", "text": "印象的な出来事"}]}]
-
-編集ルール:
+ダイジェスト作成の方針:
 - digest.json を読み、ツールを使って直接編集する（Read/Write/Edit を活用）。
-- 今日と同じ月の daily は残し、過去月の daily は月単位にまとめて monthly に移す。
-- monthly を作成・更新する際は印象的な出来事を 3-7 件に圧縮し、summary を簡潔に書く。
-- 過去年の monthly は年単位にまとめて yearly を更新する（highlights は月を参照、3-7 件）。
-- 既存の monthly/yearly がある場合は同じ月/年を統合して最新情報を先頭に置く。
-- スキーマ外のフィールドを増やさず、JSON を壊さないこと。
+- 今日と同じ月の daily は残し、過去月の daily は月単位にまとめて monthly に移す。月単位にまとめた分の daily は削除する。
+- 今日と同じ年の monthly は残し、過去年の monthly は年単位にまとめて yearly に移す。年単位にまとめた分の monthly は削除する。
+- yearly, monthly, dailyで重複する日付・月・年は存在しないようにする。
+    - 例: 2024-02-01 の daily が存在する場合、2024-02 の monthly は存在しない。
+- monthly を作成・更新する際は印象的な出来事テキストを 3-7 件に圧縮し、summary を簡潔に書く。
+- yearly を作成・更新する際は印象的な出来事テキストを 5-10 件に圧縮し、summary を簡潔に書く。
+
+サンプル
+```json
+{
+    "version": "2.0",
+    "lastUpdated": "2024-03-03",
+    "daily": [
+        {"date": "2024-03-01", "text": "今日は晴れでした。"},
+        {"date": "2024-03-02", "text": "友達と会いました。"},
+        {"date": "2024-03-03", "text": "新しい本を読み始めました。"}
+    ],
+    "monthly": [
+        {
+            "month": "2024-02",
+            "summary": "2月は忙しい月でした。",
+            "highlights": [
+                "仕事で大きなプロジェクトを完了しました。",
+                "家族と旅行に行きました。"
+            ]
+        },
+        {
+            "month": "2024-01",
+            "summary": "1月は新しいスタートの月でした。",
+            "highlights": [
+                "新年の目標を設定しました。",
+                "ジムに通い始めました。"
+            ]
+        }
+    ],
+    "yearly": [
+        {
+            "year": "2023",
+            "summary": "2023年は成長の年でした。",
+            "highlights": [
+                "新しいスキルを習得しました。",
+                "多くの新しい人と出会いました。",
+                "健康に気を使うようになりました。"
+            ]
+        },
+    ]
+}
+```
+
+最終成果物の要件:
+- 有効な JSON であること。
+- スキーマに準拠していること。
+- dailyに今月以外の日付が含まれないこと
+- monthlyに今年以外の月が含まれないこと
+- yearlyに過去年のみが含まれること
+
+
 """
 
 
@@ -53,7 +99,6 @@ class AgentRunner(Protocol):
     @abstractmethod
     def invoke(self, input: dict, /, stream_mode: str | None = None) -> object:  # pragma: no cover - interface only
         """LangGraph Deep Agent の実装側が提供する実行メソッド."""
-
 
 
 def _render_user_prompt(today: str) -> str:
@@ -100,7 +145,7 @@ class DeepAgentFactory:
 
     def __call__(self, workspace: Path) -> AgentRunner:
         backend = FilesystemBackend(root_dir=workspace, virtual_mode=True)
-        llm = ChatOpenAI(model=self.model_name, temperature=0)
+        llm = ChatOpenAI(model=self.model_name, temperature=0, reasoning_effort="medium")
         return create_deep_agent(model=llm, system_prompt=SYSTEM_PROMPT, backend=backend)
 
 
