@@ -1,20 +1,18 @@
 {
-	"python.testing.pytestArgs": [
-		"tests"
-	],
+	"python.testing.pytestArgs": ["tests"],
 	"python.testing.unittestEnabled": false,
 	"python.testing.pytestEnabled": true,
 	"python.defaultInterpreterPath": "./.venv/bin/python",
-    "files.exclude": {
-        "obj": true,
-        "bin": true
-    },
-    "azureFunctions.deploySubpath": ".",
-    "azureFunctions.scmDoBuildDuringDeployment": true,
-    "azureFunctions.pythonVenv": ".venv",
-    "azureFunctions.projectLanguage": "Python",
-    "azureFunctions.projectRuntime": "~4",
-    "debug.internalConsoleOptions": "neverOpen",
-    "azureFunctions.projectLanguageModel": 2,
-    "azureFunctions.preDeployTask": "func: extensions install"
+	"files.exclude": {
+		"obj": true,
+		"bin": true
+	},
+	"azureFunctions.deploySubpath": ".",
+	"azureFunctions.scmDoBuildDuringDeployment": true,
+	"azureFunctions.pythonVenv": ".venv",
+	"azureFunctions.projectLanguage": "Python",
+	"azureFunctions.projectRuntime": "~4",
+	"debug.internalConsoleOptions": "neverOpen",
+	"azureFunctions.projectLanguageModel": 2,
+	"azureFunctions.preDeployTask": "func: extensions install"
 }

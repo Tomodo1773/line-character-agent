@@ -1,10 +1,11 @@
 import io
+from typing import Optional
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from langchain_core.documents import Document
 
 from google_auth import GOOGLE_SCOPES
@@ -70,7 +71,7 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while listing files: {error}")
             return []
 
-    def get(self, file_id) -> Document:
+    def get(self, file_id) -> Optional[Document]:
         try:
             file_metadata = self.service.files().get(fileId=file_id, fields="name, mimeType").execute()
 
@@ -92,3 +93,40 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting file content: {error}")
             return None
+
+    def find_file(self, filename: str, folder_id: str | None = None) -> Optional[dict]:
+        """指定フォルダ内でファイル名が一致する最初のファイルを返す。"""
+        try:
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = '{filename}' and '{target_folder_id}' in parents and trashed = false"
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name, mimeType)").execute()
+            files = results.get("files", [])
+            return files[0] if files else None
+        except HttpError as error:
+            logger.error("An error occurred while searching file %s: %s", filename, error)
+            return None
+
+    def upsert_text_file(
+        self, filename: str, content: str, *, folder_id: str | None = None, mime_type: str = "application/json"
+    ) -> str:
+        """指定されたコンテンツでファイルを作成または更新する。"""
+
+        try:
+            target_folder_id = self._resolve_folder_id(folder_id)
+            existing = self.find_file(filename, target_folder_id)
+            media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype=mime_type, resumable=True)
+
+            if existing:
+                file_id = existing["id"]
+                self.service.files().update(fileId=file_id, media_body=media).execute()
+                logger.info("Updated file %s (%s)", filename, file_id)
+                return file_id
+
+            metadata = {"name": filename, "parents": [target_folder_id]}
+            created = self.service.files().create(body=metadata, media_body=media, fields="id").execute()
+            file_id = created.get("id", "")
+            logger.info("Created file %s (%s)", filename, file_id)
+            return file_id
+        except HttpError as error:
+            logger.error("An error occurred while upserting %s: %s", filename, error)
+            return ""
