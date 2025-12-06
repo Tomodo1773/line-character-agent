@@ -415,9 +415,7 @@ def test_handle_text_async_with_reset_keyword():
 
         # reset_sessionが呼ばれることを確認するためのモック設定
         new_session_id = "new-session-id"
-        mock_user_repo.reset_session.return_value = SessionMetadata(
-            session_id=new_session_id, last_accessed=MagicMock()
-        )
+        mock_user_repo.reset_session.return_value = SessionMetadata(session_id=new_session_id, last_accessed=MagicMock())
 
         # LineMessengerのモック作成
         with patch("chatbot.main.LineMessenger") as mock_messenger_class:
