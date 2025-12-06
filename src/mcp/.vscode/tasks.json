@@ -11,7 +11,7 @@
 			"type": "func",
 			"label": "mcp: func: host start",
 			"command": "host start",
-			"problemMatcher": "$func-python-watch",
+			"problemMatcher": "$func-watch",
 			"isBackground": true,
 			"dependsOn": "mcp: func: extensions install"
 		},

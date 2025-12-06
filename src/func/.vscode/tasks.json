@@ -10,17 +10,10 @@
 		{
 			"type": "func",
 			"label": "func: host start",
-			"command": "host start",
-			"problemMatcher": "$func-python-watch",
+			"command": "host start --verbose --language-worker -- '-m debugpy --listen 0.0.0.0:9092'",
+			"problemMatcher": "$func-watch",
 			"isBackground": true,
-			"dependsOn": "func: extensions install"
-		},
-		{
-			"type": "func",
-			"label": "func: extensions install",
-			"command": "extensions install",
-			"dependsOn": "uv sync (functions)",
-			"problemMatcher": []
+			"dependsOn": "uv sync (functions)"
 		}
 	]
 }
