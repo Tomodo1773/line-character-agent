@@ -358,3 +358,80 @@ def test_diary_agent():
         assert len(returned_messages) > 0
         assert isinstance(returned_messages[0], AIMessage)
         assert len(returned_messages[0].content) > 0
+
+
+def test_reset_session():
+    """
+    UserRepository.reset_session のテスト
+    - reset_sessionを呼び出すと新しいセッションIDが生成されることを確認
+    - 同じユーザーで2回reset_sessionを呼ぶと異なるセッションIDが返されることを確認
+    """
+    from unittest.mock import MagicMock
+
+    from chatbot.database.repositories import UserRepository
+
+    # UserRepositoryのインスタンスを作成
+    user_repository = UserRepository()
+
+    # CosmosDBの操作をモック化
+    user_repository._core.save = MagicMock()
+    user_repository.fetch_user = MagicMock(return_value={"id": TEST_USER_ID, "userid": TEST_USER_ID})
+
+    # 最初のreset_sessionを呼び出し
+    session1 = user_repository.reset_session(TEST_USER_ID)
+
+    # セッションIDが生成されていることを確認
+    assert session1.session_id is not None
+    assert len(session1.session_id) > 0
+
+    # 2回目のreset_sessionを呼び出し
+    session2 = user_repository.reset_session(TEST_USER_ID)
+
+    # 異なるセッションIDが生成されていることを確認
+    assert session2.session_id != session1.session_id
+
+
+def test_handle_text_async_with_reset_keyword():
+    """
+    handle_text_asyncで「閑話休題」キーワードを受け取った時のテスト
+    - 「閑話休題」を送信するとセッションがリセットされることを確認
+    - 適切なメッセージが返されることを確認
+    """
+    from unittest.mock import MagicMock, Mock
+
+    from chatbot.database.models import SessionMetadata
+    from chatbot.main import handle_text_async
+
+    # イベントオブジェクトのモック作成
+    event = Mock()
+    event.message.text = "閑話休題"
+    event.source.user_id = TEST_USER_ID
+    event.reply_token = "test-reply-token"
+
+    # UserRepositoryのモック作成
+    with patch("chatbot.main.UserRepository") as mock_user_repo_class:
+        mock_user_repo = MagicMock()
+        mock_user_repo_class.return_value = mock_user_repo
+
+        # reset_sessionが呼ばれることを確認するためのモック設定
+        new_session_id = "new-session-id"
+        mock_user_repo.reset_session.return_value = SessionMetadata(
+            session_id=new_session_id, last_accessed=MagicMock()
+        )
+
+        # LineMessengerのモック作成
+        with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+            mock_messenger = MagicMock()
+            mock_messenger_class.return_value = mock_messenger
+
+            # handle_text_asyncを実行
+            asyncio.run(handle_text_async(event))
+
+            # reset_sessionが呼ばれたことを確認
+            mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
+
+            # 適切なメッセージが返信されたことを確認
+            mock_messenger.reply_message.assert_called_once()
+            reply_messages = mock_messenger.reply_message.call_args[0][0]
+            assert len(reply_messages) == 1
+            assert "会話履歴をリセットしたよ" in reply_messages[0].text
