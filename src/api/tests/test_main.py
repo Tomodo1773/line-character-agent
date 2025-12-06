@@ -366,29 +366,33 @@ def test_reset_session():
     - reset_sessionを呼び出すと新しいセッションIDが生成されることを確認
     - 同じユーザーで2回reset_sessionを呼ぶと異なるセッションIDが返されることを確認
     """
-    from unittest.mock import MagicMock
+    from unittest.mock import MagicMock, patch
 
     from chatbot.database.repositories import UserRepository
 
-    # UserRepositoryのインスタンスを作成
-    user_repository = UserRepository()
+    # CosmosDBへの接続をモック化
+    with patch("chatbot.database.repositories.CosmosCore") as mock_cosmos_core:
+        mock_core_instance = MagicMock()
+        mock_cosmos_core.return_value = mock_core_instance
 
-    # CosmosDBの操作をモック化
-    user_repository._core.save = MagicMock()
-    user_repository.fetch_user = MagicMock(return_value={"id": TEST_USER_ID, "userid": TEST_USER_ID})
+        # UserRepositoryのインスタンスを作成
+        user_repository = UserRepository()
 
-    # 最初のreset_sessionを呼び出し
-    session1 = user_repository.reset_session(TEST_USER_ID)
+        # fetch_userをモック化
+        user_repository.fetch_user = MagicMock(return_value={"id": TEST_USER_ID, "userid": TEST_USER_ID})
 
-    # セッションIDが生成されていることを確認
-    assert session1.session_id is not None
-    assert len(session1.session_id) > 0
+        # 最初のreset_sessionを呼び出し
+        session1 = user_repository.reset_session(TEST_USER_ID)
 
-    # 2回目のreset_sessionを呼び出し
-    session2 = user_repository.reset_session(TEST_USER_ID)
+        # セッションIDが生成されていることを確認
+        assert session1.session_id is not None
+        assert len(session1.session_id) > 0
 
-    # 異なるセッションIDが生成されていることを確認
-    assert session2.session_id != session1.session_id
+        # 2回目のreset_sessionを呼び出し
+        session2 = user_repository.reset_session(TEST_USER_ID)
+
+        # 異なるセッションIDが生成されていることを確認
+        assert session2.session_id != session1.session_id
 
 
 def test_handle_text_async_with_reset_keyword():
