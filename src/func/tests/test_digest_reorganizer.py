@@ -27,7 +27,7 @@ class NoOpAgent:
         self.workspace = workspace
 
     def invoke(self, _input, /, stream_mode=None) -> None:  # noqa: ANN001 - interface compatibility
-        # 何もしない（ファイルは初期値のまま）
+        # 何もしない（digest.json を更新しない）
         return None
 
 
