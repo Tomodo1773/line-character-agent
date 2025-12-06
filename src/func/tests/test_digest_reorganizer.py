@@ -15,7 +15,7 @@ class DummyAgent:
             {
                 "month": "2025-01",
                 "summary": "January summary",
-                "highlights": data.get("daily", []),
+                "highlights": [item["text"] for item in data.get("daily", [])],
             }
         )
         data["daily"] = []
@@ -47,7 +47,7 @@ def test_reorganize_moves_daily_into_monthly_and_updates_date():
     assert updated["lastUpdated"] == "2025-01-31"
     assert updated["daily"] == []
     assert updated["monthly"][0]["month"] == "2025-01"
-    assert updated["monthly"][0]["highlights"][0]["text"] == "大晦日の出来事"
+    assert updated["monthly"][0]["highlights"][0] == "大晦日の出来事"
 
 
 def test_invalid_json_is_reinitialized_with_defaults():
