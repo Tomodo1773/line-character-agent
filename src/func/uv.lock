@@ -272,6 +272,7 @@ dependencies = [
     { name = "google-auth-oauthlib" },
     { name = "langchain-core" },
     { name = "langchain-openai" },
+    { name = "langsmith" },
     { name = "openai" },
     { name = "python-dotenv" },
 ]
@@ -298,6 +299,7 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = ">=1.2.1,<2" },
     { name = "langchain-core", specifier = ">=1.0,<2" },
     { name = "langchain-openai", specifier = ">=1.1.0" },
+    { name = "langsmith", specifier = ">=0.1.99" },
     { name = "openai", specifier = ">=1.0.0,<2" },
     { name = "python-dotenv", specifier = ">=1.0.0,<2" },
 ]
