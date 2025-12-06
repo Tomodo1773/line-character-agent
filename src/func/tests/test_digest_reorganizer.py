@@ -23,7 +23,7 @@ class DummyAgent:
 
 
 class NoOpAgent:
-    def __init__(self, workspace: Path) -> None:  # noqa: ANN001 - factory compatibility
+    def __init__(self, workspace: Path) -> None:
         self.workspace = workspace
 
     def invoke(self, _input, /, stream_mode=None) -> None:  # noqa: ANN001 - interface compatibility
