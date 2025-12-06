@@ -79,7 +79,21 @@ class UserRepository(BaseRepository):
         指定ユーザーのセッションIDを強制的にリセットする。
 
         新しいセッションIDを生成し、会話履歴をリセットする際に使用する。
+
+        Args:
+            userid: ユーザーID
+
+        Returns:
+            SessionMetadata: 新しいセッション情報
+
+        Raises:
+            ValueError: ユーザーが存在しない場合
         """
+        # ユーザーの存在を確認
+        existing = self.fetch_user(userid)
+        if not existing:
+            raise ValueError(f"User {userid} does not exist")
+
         now = datetime.now(self.TIMEZONE)
         session_id = uuid.uuid4().hex
 
