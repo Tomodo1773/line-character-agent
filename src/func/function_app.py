@@ -13,6 +13,10 @@ from logger import logger
 # 環境変数を.envファイルから読み込み
 load_dotenv()
 
+# Optional, add tracing in LangSmith (via LangChain)
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "diary-rag"
+
 app = func.FunctionApp()
 
 
