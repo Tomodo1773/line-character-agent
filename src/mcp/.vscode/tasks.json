@@ -9,18 +9,11 @@
 		},
 		{
 			"type": "func",
-			"label": "mcp: func: host start",
-			"command": "host start",
+			"label": "func: host start",
+			"command": "host start --verbose --language-worker -- '-m debugpy --listen 0.0.0.0:9091'",
 			"problemMatcher": "$func-watch",
 			"isBackground": true,
-			"dependsOn": "mcp: func: extensions install"
-		},
-		{
-			"type": "func",
-			"label": "mcp: func: extensions install",
-			"command": "extensions install",
-			"dependsOn": "uv sync (functions)",
-			"problemMatcher": []
+			"dependsOn": "uv sync (functions)"
 		}
 	]
 }

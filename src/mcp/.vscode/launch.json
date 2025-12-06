@@ -9,7 +9,7 @@
 				"host": "localhost",
 				"port": 9091
 			},
-			"preLaunchTask": "mcp: func: host start"
+			"preLaunchTask": "func: host start"
 		}
 	]
 }
