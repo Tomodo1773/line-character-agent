@@ -199,6 +199,15 @@ async def handle_text_async(event):
     line_messenger = LineMessenger(event)
     user_repository = UserRepository()
     userid = event.source.user_id
+
+    # 会話履歴リセットのキーワードをチェック
+    if event.message.text.strip() == "閑話休題":
+        session = user_repository.reset_session(userid)
+        logger.info(f"Session reset for user {userid}. New session_id: {session.session_id}")
+        reply_text = "会話履歴をリセットしたよ。新しい気持ちで話そうね！"
+        line_messenger.reply_message([TextMessage(text=reply_text)])
+        return
+
     session = user_repository.ensure_session(userid)
     agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 

@@ -74,6 +74,39 @@ class UserRepository(BaseRepository):
         )
         return metadata
 
+    def reset_session(self, userid: str) -> SessionMetadata:
+        """
+        指定ユーザーのセッションIDを強制的にリセットする。
+
+        新しいセッションIDを生成し、会話履歴をリセットする際に使用する。
+
+        Args:
+            userid: ユーザーID
+
+        Returns:
+            SessionMetadata: 新しいセッション情報
+
+        Raises:
+            ValueError: ユーザーが存在しない場合
+        """
+        # ユーザーの存在を確認
+        existing = self.fetch_user(userid)
+        if not existing:
+            raise ValueError(f"User {userid} does not exist")
+
+        now = datetime.now(self.TIMEZONE)
+        session_id = uuid.uuid4().hex
+
+        metadata = SessionMetadata(session_id=session_id, last_accessed=now)
+        self._upsert_user(
+            userid,
+            {
+                "session_id": metadata.session_id,
+                "last_accessed": metadata.last_accessed.isoformat(),
+            },
+        )
+        return metadata
+
     def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
         encrypted = encrypt_dict(tokens)
         self._upsert_user(userid, {"google_tokens_enc": encrypted})
