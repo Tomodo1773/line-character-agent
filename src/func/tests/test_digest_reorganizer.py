@@ -51,7 +51,7 @@ def test_reorganize_moves_daily_into_monthly_and_updates_date():
 
 
 def test_invalid_json_is_reinitialized_with_defaults():
-    reorganizer = DigestReorganizer(agent_factory=lambda workspace: NoOpAgent(workspace))
+    reorganizer = DigestReorganizer(agent_factory=NoOpAgent)
     result = reorganizer.reorganize("not-json", today_override="2025-02-01")
 
     updated = json.loads(result)
