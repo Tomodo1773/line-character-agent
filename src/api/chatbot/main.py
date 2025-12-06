@@ -201,7 +201,7 @@ async def handle_text_async(event):
     userid = event.source.user_id
 
     # 会話履歴リセットのキーワードをチェック
-    if event.message.text == "閑話休題":
+    if event.message.text.strip() == "閑話休題":
         session = user_repository.reset_session(userid)
         logger.info(f"Session reset for user {userid}. New session_id: {session.session_id}")
         reply_text = "会話履歴をリセットしたよ。新しい気持ちで話そうね！"
