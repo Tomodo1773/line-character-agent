@@ -42,6 +42,7 @@ jobs:
           COSMOS_DB_ACCOUNT_KEY: "hogehoge"
           SPAN_DAYS: "1"
           LANGCHAIN_PROJECT: "LINE-AI-BOT-TEST"
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
         run: |
           cd src/func
           uv run pytest -s
