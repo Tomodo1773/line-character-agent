@@ -40,12 +40,11 @@ class LineNotifier:
         Args:
             user_id: LINE ユーザー ID
             message_text: 送信するメッセージテキスト
+
+        Raises:
+            Exception: LINE API の呼び出しに失敗した場合
         """
-        try:
-            text_message = TextMessage(text=message_text)
-            request = PushMessageRequest(to=user_id, messages=[text_message])
-            self.messaging_api.push_message(request)
-            logger.info("LINE notification sent to user %s", user_id)
-        except Exception as error:
-            logger.error("Failed to send LINE notification to user %s: %s", user_id, error)
-            raise
+        text_message = TextMessage(text=message_text)
+        request = PushMessageRequest(to=user_id, messages=[text_message])
+        self.messaging_api.push_message(request)
+        logger.info("LINE notification sent to user %s", user_id)

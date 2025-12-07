@@ -55,8 +55,8 @@ def test_line_notifier_with_explicit_token(mock_api_client, mock_messaging_api):
 @patch.dict(os.environ, {"LINE_CHANNEL_ACCESS_TOKEN": "test_token_123"})
 @patch("line_notifier.MessagingApi")
 @patch("line_notifier.ApiClient")
-def test_line_notifier_logs_error_on_failure(mock_api_client, mock_messaging_api):
-    """通知送信に失敗した場合、エラーがログに記録されることを確認する。"""
+def test_line_notifier_propagates_error_on_failure(mock_api_client, mock_messaging_api):
+    """通知送信に失敗した場合、エラーが呼び出し元に伝播することを確認する。"""
     mock_messaging_instance = MagicMock()
     mock_messaging_instance.push_message.side_effect = Exception("API Error")
     mock_messaging_api.return_value = mock_messaging_instance
