@@ -1,7 +1,6 @@
 """LINE 通知を送信するヘルパー。"""
 
 import os
-from typing import Optional
 
 from linebot.v3.messaging import (
     ApiClient,
@@ -17,15 +16,16 @@ from logger import logger
 class LineNotifier:
     """LINE Push 通知を送信する。"""
 
-    def __init__(self, access_token: Optional[str] = None) -> None:
+    def __init__(self) -> None:
         """
         LINE Notifier を初期化する。
 
-        Args:
-            access_token: LINE チャネルアクセストークン。
-                         指定しない場合は環境変数 LINE_CHANNEL_ACCESS_TOKEN から取得。
+        環境変数 LINE_CHANNEL_ACCESS_TOKEN からトークンを取得します。
+
+        Raises:
+            ValueError: 環境変数が設定されていない場合
         """
-        token = access_token or os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+        token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
         if not token:
             raise ValueError("LINE_CHANNEL_ACCESS_TOKEN is required")
 
