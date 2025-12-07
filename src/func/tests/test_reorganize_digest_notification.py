@@ -29,10 +29,10 @@ def test_reorganize_all_digests_success_flow_with_notification(mocker):
 
     # ファイルが正しく保存されたことを確認
     mock_drive.upsert_text_file.assert_called_once_with("digest.json", reorganized_content, folder_id="folder-abc")
-    
+
     # 成功通知が送信されたことを確認
     mock_notifier_instance.send_notification.assert_called_once_with(
-        "user123", "📝 ダイジェストの月次再編成が完了しました。\n日記の整理が更新されました。"
+        "user123", "📝 ダイジェストの月次再編成が完了したよ。\nばっちり更新したから安心して。"
     )
 
 
@@ -84,7 +84,7 @@ def test_reorganize_all_digests_sends_failure_notification_on_reorganize_error(m
 
     # 失敗通知が送信されたことを確認
     mock_notifier_instance.send_notification.assert_called_once_with(
-        "user123", "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。"
+        "user123", "⚠️ ダイジェストの月次再編成に失敗したよ。\n次のトリガで再度実行されるのを待って。"
     )
 
 
@@ -110,6 +110,5 @@ def test_reorganize_all_digests_sends_failure_notification_on_empty_content(mock
 
     # 失敗通知が送信されたことを確認
     mock_notifier_instance.send_notification.assert_called_once_with(
-        "user123", "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。"
+        "user123", "⚠️ ダイジェストの月次再編成に失敗したよ。\n次のトリガで再度実行されるのを待って。"
     )
-
