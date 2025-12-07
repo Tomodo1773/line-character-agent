@@ -70,7 +70,7 @@ def upload_recent_diaries(span_days: int = 1):
             uploader.upload(documents)
 
 
-@app.timer_trigger(schedule="0 15 1 * *", arg_name="digestTimer", run_on_startup=False, use_monitor=False)
+@app.timer_trigger(schedule="0 15 8 * *", arg_name="digestTimer", run_on_startup=False, use_monitor=False)
 def reorganize_digest(digestTimer: func.TimerRequest) -> None:  # noqa: N803 (Azure Functions naming)
     reorganize_all_digests()
 
