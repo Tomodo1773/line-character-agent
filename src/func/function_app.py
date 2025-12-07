@@ -76,6 +76,14 @@ def reorganize_digest(digestTimer: func.TimerRequest) -> None:  # noqa: N803 (Az
 
 
 def reorganize_all_digests():
+    def _send_notification(notifier, userid: str, message: str) -> None:
+        """LINE 通知を送信するヘルパー関数。"""
+        if notifier:
+            try:
+                notifier.send_notification(userid, message)
+            except Exception as error:  # noqa: BLE001 - log and continue
+                logger.error("Failed to send LINE notification to user %s: %s", userid, error)
+
     token_manager = GoogleUserTokenManager()
     user_contexts = token_manager.get_all_user_credentials()
 
@@ -113,42 +121,25 @@ def reorganize_all_digests():
             updated = reorganizer.reorganize(digest_text)
         except Exception as error:  # noqa: BLE001 - log and continue per user
             logger.error("Failed to reorganize digest for user %s: %s", context.userid, error)
-            # ダイジェスト再編成失敗の LINE 通知を送信
-            if line_notifier:
-                try:
-                    line_notifier.send_notification(
-                        context.userid,
-                        "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。",
-                    )
-                except Exception as notification_error:  # noqa: BLE001 - log and continue
-                    logger.error("Failed to send failure notification to user %s: %s", context.userid, notification_error)
+            _send_notification(
+                line_notifier, context.userid, "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。"
+            )
             continue
 
         if not updated:
             logger.warning("Reorganized digest content is empty for user %s. Skipping upload.", context.userid)
-            # 空のコンテンツの場合も失敗通知を送信
-            if line_notifier:
-                try:
-                    line_notifier.send_notification(
-                        context.userid,
-                        "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。",
-                    )
-                except Exception as notification_error:  # noqa: BLE001 - log and continue
-                    logger.error("Failed to send failure notification to user %s: %s", context.userid, notification_error)
+            _send_notification(
+                line_notifier, context.userid, "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。"
+            )
             continue
 
         drive_handler.upsert_text_file("digest.json", updated, folder_id=context.drive_folder_id)
         logger.info("Reorganized digest.json for user %s", context.userid)
 
         # ダイジェスト再編成完了の LINE 通知を送信
-        if line_notifier:
-            try:
-                line_notifier.send_notification(
-                    context.userid,
-                    "📝 ダイジェストの月次再編成が完了しました。\n日記の整理が更新されました。",
-                )
-            except Exception as error:  # noqa: BLE001 - log and continue
-                logger.error("Failed to send LINE notification to user %s: %s", context.userid, error)
+        _send_notification(
+            line_notifier, context.userid, "📝 ダイジェストの月次再編成が完了しました。\n日記の整理が更新されました。"
+        )
 
 
 if __name__ == "__main__":
