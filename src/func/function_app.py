@@ -122,14 +122,18 @@ def reorganize_all_digests():
         except Exception as error:  # noqa: BLE001 - log and continue per user
             logger.error("Failed to reorganize digest for user %s: %s", context.userid, error)
             _send_notification(
-                line_notifier, context.userid, "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。"
+                line_notifier,
+                context.userid,
+                "⚠️ ダイジェストの月次再編成に失敗したよ。\n次のトリガで再度実行されるのを待って。",
             )
             continue
 
         if not updated:
             logger.warning("Reorganized digest content is empty for user %s. Skipping upload.", context.userid)
             _send_notification(
-                line_notifier, context.userid, "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。"
+                line_notifier,
+                context.userid,
+                "⚠️ ダイジェストの月次再編成に失敗したよ。\n次のトリガで再度実行されるのを待って。",
             )
             continue
 
@@ -138,7 +142,7 @@ def reorganize_all_digests():
 
         # ダイジェスト再編成完了の LINE 通知を送信
         _send_notification(
-            line_notifier, context.userid, "📝 ダイジェストの月次再編成が完了しました。\n日記の整理が更新されました。"
+            line_notifier, context.userid, "📝 ダイジェストの月次再編成が完了したよ。\nばっちり更新したから安心して。"
         )
 
 
