@@ -8,6 +8,7 @@ from cosmosdb import CosmosDBUploader
 from digest_reorganizer import DigestReorganizer
 from get_google_drive import GoogleDriveHandler
 from google_auth import GoogleUserTokenManager
+from line_notifier import LineNotifier
 from logger import logger
 
 # 環境変数を.envファイルから読み込み
@@ -69,12 +70,20 @@ def upload_recent_diaries(span_days: int = 1):
             uploader.upload(documents)
 
 
-@app.timer_trigger(schedule="0 15 * * *", arg_name="digestTimer", run_on_startup=False, use_monitor=False)
+@app.timer_trigger(schedule="0 15 8 * *", arg_name="digestTimer", run_on_startup=False, use_monitor=False)
 def reorganize_digest(digestTimer: func.TimerRequest) -> None:  # noqa: N803 (Azure Functions naming)
     reorganize_all_digests()
 
 
 def reorganize_all_digests():
+    def _send_notification(notifier, userid: str, message: str) -> None:
+        """LINE 通知を送信するヘルパー関数。"""
+        if notifier:
+            try:
+                notifier.send_notification(userid, message)
+            except Exception as error:  # noqa: BLE001 - log and continue
+                logger.error("Failed to send LINE notification to user %s: %s", userid, error)
+
     token_manager = GoogleUserTokenManager()
     user_contexts = token_manager.get_all_user_credentials()
 
@@ -83,6 +92,13 @@ def reorganize_all_digests():
         return
 
     reorganizer = DigestReorganizer()
+
+    # LINE 通知機能を初期化（環境変数がない場合はスキップ）
+    line_notifier = None
+    try:
+        line_notifier = LineNotifier()
+    except ValueError:
+        logger.warning("LINE_CHANNEL_ACCESS_TOKEN not set. Skipping LINE notifications.")
 
     for context in user_contexts:
         if not context.drive_folder_id:
@@ -105,14 +121,29 @@ def reorganize_all_digests():
             updated = reorganizer.reorganize(digest_text)
         except Exception as error:  # noqa: BLE001 - log and continue per user
             logger.error("Failed to reorganize digest for user %s: %s", context.userid, error)
+            _send_notification(
+                line_notifier,
+                context.userid,
+                "⚠️ ダイジェストの月次再編成に失敗したよ。\n次のトリガで再度実行されるのを待って。",
+            )
             continue
 
         if not updated:
             logger.warning("Reorganized digest content is empty for user %s. Skipping upload.", context.userid)
+            _send_notification(
+                line_notifier,
+                context.userid,
+                "⚠️ ダイジェストの月次再編成に失敗したよ。\n次のトリガで再度実行されるのを待って。",
+            )
             continue
 
         drive_handler.upsert_text_file("digest.json", updated, folder_id=context.drive_folder_id)
         logger.info("Reorganized digest.json for user %s", context.userid)
+
+        # ダイジェスト再編成完了の LINE 通知を送信
+        _send_notification(
+            line_notifier, context.userid, "📝 ダイジェストの月次再編成が完了したよ。\nばっちり更新したから安心して。"
+        )
 
 
 if __name__ == "__main__":
