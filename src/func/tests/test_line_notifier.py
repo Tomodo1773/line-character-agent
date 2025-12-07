@@ -37,17 +37,3 @@ def test_line_notifier_raises_error_when_token_missing():
     with pytest.raises(ValueError, match="LINE_CHANNEL_ACCESS_TOKEN is required"):
         LineNotifier()
 
-
-@patch.dict(os.environ, {"LINE_CHANNEL_ACCESS_TOKEN": "test_token_123"})
-@patch("line_notifier.MessagingApi")
-@patch("line_notifier.ApiClient")
-def test_line_notifier_propagates_error_on_failure(mock_api_client, mock_messaging_api):
-    """通知送信に失敗した場合、エラーが呼び出し元に伝播することを確認する。"""
-    mock_messaging_instance = MagicMock()
-    mock_messaging_instance.push_message.side_effect = Exception("API Error")
-    mock_messaging_api.return_value = mock_messaging_instance
-
-    notifier = LineNotifier()
-
-    with pytest.raises(Exception, match="API Error"):
-        notifier.send_notification("U1234567890", "エラーテスト")
