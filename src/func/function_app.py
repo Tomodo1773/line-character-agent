@@ -113,10 +113,28 @@ def reorganize_all_digests():
             updated = reorganizer.reorganize(digest_text)
         except Exception as error:  # noqa: BLE001 - log and continue per user
             logger.error("Failed to reorganize digest for user %s: %s", context.userid, error)
+            # ダイジェスト再編成失敗の LINE 通知を送信
+            if line_notifier:
+                try:
+                    line_notifier.send_notification(
+                        context.userid,
+                        "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。",
+                    )
+                except Exception as notification_error:  # noqa: BLE001 - log and continue
+                    logger.error("Failed to send failure notification to user %s: %s", context.userid, notification_error)
             continue
 
         if not updated:
             logger.warning("Reorganized digest content is empty for user %s. Skipping upload.", context.userid)
+            # 空のコンテンツの場合も失敗通知を送信
+            if line_notifier:
+                try:
+                    line_notifier.send_notification(
+                        context.userid,
+                        "⚠️ ダイジェストの月次再編成に失敗しました。\n後ほど再度実行されます。",
+                    )
+                except Exception as notification_error:  # noqa: BLE001 - log and continue
+                    logger.error("Failed to send failure notification to user %s: %s", context.userid, notification_error)
             continue
 
         drive_handler.upsert_text_file("digest.json", updated, folder_id=context.drive_folder_id)
