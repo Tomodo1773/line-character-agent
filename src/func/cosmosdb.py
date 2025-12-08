@@ -1,5 +1,4 @@
 import os
-import re
 import uuid
 from datetime import datetime
 from typing import List
@@ -8,6 +7,7 @@ from azure.cosmos import CosmosClient
 from langchain_core.documents import Document
 from openai import OpenAI
 
+from diary_files import extract_date_info_from_source
 from logger import logger
 
 
@@ -48,25 +48,14 @@ class CosmosDBUploader:
         """メタデータから日付情報を抽出して構造化"""
         source = metadata.get("source", "")
 
-        # 日本語形式：2025年07月11日(金).md
-        jp_pattern = r"(\d{4})年(\d{2})月(\d{2})日\(([月火水木金土日])\)"
-        jp_match = re.search(jp_pattern, source)
+        # 日記ファイル名からの抽出を優先
+        date_info = extract_date_info_from_source(source)
+        if date_info:
+            return date_info
 
-        if jp_match:
-            year, month, day, weekday_jp = jp_match.groups()
-            date_str = f"{year}-{month}-{day}"
-            weekday_map = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
-            day_of_week = weekday_map.get(weekday_jp, 0)
-        else:
-            # 既存の ISO形式パターンもサポート
-            date_pattern = r"(\d{4}-\d{2}-\d{2})"
-            match = re.search(date_pattern, source)
-            if match:
-                date_str = match.group(1)
-                day_of_week = datetime.strptime(date_str, "%Y-%m-%d").weekday()
-            else:
-                date_str = datetime.now().strftime("%Y-%m-%d")
-                day_of_week = datetime.now().weekday()
+        # フォールバックとして現在日付を使用
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        day_of_week = datetime.now().weekday()
 
         return {
             "date": date_str,
