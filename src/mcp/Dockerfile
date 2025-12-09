@@ -1,18 +1,21 @@
-FROM python:3.11
+FROM mcr.microsoft.com/azure-functions/python:4-python3.11
+
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
 
 WORKDIR /home/site/wwwroot
 
-ENV UV_PROJECT_ENVIRONMENT=.venv \
-    UV_LINK_MODE=copy \
-    AzureWebJobsScriptRoot=/home/site/wwwroot \
-    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+# Install uv for dependency management
+RUN pip install --no-cache-dir uv
 
-RUN pip install --no-cache-dir --upgrade pip uv
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
 
-COPY pyproject.toml uv.lock /home/site/wwwroot/
+# Install dependencies using uv
+# Use --no-cache to reduce image size
+RUN uv sync --frozen --no-dev --no-cache
 
-RUN uv sync --frozen --no-dev
+# Copy the rest of the application code
+COPY . .
 
-COPY . /home/site/wwwroot
-
-CMD ["uv", "run", "python", "-m", "azure.functions.worker"]
+# The base image already has the entrypoint configured to run func host start
