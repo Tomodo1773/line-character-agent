@@ -18,6 +18,7 @@ from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from psycopg import OperationalError as PsycopgOperationalError
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from chatbot.agent import ChatbotAgent
@@ -59,6 +60,12 @@ async def lifespan(app: FastAPI):
     event_loop = asyncio.get_running_loop()
     conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
 
+    connection_kwargs = {
+        "autocommit": True,
+        "prepare_threshold": 0,
+        "row_factory": dict_row,
+    }
+
     # 接続プールを初期化
     # 個人利用かつトラフィックが少ない前提のため max_size は 3 に抑える。
     # Azure App Service / Neon Postgres では長時間アイドルした接続がサーバ側で切断されやすく、
@@ -71,6 +78,7 @@ async def lifespan(app: FastAPI):
         max_size=3,
         max_idle=60,
         open=False,
+        kwargs=connection_kwargs,
     )
 
     try:
