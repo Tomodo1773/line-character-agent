@@ -5,6 +5,7 @@ import azure.functions as func
 from dotenv import load_dotenv
 
 from cosmosdb import CosmosDBUploader
+from diary_files import is_diary_filename
 from digest_reorganizer import DigestReorganizer
 from get_google_drive import GoogleDriveHandler
 from google_auth import GoogleUserTokenManager
@@ -28,9 +29,6 @@ def timer_trigger(myTimer: func.TimerRequest) -> None:
 
 
 def upload_recent_diaries(span_days: int = 1):
-    # 除外するファイル名のリスト
-    excluded_files = {"dictionary.md", "digest.json", "digest.md", "profile.md"}
-
     token_manager = GoogleUserTokenManager()
     user_contexts = token_manager.get_all_user_credentials()
 
@@ -56,15 +54,19 @@ def upload_recent_diaries(span_days: int = 1):
 
         documents = []
         for file in files:
-            # 除外ファイルチェック
-            if file["name"] in excluded_files:
-                logger.info(f"File {file['name']} is excluded from upload.")
+            filename = file["name"]
+            if not is_diary_filename(filename):
+                logger.info("File %s is not diary filename pattern. Skipped.", filename)
                 continue
 
             document = drive_handler.get(file["id"])
             if document:
                 documents.append(document)
-                logger.info("Document %s added to upload list for user %s.", document.metadata["source"], context.userid)
+                logger.info(
+                    "Diary %s added to upload list for user %s.",
+                    document.metadata.get("source", filename),
+                    context.userid,
+                )
 
         if documents:
             uploader.upload(documents)
