@@ -11,9 +11,9 @@ RUN pip install --no-cache-dir uv
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies using uv
-# Use --no-cache to reduce image size
-RUN uv sync --frozen --no-dev --no-cache
+# Export locked dependencies to requirements.txt and install into system Python
+RUN uv export --no-dev --frozen --no-hashes --output-file requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
