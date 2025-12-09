@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir uv
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Export locked dependencies to requirements.txt and install into system Python
-RUN uv export --no-dev --frozen --no-hashes --output-file requirements.txt
+# Export locked dependencies to requirements.txt (including dev) and install into system Python
+RUN uv export --frozen --no-hashes --output-file requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code

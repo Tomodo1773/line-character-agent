@@ -10,6 +10,21 @@
 				"port": 9091
 			},
 			"preLaunchTask": "func: host start"
+		},
+		{
+			"name": "Docker: Attach to MCP",
+			"type": "debugpy",
+			"request": "attach",
+			"connect": {
+				"host": "localhost",
+				"port": 5680
+			},
+			"pathMappings": [
+				{
+					"localRoot": "${workspaceFolder}",
+					"remoteRoot": "/home/site/wwwroot"
+				}
+			]
 		}
 	]
 }
