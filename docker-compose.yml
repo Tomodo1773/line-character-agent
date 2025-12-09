@@ -6,15 +6,58 @@ services:
     env_file: ./src/api/.env
     ports:
       - "8000:3100"
+      - "5678:5678"  # Debug port
     environment:
       COSMOS_DB_ACCOUNT_URL: https://cosmosdb:8081/
       COSMOS_DB_ACCOUNT_KEY: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
       COSMOS_DB_CONNECTION_VERIFY: false
+      POSTGRES_CHECKPOINT_URL: postgresql://postgres:postgres@postgres:5432/chatbot
     volumes:
       - ./src/api/chatbot:/src/chatbot
     depends_on:
       cosmosdb:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  func:
+    build:
+      context: ./src/func
+      dockerfile: Dockerfile
+    env_file: ./src/func/.env
+    ports:
+      - "7071:80"
+      - "5679:5679"  # Debug port
+    environment:
+      COSMOS_DB_ACCOUNT_URL: https://cosmosdb:8081/
+      COSMOS_DB_ACCOUNT_KEY: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+      COSMOS_DB_CONNECTION_VERIFY: false
+      AzureWebJobsStorage: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
+      languageWorkers__python__arguments: "-m debugpy --listen 0.0.0.0:5679"
+    volumes:
+      - ./src/func:/home/site/wwwroot
+    depends_on:
+      cosmosdb:
+        condition: service_healthy
+      azurite:
+        condition: service_started
+
+  mcp:
+    build:
+      context: ./src/mcp
+      dockerfile: Dockerfile
+    env_file: ./src/mcp/.env
+    ports:
+      - "7072:80"
+      - "5680:5680"  # Debug port
+    environment:
+      AzureWebJobsStorage: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
+      languageWorkers__python__arguments: "-m debugpy --listen 0.0.0.0:5680"
+    volumes:
+      - ./src/mcp:/home/site/wwwroot
+    depends_on:
+      azurite:
+        condition: service_started
 
   cosmosdb:
     image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
@@ -35,5 +78,35 @@ services:
       retries: 10
       start_period: 60s
 
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chatbot
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    volumes:
+      - azurite-data:/data
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data --loose
+
 volumes:
   cosmosdb-data:
+  postgres-data:
+  azurite-data:

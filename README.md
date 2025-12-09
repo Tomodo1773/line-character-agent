@@ -232,9 +232,63 @@ sequenceDiagram
 - `src/api/README.md` - API Service詳細
 - `src/mcp/README.md` - MCP Service詳細
 
-## 開発コマンド
+## 開発環境のセットアップ
 
-### API Service（`src/api/`）
+### Docker Composeによるローカル開発
+
+プロジェクト全体をDocker Composeで起動できます。以下のサービスがコンテナとして実行されます：
+
+- **api**: FastAPI アプリケーション（ポート 8000）
+- **func**: Azure Functions - 日記アップロード機能（ポート 7071）
+- **mcp**: Azure Functions - MCPサーバー（ポート 7072）
+- **postgres**: PostgreSQL データベース（ポート 5432）
+- **cosmosdb**: CosmosDB エミュレータ（ポート 8081）
+- **azurite**: Azure Storage エミュレータ（ポート 10000-10002）
+
+#### 起動手順
+
+1. 各サービスの `.env` ファイルを作成：
+
+```bash
+cp src/api/.env.sample src/api/.env
+cp src/func/.env.sample src/func/.env
+cp src/mcp/.env.sample src/mcp/.env
+```
+
+2. `.env` ファイルを編集して必要な環境変数を設定
+
+3. Docker Composeで起動：
+
+```bash
+docker compose up -d
+```
+
+4. ログを確認：
+
+```bash
+docker compose logs -f
+```
+
+5. 停止：
+
+```bash
+docker compose down
+```
+
+#### 接続情報
+
+- API Service: http://localhost:8000
+- Function Service: http://localhost:7071
+- MCP Service: http://localhost:7072
+- PostgreSQL: `postgresql://postgres:postgres@localhost:5432/chatbot`
+- Cosmos DB Emulator: https://localhost:8081
+- Azurite Blob: http://localhost:10000
+- Azurite Queue: http://localhost:10001
+- Azurite Table: http://localhost:10002
+
+### 個別サービスの開発
+
+#### API Service（`src/api/`）
 
 ```bash
 cd src/api
@@ -245,7 +299,7 @@ ruff check                   # リント
 ruff format                  # フォーマット
 ```
 
-### Function Service（`src/func/`）
+#### Function Service（`src/func/`）
 
 ```bash
 cd src/func
@@ -253,7 +307,7 @@ uv sync                      # 依存関係インストール
 # Azure Functions Core Tools でローカル実行
 ```
 
-### MCP Service（`src/mcp/`）
+#### MCP Service（`src/mcp/`）
 
 ```bash
 cd src/mcp
