@@ -197,6 +197,7 @@ def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", 
 def get_profile_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのプロフィール情報を取得します。
+    get_digest_nodeと並列実行され、両方完了後にrouterノードへファンインします。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
     Returns:
@@ -211,6 +212,7 @@ def get_profile_node(state: State) -> Command[Literal["router"]]:
 def get_digest_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのダイジェスト情報を取得します。
+    get_profile_nodeと並列実行され、両方完了後にrouterノードへファンインします。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
     Returns:
