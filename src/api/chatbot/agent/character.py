@@ -1,7 +1,7 @@
 import os
 import sys
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NotRequired
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.types import Command
+from langgraph.types import Command, Send
 from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
@@ -44,8 +44,8 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
-    profile: dict = {}
-    digest: dict = {}
+    profile: NotRequired[str]
+    digest: NotRequired[str]
 
 
 # グローバル変数
@@ -114,7 +114,7 @@ def extract_system_prompt(prompt: ChatPromptTemplate) -> str | None:
         return None
 
 
-def get_user_profile(userid: str) -> dict:
+def get_user_profile(userid: str) -> str:
     """キャッシュされたユーザプロフィール情報を取得、なければGoogle Driveから取得"""
     global _cached
     if userid not in _cached["profile"]:
@@ -122,7 +122,7 @@ def get_user_profile(userid: str) -> dict:
         from chatbot.database.repositories import UserRepository
         from chatbot.utils.google_auth import GoogleDriveOAuthManager
         from chatbot.utils.google_drive import GoogleDriveHandler
-        from chatbot.utils.google_drive_utils import get_digest_from_drive, get_profile_from_drive
+        from chatbot.utils.google_drive_utils import get_profile_from_drive
 
         auth_manager = GoogleDriveOAuthManager()
         credentials = auth_manager.get_user_credentials(userid)
@@ -130,16 +130,14 @@ def get_user_profile(userid: str) -> dict:
         if not credentials:
             logger.warning("Google Drive credentials not found for user: %s", userid)
             _cached["profile"][userid] = ""
-            _cached["digest"][userid] = ""
-            return {"profile": "", "digest": ""}
+            return ""
 
         user_repository = UserRepository()
         folder_id = user_repository.fetch_drive_folder_id(userid)
         if not folder_id:
             logger.warning("Google Drive folder ID not found for user: %s", userid)
             _cached["profile"][userid] = ""
-            _cached["digest"][userid] = ""
-            return {"profile": "", "digest": ""}
+            return ""
 
         drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
         user_profile = get_profile_from_drive(drive_handler)
@@ -148,28 +146,79 @@ def get_user_profile(userid: str) -> dict:
         else:
             logger.error("Failed to get profile content, using empty profile")
             _cached["profile"][userid] = ""
+    return _cached["profile"].get(userid, "")
 
+
+def get_user_digest(userid: str) -> str:
+    """キャッシュされたユーザダイジェスト情報を取得、なければGoogle Driveから取得"""
+    global _cached
+    if userid not in _cached["digest"]:
+        logger.info(f"Fetching user digest from Google Drive as it is not cached: {userid}")
+        from chatbot.database.repositories import UserRepository
+        from chatbot.utils.google_auth import GoogleDriveOAuthManager
+        from chatbot.utils.google_drive import GoogleDriveHandler
+        from chatbot.utils.google_drive_utils import get_digest_from_drive
+
+        auth_manager = GoogleDriveOAuthManager()
+        credentials = auth_manager.get_user_credentials(userid)
+
+        if not credentials:
+            logger.warning("Google Drive credentials not found for user: %s", userid)
+            _cached["digest"][userid] = ""
+            return ""
+
+        user_repository = UserRepository()
+        folder_id = user_repository.fetch_drive_folder_id(userid)
+        if not folder_id:
+            logger.warning("Google Drive folder ID not found for user: %s", userid)
+            _cached["digest"][userid] = ""
+            return ""
+
+        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
         digest = get_digest_from_drive(drive_handler)
         if digest and "content" in digest:
             _cached["digest"][userid] = digest["content"]
         else:
             logger.error("Failed to get digest content, using empty digest")
             _cached["digest"][userid] = ""
-    return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
+    return _cached["digest"].get(userid, "")
 
 
 @traceable(run_type="tool", name="Ensure Google Settings")
-def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
+def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
     """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
+    from chatbot.database.repositories import UserRepository
+    from chatbot.utils.google_auth import GoogleDriveOAuthManager
+    
+    logger.info("--- Ensure Google Settings ---")
+    user_repository = UserRepository()
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+    
+    # OAuth認証情報のチェック
+    credentials = oauth_manager.get_user_credentials(state["userid"])
+    if not credentials:
+        from chatbot.utils.google_settings import _create_auth_required_command
+        return _create_auth_required_command(oauth_manager, state["userid"])
+    
+    # フォルダIDのチェック
+    folder_id = user_repository.fetch_drive_folder_id(state["userid"])
+    if not folder_id:
+        from chatbot.utils.google_settings import _handle_folder_id_registration
+        # フォルダID未設定の場合、並列実行できないのでprofileのみに遷移
+        # (後でrouterに行く前にdigestも取得される)
+        cmd = _handle_folder_id_registration(user_repository, state["userid"], "get_profile")
+        # 遷移先がget_profileの場合、get_profileとget_digestに並列で遷移するように変更
+        if cmd.goto == "get_profile":
+            return Command(goto=["get_profile", "get_digest"], update=cmd.update)
+        return cmd
+    
+    # Google設定が完了している場合、profileとdigestの取得を並列実行
+    logger.info("Google Drive settings are ready. Going to get_profile and get_digest nodes in parallel.")
+    return Command(goto=["get_profile", "get_digest"])
 
-    return ensure_google_settings(
-        userid=state["userid"],
-        success_goto="get_user_profile",
-    )
 
-
-@traceable(run_type="tool", name="Get User Profile")
-def get_user_profile_node(state: State) -> Command[Literal["router"]]:
+@traceable(run_type="tool", name="Get Profile")
+def get_profile_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのプロフィール情報を取得します。
     Args:
@@ -177,9 +226,23 @@ def get_user_profile_node(state: State) -> Command[Literal["router"]]:
     Returns:
         Command: routerノードへの遷移＆ユーザプロフィール情報
     """
-    logger.info("--- Get User Profile Node ---")
-    user_info = get_user_profile(state["userid"])
-    return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
+    logger.info("--- Get Profile Node ---")
+    profile = get_user_profile(state["userid"])
+    return Command(goto="router", update={"profile": profile})
+
+
+@traceable(run_type="tool", name="Get Digest")
+def get_digest_node(state: State) -> Command[Literal["router"]]:
+    """
+    ユーザーのダイジェスト情報を取得します。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
+    Returns:
+        Command: routerノードへの遷移＆ユーザダイジェスト情報
+    """
+    logger.info("--- Get Digest Node ---")
+    digest = get_user_digest(state["userid"])
+    return Command(goto="router", update={"digest": digest})
 
 
 def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spotify_agent"]]:
@@ -227,8 +290,8 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
 
     prompt = template.partial(
         current_datetime=get_japan_datetime(),
-        user_profile=state["profile"],
-        user_digest=state["digest"],
+        user_profile=state.get("profile", ""),
+        user_digest=state.get("digest", ""),
     )
 
     llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
@@ -343,7 +406,8 @@ class ChatbotAgent:
         graph_builder = StateGraph(State)
         graph_builder.add_node("ensure_google_settings", ensure_google_settings_node)
         graph_builder.add_edge(START, "ensure_google_settings")
-        graph_builder.add_node("get_user_profile", get_user_profile_node)
+        graph_builder.add_node("get_profile", get_profile_node)
+        graph_builder.add_node("get_digest", get_digest_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
