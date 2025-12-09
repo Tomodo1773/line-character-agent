@@ -8,7 +8,15 @@ from spotipy import SpotifyException
 
 from spotify_api import Client
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+# ローカル開発環境では認証なし、本番環境では認証ありに切り替え
+# 環境変数 MCP_AUTH_LEVEL で設定可能（デフォルトはFUNCTION）
+auth_level_str = os.getenv("MCP_AUTH_LEVEL", "FUNCTION")
+if auth_level_str == "ANONYMOUS":
+    auth_level = func.AuthLevel.ANONYMOUS
+else:
+    auth_level = func.AuthLevel.FUNCTION
+
+app = func.FunctionApp(http_auth_level=auth_level)
 
 # In-memory token storage (simple approach for demo)
 _access_token_cache = {}
