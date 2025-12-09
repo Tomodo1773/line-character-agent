@@ -18,7 +18,7 @@ def extract_date_info_from_source(source: str) -> Optional[dict]:
 
     日記形式に一致しない場合は None を返す。
     """
-    match = JP_DIARY_FILENAME_RE.search(source)
+    match = JP_DIARY_FILENAME_RE.match(source)
     if not match:
         return None
 
