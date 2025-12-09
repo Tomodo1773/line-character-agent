@@ -10,11 +10,23 @@ from spotify_api import Client
 
 # ローカル開発環境では認証なし、本番環境では認証ありに切り替え
 # 環境変数 MCP_AUTH_LEVEL で設定可能（デフォルトはFUNCTION）
-auth_level_str = os.getenv("MCP_AUTH_LEVEL", "FUNCTION")
+auth_level_str = os.getenv("MCP_AUTH_LEVEL", "FUNCTION").upper()
+valid_auth_levels = ["ANONYMOUS", "FUNCTION"]
+
+if auth_level_str not in valid_auth_levels:
+    logging.warning(
+        f"Invalid MCP_AUTH_LEVEL value: {auth_level_str}. "
+        f"Valid values are: {', '.join(valid_auth_levels)}. "
+        "Defaulting to FUNCTION."
+    )
+    auth_level_str = "FUNCTION"
+
 if auth_level_str == "ANONYMOUS":
     auth_level = func.AuthLevel.ANONYMOUS
 else:
     auth_level = func.AuthLevel.FUNCTION
+
+logging.info(f"MCP Server starting with authentication level: {auth_level_str}")
 
 app = func.FunctionApp(http_auth_level=auth_level)
 
