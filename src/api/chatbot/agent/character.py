@@ -67,7 +67,7 @@ async def get_mcp_client():
     global _mcp_client
     if _mcp_client is None:
         # MCP serverの設定
-        connections = {"spotify": {"url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7000/mcp"), "transport": "sse"}}
+        connections = {"spotify": {"url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7071/runtime/webhooks/mcp"), "transport": "sse"}}
         _mcp_client = MultiServerMCPClient(connections)
     return _mcp_client
 
