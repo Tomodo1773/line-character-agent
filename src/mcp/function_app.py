@@ -8,7 +8,7 @@ from spotipy import SpotifyException
 
 from spotify_api import Client
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 # In-memory token storage (simple approach for demo)
 _access_token_cache = {}
