@@ -52,7 +52,7 @@ def test_chatbot_agent_response():
     with patch("chatbot.agent.character.get_user_profile", return_value=""):
         with patch("chatbot.agent.character.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest", "router"])):
+            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])):
                 agent_graph = ChatbotAgent(checkpointer=MemorySaver())
             messages = [{"type": "human", "content": "こんにちは"}]
 
@@ -75,7 +75,7 @@ def test_chatbot_agent_web_search_response():
     with patch("chatbot.agent.character.get_user_profile", return_value=""):
         with patch("chatbot.agent.character.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest", "router"])):
+            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])):
                 agent_graph = ChatbotAgent(checkpointer=MemorySaver())
             yesterday = date.today() - timedelta(days=1)
             messages = [
@@ -134,7 +134,7 @@ def test_spotify_agent_mcp_fallback():
     with patch("chatbot.agent.character.get_user_profile", return_value=""):
         with patch("chatbot.agent.character.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest", "router"])):
+            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])):
                 # get_mcp_toolsを空のリストを返すようにモック
                 with patch.object(character, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
                     mock_get_mcp_tools.return_value = []
@@ -284,7 +284,7 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
     result = ensure_google_settings_node(state)
 
     assert isinstance(result, Command)
-    assert result.goto == ["get_profile", "get_digest", "router"]
+    assert result.goto == ["get_profile", "get_digest"]
     message = result.update["messages"][0]
     assert isinstance(message, AIMessage)
     assert "フォルダIDを登録" in message.content

@@ -185,42 +185,40 @@ def get_user_digest(userid: str) -> str:
 
 
 @traceable(run_type="tool", name="Ensure Google Settings")
-def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "router", "__end__"]]:
+def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
     """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
     return ensure_google_settings(
         userid=state["userid"],
-        success_goto=["get_profile", "get_digest", "router"],
+        success_goto=["get_profile", "get_digest"],
     )
 
 
 @traceable(run_type="tool", name="Get Profile")
-def get_profile_node(state: State) -> Command[Literal["__end__"]]:
+def get_profile_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのプロフィール情報を取得します。
-    バックグラウンドで実行され、routerノードと並列実行されます。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
     Returns:
-        Command: 終了＆ユーザプロフィール情報
+        Command: routerノードへの遷移＆ユーザプロフィール情報
     """
     logger.info("--- Get Profile Node ---")
     profile = get_user_profile(state["userid"])
-    return Command(goto="__end__", update={"profile": profile})
+    return Command(goto="router", update={"profile": profile})
 
 
 @traceable(run_type="tool", name="Get Digest")
-def get_digest_node(state: State) -> Command[Literal["__end__"]]:
+def get_digest_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのダイジェスト情報を取得します。
-    バックグラウンドで実行され、routerノードと並列実行されます。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
     Returns:
-        Command: 終了＆ユーザダイジェスト情報
+        Command: routerノードへの遷移＆ユーザダイジェスト情報
     """
     logger.info("--- Get Digest Node ---")
     digest = get_user_digest(state["userid"])
-    return Command(goto="__end__", update={"digest": digest})
+    return Command(goto="router", update={"digest": digest})
 
 
 def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spotify_agent"]]:
