@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.types import Command, Send
+from langgraph.types import Command
 from langsmith import Client, traceable
 from typing_extensions import TypedDict
 
@@ -187,34 +187,10 @@ def get_user_digest(userid: str) -> str:
 @traceable(run_type="tool", name="Ensure Google Settings")
 def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
     """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
-    from chatbot.database.repositories import UserRepository
-    from chatbot.utils.google_auth import GoogleDriveOAuthManager
-    
-    logger.info("--- Ensure Google Settings ---")
-    user_repository = UserRepository()
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
-    
-    # OAuth認証情報のチェック
-    credentials = oauth_manager.get_user_credentials(state["userid"])
-    if not credentials:
-        from chatbot.utils.google_settings import _create_auth_required_command
-        return _create_auth_required_command(oauth_manager, state["userid"])
-    
-    # フォルダIDのチェック
-    folder_id = user_repository.fetch_drive_folder_id(state["userid"])
-    if not folder_id:
-        from chatbot.utils.google_settings import _handle_folder_id_registration
-        # フォルダID未設定の場合、並列実行できないのでprofileのみに遷移
-        # (後でrouterに行く前にdigestも取得される)
-        cmd = _handle_folder_id_registration(user_repository, state["userid"], "get_profile")
-        # 遷移先がget_profileの場合、get_profileとget_digestに並列で遷移するように変更
-        if cmd.goto == "get_profile":
-            return Command(goto=["get_profile", "get_digest"], update=cmd.update)
-        return cmd
-    
-    # Google設定が完了している場合、profileとdigestの取得を並列実行
-    logger.info("Google Drive settings are ready. Going to get_profile and get_digest nodes in parallel.")
-    return Command(goto=["get_profile", "get_digest"])
+    return ensure_google_settings(
+        userid=state["userid"],
+        success_goto=["get_profile", "get_digest"],
+    )
 
 
 @traceable(run_type="tool", name="Get Profile")
