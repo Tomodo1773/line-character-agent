@@ -15,7 +15,7 @@ from chatbot.utils.google_auth import GoogleDriveOAuthManager
 logger = create_logger(__name__)
 
 
-def ensure_google_settings(userid: str, success_goto: str) -> Command[str]:
+def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
     """
     Google DriveのOAuth設定とフォルダIDの有無を確認し、適切なCommandを返す。
 
@@ -26,13 +26,14 @@ def ensure_google_settings(userid: str, success_goto: str) -> Command[str]:
 
     Args:
         userid (str): ユーザーID。
-        success_goto (str): 設定が揃った場合に遷移するノード名。
+        success_goto (str | list[str]): 設定が揃った場合に遷移するノード名。
+                                         文字列または文字列のリスト（並列実行用）。
 
     Returns:
-        Command[str]: 次の状態への遷移を表すCommand。
-                     - OAuth未設定: __end__への遷移（認証URL付き）
-                     - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
-                     - すべて設定済み: success_gotoへの遷移
+        Command[str | list[str]]: 次の状態への遷移を表すCommand。
+                                  - OAuth未設定: __end__への遷移（認証URL付き）
+                                  - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
+                                  - すべて設定済み: success_gotoへの遷移
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
@@ -50,7 +51,8 @@ def ensure_google_settings(userid: str, success_goto: str) -> Command[str]:
     # フォルダIDのチェック
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if folder_id:
-        logger.info("Google Drive folder ID already set for user. Going to %s node.", success_goto)
+        goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
+        logger.info("Google Drive folder ID already set for user. Going to %s.", goto_desc)
         return Command(goto=success_goto)
 
     # フォルダIDが未設定の場合、interruptで入力を要求
@@ -81,7 +83,7 @@ def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid
     )
 
 
-def _handle_folder_id_registration(user_repository: UserRepository, userid: str, success_goto: str) -> Command[str]:
+def _handle_folder_id_registration(user_repository: UserRepository, userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
     """
     フォルダIDの登録を処理する。
 
@@ -91,12 +93,12 @@ def _handle_folder_id_registration(user_repository: UserRepository, userid: str,
     Args:
         user_repository: UserRepositoryインスタンス
         userid: ユーザーID
-        success_goto: 登録成功時の遷移先ノード名
+        success_goto: 登録成功時の遷移先ノード名（文字列またはリスト）
 
     Returns:
-        Command[str]: 登録結果に応じたCommand
-                     - 成功: success_gotoへの遷移（確認メッセージ付き）
-                     - 失敗: __end__への遷移（エラーメッセージ付き）
+        Command[str | list[str]]: 登録結果に応じたCommand
+                                  - 成功: success_gotoへの遷移（確認メッセージ付き）
+                                  - 失敗: __end__への遷移（エラーメッセージ付き）
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
@@ -121,7 +123,8 @@ def _handle_folder_id_registration(user_repository: UserRepository, userid: str,
 
     user_repository.save_drive_folder_id(userid, extracted_id)
     confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
-    logger.info("Drive folder ID saved for user. Going to %s node.", success_goto)
+    goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
+    logger.info("Drive folder ID saved for user. Going to %s.", goto_desc)
     return Command(
         goto=success_goto,
         update={"messages": [AIMessage(content=confirmation)]},

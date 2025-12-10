@@ -1,11 +1,11 @@
 import os
 import sys
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NotRequired
 
 from langchain.agents import create_agent
+from langchain.agents.structured_output import ProviderStrategy
 from langchain_core.messages import AIMessage
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
@@ -44,8 +44,8 @@ class State(TypedDict):
     # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
     userid: str
-    profile: dict = {}
-    digest: dict = {}
+    profile: NotRequired[str]
+    digest: NotRequired[str]
 
 
 # グローバル変数
@@ -114,7 +114,7 @@ def extract_system_prompt(prompt: ChatPromptTemplate) -> str | None:
         return None
 
 
-def get_user_profile(userid: str) -> dict:
+def get_user_profile(userid: str) -> str:
     """キャッシュされたユーザプロフィール情報を取得、なければGoogle Driveから取得"""
     global _cached
     if userid not in _cached["profile"]:
@@ -122,7 +122,7 @@ def get_user_profile(userid: str) -> dict:
         from chatbot.database.repositories import UserRepository
         from chatbot.utils.google_auth import GoogleDriveOAuthManager
         from chatbot.utils.google_drive import GoogleDriveHandler
-        from chatbot.utils.google_drive_utils import get_digest_from_drive, get_profile_from_drive
+        from chatbot.utils.google_drive_utils import get_profile_from_drive
 
         auth_manager = GoogleDriveOAuthManager()
         credentials = auth_manager.get_user_credentials(userid)
@@ -130,16 +130,14 @@ def get_user_profile(userid: str) -> dict:
         if not credentials:
             logger.warning("Google Drive credentials not found for user: %s", userid)
             _cached["profile"][userid] = ""
-            _cached["digest"][userid] = ""
-            return {"profile": "", "digest": ""}
+            return ""
 
         user_repository = UserRepository()
         folder_id = user_repository.fetch_drive_folder_id(userid)
         if not folder_id:
             logger.warning("Google Drive folder ID not found for user: %s", userid)
             _cached["profile"][userid] = ""
-            _cached["digest"][userid] = ""
-            return {"profile": "", "digest": ""}
+            return ""
 
         drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
         user_profile = get_profile_from_drive(drive_handler)
@@ -148,38 +146,81 @@ def get_user_profile(userid: str) -> dict:
         else:
             logger.error("Failed to get profile content, using empty profile")
             _cached["profile"][userid] = ""
+    return _cached["profile"].get(userid, "")
 
+
+def get_user_digest(userid: str) -> str:
+    """キャッシュされたユーザダイジェスト情報を取得、なければGoogle Driveから取得"""
+    global _cached
+    if userid not in _cached["digest"]:
+        logger.info(f"Fetching user digest from Google Drive as it is not cached: {userid}")
+        from chatbot.database.repositories import UserRepository
+        from chatbot.utils.google_auth import GoogleDriveOAuthManager
+        from chatbot.utils.google_drive import GoogleDriveHandler
+        from chatbot.utils.google_drive_utils import get_digest_from_drive
+
+        auth_manager = GoogleDriveOAuthManager()
+        credentials = auth_manager.get_user_credentials(userid)
+
+        if not credentials:
+            logger.warning("Google Drive credentials not found for user: %s", userid)
+            _cached["digest"][userid] = ""
+            return ""
+
+        user_repository = UserRepository()
+        folder_id = user_repository.fetch_drive_folder_id(userid)
+        if not folder_id:
+            logger.warning("Google Drive folder ID not found for user: %s", userid)
+            _cached["digest"][userid] = ""
+            return ""
+
+        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
         digest = get_digest_from_drive(drive_handler)
         if digest and "content" in digest:
             _cached["digest"][userid] = digest["content"]
         else:
             logger.error("Failed to get digest content, using empty digest")
             _cached["digest"][userid] = ""
-    return {"profile": _cached["profile"].get(userid, ""), "digest": _cached["digest"].get(userid, "")}
+    return _cached["digest"].get(userid, "")
 
 
 @traceable(run_type="tool", name="Ensure Google Settings")
-def ensure_google_settings_node(state: State) -> Command[Literal["get_user_profile", "__end__"]]:
+def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
     """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
-
     return ensure_google_settings(
         userid=state["userid"],
-        success_goto="get_user_profile",
+        success_goto=["get_profile", "get_digest"],
     )
 
 
-@traceable(run_type="tool", name="Get User Profile")
-def get_user_profile_node(state: State) -> Command[Literal["router"]]:
+@traceable(run_type="tool", name="Get Profile")
+def get_profile_node(state: State) -> Command[Literal["router"]]:
     """
     ユーザーのプロフィール情報を取得します。
+    get_digest_nodeと並列実行され、両方完了後にrouterノードへファンインします。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
     Returns:
         Command: routerノードへの遷移＆ユーザプロフィール情報
     """
-    logger.info("--- Get User Profile Node ---")
-    user_info = get_user_profile(state["userid"])
-    return Command(goto="router", update={"profile": user_info["profile"], "digest": user_info["digest"]})
+    logger.info("--- Get Profile Node ---")
+    profile = get_user_profile(state["userid"])
+    return Command(goto="router", update={"profile": profile})
+
+
+@traceable(run_type="tool", name="Get Digest")
+def get_digest_node(state: State) -> Command[Literal["router"]]:
+    """
+    ユーザーのダイジェスト情報を取得します。
+    get_profile_nodeと並列実行され、両方完了後にrouterノードへファンインします。
+    Args:
+        state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
+    Returns:
+        Command: routerノードへの遷移＆ユーザダイジェスト情報
+    """
+    logger.info("--- Get Digest Node ---")
+    digest = get_user_digest(state["userid"])
+    return Command(goto="router", update={"digest": digest})
 
 
 def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spotify_agent"]]:
@@ -198,11 +239,28 @@ def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spot
 
         next: Literal["spotify_agent", "diary_searcher", "FINISH"]
 
+    system_prompt = extract_system_prompt(prompt)
+    if system_prompt is None:
+        logger.error("Failed to extract system prompt for router; defaulting to chatbot")
+        return Command(goto="chatbot")
+
     llm = ChatOpenAI(temperature=0, model="gpt-5.1")
-    structured_llm = llm.with_structured_output(Router)
-    chain = prompt | structured_llm
-    response = chain.invoke({"messages": state["messages"]})
-    goto = response["next"]
+
+    agent = create_agent(
+        llm,
+        tools=[],
+        system_prompt=system_prompt,
+        response_format=ProviderStrategy(Router),
+    )
+
+    try:
+        result = agent.invoke({"messages": state["messages"]})
+        router_result = result.get("structured_response") or {}
+        goto = router_result.get("next", "chatbot")
+    except Exception as e:  # noqa: BLE001
+        logger.error("Router agent failed: %s", e)
+        goto = "chatbot"
+
     if goto == "FINISH":
         goto = "chatbot"
     elif goto == "diary_searcher":
@@ -225,21 +283,42 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
 
+    # LangSmithのChatPromptTemplateから、現在時刻・プロフィール・ダイジェストを埋め込んだ
+    # systemメッセージ文字列だけを抽出してcreate_agentに渡す。
     prompt = template.partial(
         current_datetime=get_japan_datetime(),
-        user_profile=state["profile"],
-        user_digest=state["digest"],
+        user_profile=state.get("profile", ""),
+        user_digest=state.get("digest", ""),
     )
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
-    llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
+    try:
+        # messagesプレースホルダには空リストを渡し、systemメッセージだけを生成する
+        formatted_messages = prompt.format_messages(messages=[])
+        if not formatted_messages:
+            raise ValueError("Formatted messages is empty.")
+        system_message = formatted_messages[0]
+        system_prompt = getattr(system_message, "content", str(system_message))
+    except Exception as e:  # noqa: BLE001
+        logger.error("Failed to build system prompt for chatbot_node: %s", e)
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=PROMPT_EXTRACTION_ERROR_MESSAGE)]},
+        )
 
-    chatbot_chain = prompt | llm_with_tools | StrOutputParser()
-    content = await chatbot_chain.ainvoke({"messages": state["messages"]})
+    llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
+    # OpenAI built-in の web_search_preview ツールを利用
+    tools = [{"type": "web_search_preview"}]
+
+    agent = create_agent(
+        llm,
+        tools=tools,
+        system_prompt=system_prompt,
+    )
+    result = await agent.ainvoke({"messages": state["messages"]})
 
     return Command(
         goto="__end__",
-        update={"messages": [AIMessage(content=content)]},
+        update={"messages": [AIMessage(content=result["messages"][-1].text)]},
     )
 
 
@@ -283,7 +362,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
         goto="__end__",
-        update={"messages": [AIMessage(content=content["messages"][-1].content)]},
+        update={"messages": [AIMessage(content=content["messages"][-1].text)]},
     )
 
 
@@ -323,7 +402,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
         goto="__end__",
-        update={"messages": [AIMessage(content=content["messages"][-1].content)]},
+        update={"messages": [AIMessage(content=content["messages"][-1].text)]},
     )
 
 
@@ -343,7 +422,8 @@ class ChatbotAgent:
         graph_builder = StateGraph(State)
         graph_builder.add_node("ensure_google_settings", ensure_google_settings_node)
         graph_builder.add_edge(START, "ensure_google_settings")
-        graph_builder.add_node("get_user_profile", get_user_profile_node)
+        graph_builder.add_node("get_profile", get_profile_node)
+        graph_builder.add_node("get_digest", get_digest_node)
         graph_builder.add_node("router", router_node)
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
