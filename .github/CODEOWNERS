@@ -1,25 +1,5 @@
 # CODEOWNERS file for line-character-agent repository
 # このファイルはコードレビューの自動割り当てに使用されます
-# 各パスに対してオーナーを指定します
 
 # デフォルトオーナー - すべてのファイル
 * @Tomodo1773
-
-# APIサービス
-/src/api/ @Tomodo1773
-
-# Azure Functions (日記アップロード)
-/src/func/ @Tomodo1773
-
-# MCPサーバー (Spotify連携)
-/src/mcp/ @Tomodo1773
-
-# インフラストラクチャ (Bicep)
-/infra/ @Tomodo1773
-
-# GitHub Actions ワークフロー
-/.github/workflows/ @Tomodo1773
-
-# ドキュメント
-/*.md @Tomodo1773
-/images/ @Tomodo1773
