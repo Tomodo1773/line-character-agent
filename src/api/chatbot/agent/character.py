@@ -5,7 +5,6 @@ from typing import Annotated, Literal, NotRequired
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
@@ -275,7 +274,7 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
     llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
 
-    chatbot_chain = prompt | llm_with_tools | StrOutputParser()
+    chatbot_chain = prompt | llm_with_tools
     content = await chatbot_chain.ainvoke({"messages": state["messages"]})
 
     return Command(
