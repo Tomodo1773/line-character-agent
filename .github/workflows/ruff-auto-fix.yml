@@ -76,21 +76,15 @@ jobs:
           echo "" >> ruff_output.txt
           
           echo "#### src/api" >> ruff_output.txt
-          cd src/api
-          uv run ruff format . 2>&1 | tee -a ../../ruff_output.txt || true
-          cd ../..
+          (cd src/api && uv run ruff format .) 2>&1 | tee -a ruff_output.txt || true
           echo "" >> ruff_output.txt
           
           echo "#### src/func" >> ruff_output.txt
-          cd src/func
-          uv run ruff format . 2>&1 | tee -a ../../ruff_output.txt || true
-          cd ../..
+          (cd src/func && uv run ruff format .) 2>&1 | tee -a ruff_output.txt || true
           echo "" >> ruff_output.txt
           
           echo "#### src/mcp" >> ruff_output.txt
-          cd src/mcp
-          uv run ruff format . 2>&1 | tee -a ../../ruff_output.txt || true
-          cd ../..
+          (cd src/mcp && uv run ruff format .) 2>&1 | tee -a ruff_output.txt || true
 
       - name: Commit fixed files
         uses: stefanzweifel/git-auto-commit-action@v7
