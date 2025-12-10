@@ -52,13 +52,16 @@ def test_chatbot_agent_response():
     with patch("chatbot.agent.character.get_user_profile", return_value=""):
         with patch("chatbot.agent.character.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])):
+            with patch(
+                "chatbot.agent.character.ensure_google_settings_node",
+                return_value=Command(goto=["get_profile", "get_digest"]),
+            ):
                 agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-            messages = [{"type": "human", "content": "こんにちは"}]
+                messages = [{"type": "human", "content": "こんにちは"}]
 
-            response = asyncio.run(
-                agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-            )
+                response = asyncio.run(
+                    agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+                )
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -75,19 +78,26 @@ def test_chatbot_agent_web_search_response():
     with patch("chatbot.agent.character.get_user_profile", return_value=""):
         with patch("chatbot.agent.character.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])):
+            with patch(
+                "chatbot.agent.character.ensure_google_settings_node",
+                return_value=Command(goto=["get_profile", "get_digest"]),
+            ):
                 agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-            yesterday = date.today() - timedelta(days=1)
-            messages = [
-                {
-                    "type": "human",
-                    "content": (f"あなたは{yesterday:%Y-%m-%d}の情報についてweb検索できますか。YesかNoで教えて"),
-                }
-            ]
+                yesterday = date.today() - timedelta(days=1)
+                messages = [
+                    {
+                        "type": "human",
+                        "content": (f"あなたは{yesterday:%Y-%m-%d}の情報についてweb検索できますか。YesかNoで教えて"),
+                    }
+                ]
 
-            response = asyncio.run(
-                agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-            )
+                response = asyncio.run(
+                    agent_graph.ainvoke(
+                        messages=messages,
+                        userid=TEST_USER_ID,
+                        session_id=generate_test_session_id(),
+                    )
+                )
 
     assert "messages" in response
     assert "yes" in response["messages"][-1].content.lower()
@@ -134,7 +144,9 @@ def test_spotify_agent_mcp_fallback():
     with patch("chatbot.agent.character.get_user_profile", return_value=""):
         with patch("chatbot.agent.character.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch("chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])):
+            with patch(
+                "chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])
+            ):
                 # get_mcp_toolsを空のリストを返すようにモック
                 with patch.object(character, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
                     mock_get_mcp_tools.return_value = []
