@@ -1,0 +1,106 @@
+name: Ruff Auto Fix and Comment
+
+on:
+  pull_request:
+    paths:
+      - '**/*.py'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  lint-and-fix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.13"
+
+      - name: Install dependencies for api
+        run: |
+          cd src/api
+          uv sync
+
+      - name: Install dependencies for func
+        run: |
+          cd src/func
+          uv sync
+
+      - name: Install dependencies for mcp
+        run: |
+          cd src/mcp
+          uv sync
+
+      - name: Run Ruff check with fix
+        id: ruff_check
+        run: |
+          echo "### Ruff Fix Output" > ruff_output.txt
+          echo "" >> ruff_output.txt
+          
+          echo "#### src/api" >> ruff_output.txt
+          cd src/api
+          uv run ruff check --fix . 2>&1 | tee -a ../../ruff_output.txt || true
+          cd ../..
+          echo "" >> ruff_output.txt
+          
+          echo "#### src/func" >> ruff_output.txt
+          cd src/func
+          uv run ruff check --fix . 2>&1 | tee -a ../../ruff_output.txt || true
+          cd ../..
+          echo "" >> ruff_output.txt
+          
+          echo "#### src/mcp" >> ruff_output.txt
+          cd src/mcp
+          uv run ruff check --fix . 2>&1 | tee -a ../../ruff_output.txt || true
+          cd ../..
+          echo "" >> ruff_output.txt
+
+      - name: Run Ruff format
+        id: ruff_format
+        run: |
+          echo "### Ruff Format Output" >> ruff_output.txt
+          echo "" >> ruff_output.txt
+          
+          echo "#### src/api" >> ruff_output.txt
+          cd src/api
+          uv run ruff format . 2>&1 | tee -a ../../ruff_output.txt || true
+          cd ../..
+          echo "" >> ruff_output.txt
+          
+          echo "#### src/func" >> ruff_output.txt
+          cd src/func
+          uv run ruff format . 2>&1 | tee -a ../../ruff_output.txt || true
+          cd ../..
+          echo "" >> ruff_output.txt
+          
+          echo "#### src/mcp" >> ruff_output.txt
+          cd src/mcp
+          uv run ruff format . 2>&1 | tee -a ../../ruff_output.txt || true
+          cd ../..
+
+      - name: Commit fixed files
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: apply ruff auto-fix"
+          skip_ci: true
+
+      - name: Post comment to PR
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: ./ruff_output.txt
