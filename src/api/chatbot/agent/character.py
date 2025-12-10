@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated, Literal, NotRequired
 
 from langchain.agents import create_agent
+from langchain.agents.structured_output import ProviderStrategy
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -238,11 +239,28 @@ def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spot
 
         next: Literal["spotify_agent", "diary_searcher", "FINISH"]
 
+    system_prompt = extract_system_prompt(prompt)
+    if system_prompt is None:
+        logger.error("Failed to extract system prompt for router; defaulting to chatbot")
+        return Command(goto="chatbot")
+
     llm = ChatOpenAI(temperature=0, model="gpt-5.1")
-    structured_llm = llm.with_structured_output(Router)
-    chain = prompt | structured_llm
-    response = chain.invoke({"messages": state["messages"]})
-    goto = response["next"]
+
+    agent = create_agent(
+        llm,
+        tools=[],
+        system_prompt=system_prompt,
+        response_format=ProviderStrategy(Router),
+    )
+
+    try:
+        result = agent.invoke({"messages": state["messages"]})
+        router_result = result.get("structured_response") or {}
+        goto = router_result.get("next", "chatbot")
+    except Exception as e:  # noqa: BLE001
+        logger.error("Router agent failed: %s", e)
+        goto = "chatbot"
+
     if goto == "FINISH":
         goto = "chatbot"
     elif goto == "diary_searcher":
@@ -265,21 +283,42 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
     # https://smith.langchain.com/hub/tomodo1773/sister_edinet
     template = get_prompt("tomodo1773/sister_edinet")
 
+    # LangSmithのChatPromptTemplateから、現在時刻・プロフィール・ダイジェストを埋め込んだ
+    # systemメッセージ文字列だけを抽出してcreate_agentに渡す。
     prompt = template.partial(
         current_datetime=get_japan_datetime(),
         user_profile=state.get("profile", ""),
         user_digest=state.get("digest", ""),
     )
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
-    llm_with_tools = llm.bind_tools([{"type": "web_search_preview"}])
+    try:
+        # messagesプレースホルダには空リストを渡し、systemメッセージだけを生成する
+        formatted_messages = prompt.format_messages(messages=[])
+        if not formatted_messages:
+            raise ValueError("Formatted messages is empty.")
+        system_message = formatted_messages[0]
+        system_prompt = getattr(system_message, "content", str(system_message))
+    except Exception as e:  # noqa: BLE001
+        logger.error("Failed to build system prompt for chatbot_node: %s", e)
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=PROMPT_EXTRACTION_ERROR_MESSAGE)]},
+        )
 
-    chatbot_chain = prompt | llm_with_tools
-    content = await chatbot_chain.ainvoke({"messages": state["messages"]})
+    llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
+    # OpenAI built-in の web_search_preview ツールを利用
+    tools = [{"type": "web_search_preview"}]
+
+    agent = create_agent(
+        llm,
+        tools=tools,
+        system_prompt=system_prompt,
+    )
+    result = await agent.ainvoke({"messages": state["messages"]})
 
     return Command(
         goto="__end__",
-        update={"messages": [AIMessage(content=content)]},
+        update={"messages": [AIMessage(content=result["messages"][-1].text)]},
     )
 
 
@@ -323,7 +362,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
         goto="__end__",
-        update={"messages": [AIMessage(content=content["messages"][-1].content)]},
+        update={"messages": [AIMessage(content=content["messages"][-1].text)]},
     )
 
 
@@ -363,7 +402,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     content = await agent.ainvoke({"messages": state["messages"]})
     return Command(
         goto="__end__",
-        update={"messages": [AIMessage(content=content["messages"][-1].content)]},
+        update={"messages": [AIMessage(content=content["messages"][-1].text)]},
     )
 
 
