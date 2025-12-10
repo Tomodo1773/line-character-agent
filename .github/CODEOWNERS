@@ -1,0 +1,5 @@
+# CODEOWNERS file for line-character-agent repository
+# このファイルはコードレビューの自動割り当てに使用されます
+
+# デフォルトオーナー - すべてのファイル
+* @Tomodo1773
