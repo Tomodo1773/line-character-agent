@@ -66,8 +66,8 @@ async def get_mcp_client():
     """MCPクライアントのシングルトンインスタンスを取得"""
     global _mcp_client
     if _mcp_client is None:
-        # MCP serverの設定
-        connections = {"spotify": {"url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7000/mcp"), "transport": "sse"}}
+        # MCP serverの設定 (streamable HTTPを使用)
+        connections = {"spotify": {"url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7072/runtime/webhooks/mcp"), "transport": "streamable_http"}}
         _mcp_client = MultiServerMCPClient(connections)
     return _mcp_client
 
