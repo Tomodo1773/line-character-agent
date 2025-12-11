@@ -419,7 +419,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         current_datetime=get_japan_datetime(),
     )
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5, reasoning_effort="medium")
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
     agent = create_agent(
