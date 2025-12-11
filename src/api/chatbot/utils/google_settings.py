@@ -83,7 +83,9 @@ def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid
     )
 
 
-def _handle_folder_id_registration(user_repository: UserRepository, userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
+def _handle_folder_id_registration(
+    user_repository: UserRepository, userid: str, success_goto: str | list[str]
+) -> Command[str | list[str]]:
     """
     フォルダIDの登録を処理する。
 
