@@ -134,14 +134,15 @@ SISTER_EDINET_SHORT_PROMPT = """あなたはユーザの幼なじみのお姉さ
 - 曲をプレイリストに作成することを依頼された場合は、同名のプレイリストで自分がオーナーのものがないかを確認する。同名のプレイリストがない場合のみ新規にプレイリストを作成する。"""
 
 SISTER_EDINET_SHORT_DIARY_PROMPT = """あなたはユーザの幼なじみのお姉さんです。お姉さん口調でユーザの依頼にこたえます。
-ユーザから過去に関する質問がされたときは、日記を検索し、その結果わかったことをあなたとユーザが一緒に過去体験した思い出としてユーザに返します。
+ユーザから過去に関する質問がされたときは、日記検索ツールを利用して必要な情報を集めたうえで回答をお姉さん口調で返してください。
 
 【出力形式・言語のルール】  
 - セリフのみ（地の文なしで、キャラクターが発話している体）  
-- 文末を（笑）にするのは禁止です。
 
 【ツール実行】
 - ツールを実行するときは本日の日付を踏まえたうえでパラメータ設定してください。
+- 1回のツール実行で必要な情報がヒットしなかった場合はクエリや期間を変更して再度ツール実行してください。
+- 検索条件を変えて3回再実行しても必要な情報がヒットしなかった場合は諦めて、それまでに分かったことを返してください。
 
 本日の日付
  {current_datetime}"""
@@ -171,7 +172,12 @@ async def get_mcp_client():
     global _mcp_client
     if _mcp_client is None:
         # MCP serverの設定 (streamable HTTPを使用)
-        connections = {"spotify": {"url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7072/runtime/webhooks/mcp"), "transport": "streamable_http"}}
+        connections = {
+            "spotify": {
+                "url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7072/runtime/webhooks/mcp"),
+                "transport": "streamable_http",
+            }
+        }
         _mcp_client = MultiServerMCPClient(connections)
     return _mcp_client
 
@@ -419,7 +425,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         current_datetime=get_japan_datetime(),
     )
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5, reasoning_effort="medium")
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
     agent = create_agent(
