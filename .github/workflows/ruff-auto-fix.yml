@@ -1,13 +1,10 @@
 name: Ruff Auto Fix and Comment
 
 on:
-  pull_request:
-    paths:
-      - '**/*.py'
+  workflow_dispatch:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   lint-and-fix:
@@ -46,55 +43,19 @@ jobs:
           uv sync
 
       - name: Run Ruff check with fix
-        id: ruff_check
         run: |
-          echo "### Ruff Fix Output" > ruff_output.txt
-          echo "" >> ruff_output.txt
-          
-          echo "#### src/api" >> ruff_output.txt
-          cd src/api
-          uv run ruff check --fix . 2>&1 | tee -a ../../ruff_output.txt || true
-          cd ../..
-          echo "" >> ruff_output.txt
-          
-          echo "#### src/func" >> ruff_output.txt
-          cd src/func
-          uv run ruff check --fix . 2>&1 | tee -a ../../ruff_output.txt || true
-          cd ../..
-          echo "" >> ruff_output.txt
-          
-          echo "#### src/mcp" >> ruff_output.txt
-          cd src/mcp
-          uv run ruff check --fix . 2>&1 | tee -a ../../ruff_output.txt || true
-          cd ../..
-          echo "" >> ruff_output.txt
+          (cd src/api && uv run ruff check --fix .)
+          (cd src/func && uv run ruff check --fix .)
+          (cd src/mcp && uv run ruff check --fix .)
 
       - name: Run Ruff format
-        id: ruff_format
         run: |
-          echo "### Ruff Format Output" >> ruff_output.txt
-          echo "" >> ruff_output.txt
-          
-          echo "#### src/api" >> ruff_output.txt
-          (cd src/api && uv run ruff format .) 2>&1 | tee -a ruff_output.txt || true
-          echo "" >> ruff_output.txt
-          
-          echo "#### src/func" >> ruff_output.txt
-          (cd src/func && uv run ruff format .) 2>&1 | tee -a ruff_output.txt || true
-          echo "" >> ruff_output.txt
-          
-          echo "#### src/mcp" >> ruff_output.txt
-          (cd src/mcp && uv run ruff format .) 2>&1 | tee -a ruff_output.txt || true
+          (cd src/api && uv run ruff format .)
+          (cd src/func && uv run ruff format .)
+          (cd src/mcp && uv run ruff format .)
 
       - name: Commit fixed files
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "style: apply ruff auto-fix"
           skip_ci: true
-
-      - name: Post comment to PR
-        uses: peter-evans/create-or-update-comment@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body-path: ./ruff_output.txt
