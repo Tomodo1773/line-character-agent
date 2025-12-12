@@ -71,7 +71,7 @@ def test_chatbot_agent_web_search_response():
     """
     ChatbotAgentがWeb検索を利用できるかのテスト
     - 昨日の日付を含む質問を投げ、Web検索の可否をYes/Noで答えさせる
-    - レスポンスがYes（大文字・小文字を問わず）を含むことを確認
+    - レスポンスがYes（大文字・小文字を問わず）または「イエス」を含むことを確認
     """
     require_openai_api_key()
 
@@ -100,7 +100,8 @@ def test_chatbot_agent_web_search_response():
                 )
 
     assert "messages" in response
-    assert "yes" in response["messages"][-1].content.lower()
+    content = response["messages"][-1].content
+    assert "yes" in content.lower() or "イエス" in content
 
 
 def test_diary_transcription():

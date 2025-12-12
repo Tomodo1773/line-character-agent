@@ -12,10 +12,10 @@ All checks passed!
 ### Ruff Format Output
 
 #### src/api
-2 files reformatted, 25 files left unchanged
+27 files left unchanged
 
 #### src/func
 13 files left unchanged
 
 #### src/mcp
-2 files reformatted, 5 files left unchanged
+7 files left unchanged
