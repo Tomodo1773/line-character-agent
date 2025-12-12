@@ -440,11 +440,11 @@ openai_search_properties_json = json.dumps([prop.to_dict() for prop in openai_se
     arg_name="context",
     type="mcpToolTrigger",
     toolName="openai_web_search",
-    description="MCP tool that uses OpenAI Responses API with gpt-5.1 to retrieve the latest information from the web. Submit a query to search the web and get up-to-date information.",
+    description="MCP tool that uses OpenAI Responses API with gpt-5.2 to retrieve the latest information from the web. Submit a query to search the web and get up-to-date information.",
     toolProperties=openai_search_properties_json,
 )
 def openai_web_search(context) -> str:
-    """MCP tool for web search using OpenAI Responses API with gpt-5.1."""
+    """MCP tool for web search using OpenAI Responses API with gpt-5.2."""
     try:
         content = json.loads(context)
         arguments = content.get("arguments", {})
@@ -473,7 +473,7 @@ Steps:
 """
 
         response = client.responses.create(
-            model="gpt-5.1",
+            model="gpt-5.2",
             input=query,
             instructions=instructions,
             tools=[{"type": "web_search"}],

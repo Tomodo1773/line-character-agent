@@ -318,7 +318,7 @@ def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spot
 
         next: Literal["spotify_agent", "diary_searcher", "FINISH"]
 
-    llm = ChatOpenAI(temperature=0, model="gpt-5.1")
+    llm = ChatOpenAI(temperature=0, model="gpt-5.2")
 
     agent = create_agent(
         llm,
@@ -360,7 +360,7 @@ async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
         user_digest=state.get("digest", ""),
     )
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=1.0)
+    llm = ChatOpenAI(model="gpt-5.2", temperature=1.0)
     # OpenAI built-in の web_search_preview ツールを利用
     tools = [{"type": "web_search_preview"}]
 
@@ -387,7 +387,7 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     """
     logger.info("--- Spotify Agent Node ---")
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-5.2", temperature=0.5)
     # MCPツール取得
     mcp_tools = await get_mcp_tools()
     if not mcp_tools:
@@ -425,7 +425,7 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
         current_datetime=get_japan_datetime(),
     )
 
-    llm = ChatOpenAI(model="gpt-5.1", temperature=0.5, reasoning_effort="medium")
+    llm = ChatOpenAI(model="gpt-5.2", temperature=0.5, reasoning_effort="medium")
     # 日記検索ツールを使用
     diary_tools = [diary_search_tool]
     agent = create_agent(

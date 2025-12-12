@@ -161,7 +161,7 @@ OpenAI Responses APIを使ってWeb検索を行うMCPツール。クエリを投
 **注意:**
 
 - 環境変数 `OPENAI_API_KEY` にOpenAIのAPIキーをセットしてください。
-- モデルは最新の `gpt-5.1` を使用し、Responses APIで最新のWeb情報を取得します。
+- モデルは最新の `gpt-5.2` を使用し、Responses APIで最新のWeb情報を取得します。
 
 ## Token Management
 
