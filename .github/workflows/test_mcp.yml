@@ -35,6 +35,16 @@ jobs:
           cd src/mcp
           uv sync
 
+      - name: Run Ruff check
+        run: |
+          cd src/mcp
+          uv run ruff check .
+
+      - name: Run Ruff format check
+        run: |
+          cd src/mcp
+          uv run ruff format --check .
+
       - name: Run tests
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
