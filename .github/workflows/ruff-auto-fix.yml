@@ -44,15 +44,15 @@ jobs:
 
       - name: Run Ruff check with fix
         run: |
-          cd src/api && uv run ruff check --fix .
-          cd ../func && uv run ruff check --fix .
-          cd ../mcp && uv run ruff check --fix .
+          (cd src/api && uv run ruff check --fix .)
+          (cd src/func && uv run ruff check --fix .)
+          (cd src/mcp && uv run ruff check --fix .)
 
       - name: Run Ruff format
         run: |
-          cd src/api && uv run ruff format .
-          cd ../func && uv run ruff format .
-          cd ../mcp && uv run ruff format .
+          (cd src/api && uv run ruff format .)
+          (cd src/func && uv run ruff format .)
+          (cd src/mcp && uv run ruff format .)
 
       - name: Commit fixed files
         uses: stefanzweifel/git-auto-commit-action@v7
