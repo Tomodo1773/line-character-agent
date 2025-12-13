@@ -109,20 +109,5 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15
   }
 }
 
-// main Database with shared throughput (600 RU/s)
-resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
-  parent: accounts
-  name: 'main'
-  properties: {
-    resource: {
-      id: 'main'
-    }
-    options: {
-      throughput: 600
-    }
-  }
-}
-
 output name string = accounts.name
 output databaseName string = database.name
-output mainDatabaseName string = mainDatabase.name

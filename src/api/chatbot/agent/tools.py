@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Optional
 
@@ -8,6 +9,8 @@ from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class DiarySearchInput(BaseModel):
@@ -77,9 +80,10 @@ def _ensure_entries_container(database):
             vector_embedding_policy=vector_embedding_policy,
             offer_throughput=400,  # 400 RU/s
         )
+        logger.info("entriesコンテナの準備が完了しました（database: diary）")
     except Exception as e:
-        # エラーが発生した場合は、呼び出し元で処理できるように例外を再送出
-        raise RuntimeError(f"entriesコンテナの作成/確認でエラーが発生しました: {str(e)}") from e
+        logger.error(f"entriesコンテナの作成/確認でエラーが発生しました: {str(e)}")
+        raise
 
 
 def get_cosmos_container():
