@@ -68,14 +68,18 @@ def _ensure_entries_container(database):
         ]
     }
 
-    # コンテナを作成（存在しない場合のみ）
-    database.create_container_if_not_exists(
-        id="entries",
-        partition_key=PartitionKey(path="/userId"),
-        indexing_policy=indexing_policy,
-        vector_embedding_policy=vector_embedding_policy,
-        offer_throughput=400,  # 400 RU/s
-    )
+    try:
+        # コンテナを作成（存在しない場合のみ）
+        database.create_container_if_not_exists(
+            id="entries",
+            partition_key=PartitionKey(path="/userId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy,
+            offer_throughput=400,  # 400 RU/s
+        )
+    except Exception as e:
+        # エラーが発生した場合は、呼び出し元で処理できるように例外を再送出
+        raise RuntimeError(f"entriesコンテナの作成/確認でエラーが発生しました: {str(e)}") from e
 
 
 def get_cosmos_container():
