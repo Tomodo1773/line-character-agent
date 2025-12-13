@@ -123,27 +123,6 @@ resource mainDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-1
   }
 }
 
-// Container for vector search entries
-resource entriesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
-  parent: database
-  name: 'entries'
-  properties: {
-    resource: {
-      id: 'entries'
-      partitionKey: {
-        paths: ['/userId']
-        kind: 'Hash'
-      }
-      indexingPolicy: loadJsonContent('./indexing-policy.json')
-      vectorEmbeddingPolicy: loadJsonContent('./vector-embedding-policy.json')
-    }
-    options: {
-      throughput: 400
-    }
-  }
-}
-
 output name string = accounts.name
 output databaseName string = database.name
-output entriesContainerName string = entriesContainer.name
 output mainDatabaseName string = mainDatabase.name

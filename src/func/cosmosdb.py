@@ -3,7 +3,8 @@ import uuid
 from datetime import datetime
 from typing import List
 
-from azure.cosmos import CosmosClient
+from azure.cosmos import CosmosClient, PartitionKey
+from azure.cosmos.exceptions import CosmosResourceExistsError
 from langchain_core.documents import Document
 from openai import OpenAI
 
@@ -31,9 +32,67 @@ class CosmosDBUploader:
         # CosmosDBクライアント初期化
         self.cosmos_client = CosmosClient(self.cosmos_url, self.cosmos_key)
         self.database = self.cosmos_client.get_database_client(self.database_name)
+        
+        # entriesコンテナを作成（存在しない場合）
+        self._ensure_entries_container()
+        
         self.container = self.database.get_container_client(self.container_name)
 
         logger.info("CosmosDB Vector Search の設定が完了しました。")
+
+    def _ensure_entries_container(self):
+        """entriesコンテナを作成（存在しない場合のみ）"""
+        # インデックスポリシー（infra/core/db/indexing-policy.jsonと同じ内容）
+        indexing_policy = {
+            "indexingMode": "consistent",
+            "automatic": True,
+            "includedPaths": [{"path": "/*"}],
+            "excludedPaths": [
+                {"path": '/"_etag"/?'},
+                {"path": "/contentVector/*"}
+            ],
+            "vectorIndexes": [
+                {
+                    "path": "/contentVector",
+                    "type": "diskANN"
+                }
+            ],
+            "fullTextPolicy": {
+                "defaultLanguage": "ja",
+                "analyzers": [
+                    {
+                        "path": "/content",
+                        "language": "ja"
+                    }
+                ]
+            }
+        }
+        
+        # ベクトル埋め込みポリシー（infra/core/db/vector-embedding-policy.jsonと同じ内容）
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {
+                    "path": "/contentVector",
+                    "dataType": "float32",
+                    "dimensions": 1536,
+                    "distanceFunction": "cosine"
+                }
+            ]
+        }
+        
+        try:
+            # コンテナを作成（存在しない場合のみ）
+            self.database.create_container_if_not_exists(
+                id=self.container_name,
+                partition_key=PartitionKey(path="/userId"),
+                indexing_policy=indexing_policy,
+                vector_embedding_policy=vector_embedding_policy,
+                offer_throughput=400  # 400 RU/s
+            )
+            logger.info(f"entriesコンテナの準備が完了しました（database: {self.database_name}）")
+        except Exception as e:
+            logger.error(f"entriesコンテナの作成/確認でエラーが発生しました: {str(e)}")
+            raise
 
     def _generate_embedding(self, text: str) -> List[float]:
         """OpenAIを使用してテキストの埋め込みを生成"""

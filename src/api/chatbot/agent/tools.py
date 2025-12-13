@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from azure.cosmos import CosmosClient
+from azure.cosmos import CosmosClient, PartitionKey
 from dotenv import load_dotenv
 from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
@@ -49,12 +49,63 @@ def get_cosmos_client():
     return _cosmos_client
 
 
+def _ensure_entries_container(database):
+    """entriesコンテナを作成（存在しない場合のみ）"""
+    # インデックスポリシー（infra/core/db/indexing-policy.jsonと同じ内容）
+    indexing_policy = {
+        "indexingMode": "consistent",
+        "automatic": True,
+        "includedPaths": [{"path": "/*"}],
+        "excludedPaths": [
+            {"path": '/"_etag"/?'},
+            {"path": "/contentVector/*"}
+        ],
+        "vectorIndexes": [
+            {
+                "path": "/contentVector",
+                "type": "diskANN"
+            }
+        ],
+        "fullTextPolicy": {
+            "defaultLanguage": "ja",
+            "analyzers": [
+                {
+                    "path": "/content",
+                    "language": "ja"
+                }
+            ]
+        }
+    }
+    
+    # ベクトル埋め込みポリシー（infra/core/db/vector-embedding-policy.jsonと同じ内容）
+    vector_embedding_policy = {
+        "vectorEmbeddings": [
+            {
+                "path": "/contentVector",
+                "dataType": "float32",
+                "dimensions": 1536,
+                "distanceFunction": "cosine"
+            }
+        ]
+    }
+    
+    # コンテナを作成（存在しない場合のみ）
+    database.create_container_if_not_exists(
+        id="entries",
+        partition_key=PartitionKey(path="/userId"),
+        indexing_policy=indexing_policy,
+        vector_embedding_policy=vector_embedding_policy,
+        offer_throughput=400  # 400 RU/s
+    )
+
+
 def get_cosmos_container():
     """CosmosDBコンテナを取得"""
     global _cosmos_container
     if _cosmos_container is None:
         client = get_cosmos_client()
         database = client.get_database_client("diary")
+        _ensure_entries_container(database)
         _cosmos_container = database.get_container_client("entries")
     return _cosmos_container
 
