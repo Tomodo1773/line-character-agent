@@ -10,21 +10,6 @@
 				"port": 9092
 			},
 			"preLaunchTask": "func: host start"
-		},
-		{
-			"name": "Docker: Attach to Functions",
-			"type": "debugpy",
-			"request": "attach",
-			"connect": {
-				"host": "localhost",
-				"port": 5679
-			},
-			"pathMappings": [
-				{
-					"localRoot": "${workspaceFolder}",
-					"remoteRoot": "/home/site/wwwroot"
-				}
-			]
 		}
 	]
 }

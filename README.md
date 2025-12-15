@@ -134,7 +134,7 @@ LINEとWebフロントエンドの両方に対応したAIキャラクターエ�
 
 ### 開発・デプロイ
 
-- Docker
+- Docker（データベース・ストレージエミュレータ用）
 - Azure Developer CLI（azd）
 - Bicep（Infrastructure as Code）
 - uv（パッケージ管理）
@@ -234,20 +234,32 @@ sequenceDiagram
 
 ## 開発環境のセットアップ
 
-### Docker Composeによるローカル開発
+### ローカル開発環境
 
-プロジェクト全体をDocker Composeで起動できます。以下のサービスがコンテナとして実行されます：
+各サービス（api、func、mcp）はローカルで直接起動します。データベース・ストレージエミュレータのみDocker Composeで実行します。
 
-- **api**: FastAPI アプリケーション（ポート 8000）
-- **func**: Azure Functions - 日記アップロード機能（ポート 7071）
-- **mcp**: Azure Functions - MCPサーバー（ポート 7072）
+#### 1. データベース・ストレージエミュレータの起動
+
+以下のサービスがDocker Composeで提供されます：
+
 - **postgres**: PostgreSQL データベース（ポート 5432）
 - **cosmosdb**: CosmosDB エミュレータ（ポート 8081）
 - **azurite**: Azure Storage エミュレータ（ポート 10000-10002）
 
-#### 起動手順
+```bash
+# エミュレータを起動
+docker compose up -d
 
-1. 各サービスの `.env` ファイルを作成：
+# ログを確認
+docker compose logs -f
+
+# 停止
+docker compose down
+```
+
+#### 2. 環境変数の設定
+
+各サービスの `.env` ファイルを作成：
 
 ```bash
 cp src/api/.env.sample src/api/.env
@@ -255,31 +267,14 @@ cp src/func/.env.sample src/func/.env
 cp src/mcp/.env.sample src/mcp/.env
 ```
 
-2. `.env` ファイルを編集して必要な環境変数を設定
+`.env` ファイルを編集して必要な環境変数を設定してください。
 
-3. Docker Composeで起動：
+#### 3. 各サービスの起動
 
-```bash
-docker compose up -d
-```
-
-4. ログを確認：
-
-```bash
-docker compose logs -f
-```
-
-5. 停止：
-
-```bash
-docker compose down
-```
+以下の「個別サービスの開発」セクションを参照して、各サービスをローカルで起動してください。
 
 #### 接続情報
 
-- API Service: http://localhost:8000
-- Function Service: http://localhost:7071
-- MCP Service: http://localhost:7072
 - PostgreSQL: `postgresql://postgres:postgres@localhost:5432/chatbot`
 - Cosmos DB Emulator: https://localhost:8081
 - Azurite Blob: http://localhost:10000
