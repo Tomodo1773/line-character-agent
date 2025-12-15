@@ -48,6 +48,7 @@ def get_cosmos_client():
             url=os.getenv("COSMOS_DB_ACCOUNT_URL"),
             credential=os.getenv("COSMOS_DB_ACCOUNT_KEY"),
             connection_verify=_resolve_connection_verify(),
+            connection_timeout=15,
         )
     return _cosmos_client
 
@@ -91,7 +92,9 @@ def get_cosmos_container():
     global _cosmos_container
     if _cosmos_container is None:
         client = get_cosmos_client()
-        database = client.get_database_client("diary")
+        # `get_database_client` は DB が存在しない場合でもハンドルを返すだけで、
+        # その後のコンテナ作成が 404 で落ちる。まず DB を確実に作る。
+        database = client.create_database_if_not_exists(id="diary")
         _ensure_entries_container(database)
         _cosmos_container = database.get_container_client("entries")
     return _cosmos_container

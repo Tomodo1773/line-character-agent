@@ -7,6 +7,7 @@ from azure.cosmos import CosmosClient, PartitionKey
 from langchain_core.documents import Document
 from openai import OpenAI
 
+from cosmos_connection import resolve_cosmos_connection_verify
 from diary_files import extract_date_info_from_source
 from logger import logger
 
@@ -24,13 +25,22 @@ class CosmosDBUploader:
         # CosmosDB接続設定（src/apiと同じ変数名）
         self.cosmos_url = os.getenv("COSMOS_DB_ACCOUNT_URL")
         self.cosmos_key = os.getenv("COSMOS_DB_ACCOUNT_KEY")
+        if not self.cosmos_url or not self.cosmos_key:
+            raise ValueError("COSMOS_DB_ACCOUNT_URL / COSMOS_DB_ACCOUNT_KEY が未設定です")
 
         # OpenAI接続設定
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
         # CosmosDBクライアント初期化
-        self.cosmos_client = CosmosClient(self.cosmos_url, self.cosmos_key)
-        self.database = self.cosmos_client.get_database_client(self.database_name)
+        self.cosmos_client = CosmosClient(
+            url=self.cosmos_url,
+            credential=self.cosmos_key,
+            connection_verify=resolve_cosmos_connection_verify(),
+            connection_timeout=15,
+        )
+        # `get_database_client` は DB が存在しない場合でもハンドルを返すだけで、
+        # その後のコンテナ作成が 404 で落ちる。まず DB を確実に作る。
+        self.database = self.cosmos_client.create_database_if_not_exists(id=self.database_name)
 
         # entriesコンテナを作成（存在しない場合）
         self._ensure_entries_container()
