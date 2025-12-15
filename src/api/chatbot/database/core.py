@@ -36,7 +36,9 @@ class CosmosCore:
             else:
                 connection_verify = verify_setting
 
-        return CosmosClient(url=url, credential=key, connection_verify=connection_verify)
+        # Cosmos SDK は同期 I/O のため、ネットワーク障害時に無期限待ちにならないようタイムアウトを必ず設定する。
+        # `connection_timeout` は秒。
+        return CosmosClient(url=url, credential=key, connection_verify=connection_verify, connection_timeout=15)
 
     def _init_container(self, container_name: str):
         """コンテナの初期化"""
@@ -57,12 +59,12 @@ class CosmosCore:
                 **data,
             }
             self._container.upsert_item(data)
-        except Exception:
-            raise HTTPException(status_code=500, detail="Failed to save data")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Failed to save data") from e
 
     def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """データの取得"""
         try:
             return list(self._container.query_items(query=query, parameters=parameters, enable_cross_partition_query=True))
-        except Exception:
-            raise HTTPException(status_code=500, detail="Failed to fetch data")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Failed to fetch data") from e
