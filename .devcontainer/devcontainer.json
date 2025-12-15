@@ -10,6 +10,9 @@
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		"ghcr.io/jlaundry/devcontainer-features/azure-functions-core-tools:1": {
 			"VERSION": "latest"
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "lts"
 		}
 	},
 	"customizations": {
@@ -85,8 +88,7 @@
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [
 		8000, // API (src/api)
-		7071, // Azure Functions (src/func)
-		7072, // MCP Server (src/mcp)
+		5432, // Postgres
 		8081 // CosmosDB Emulator Console
 	]
 

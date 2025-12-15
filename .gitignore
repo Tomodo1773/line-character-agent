@@ -171,3 +171,7 @@ family_names.json
 user_profile.md
 local.settings.json
 credentials.json
+
+# Claude
+settings.local.json
+

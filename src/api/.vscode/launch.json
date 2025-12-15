@@ -25,21 +25,6 @@
 			"env": {
 				"PYTHONPATH": "${workspaceFolder}"
 			}
-		},
-		{
-			"name": "Docker: Attach to API",
-			"type": "debugpy",
-			"request": "attach",
-			"connect": {
-				"host": "localhost",
-				"port": 5678
-			},
-			"pathMappings": [
-				{
-					"localRoot": "${workspaceFolder}",
-					"remoteRoot": "/src"
-				}
-			]
 		}
 	]
 }
