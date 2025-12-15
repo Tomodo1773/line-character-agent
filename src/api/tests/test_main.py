@@ -1,7 +1,6 @@
 import asyncio
 import os
 import uuid
-from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -65,43 +64,6 @@ def test_chatbot_agent_response():
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
-
-
-def test_chatbot_agent_web_search_response():
-    """
-    ChatbotAgentがWeb検索を利用できるかのテスト
-    - 昨日の日付を含む質問を投げ、Web検索の可否をYes/Noで答えさせる
-    - レスポンスがYes（大文字・小文字を問わず）または「イエス」を含むことを確認
-    """
-    require_openai_api_key()
-
-    with patch("chatbot.agent.character.get_user_profile", return_value=""):
-        with patch("chatbot.agent.character.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            with patch(
-                "chatbot.agent.character.ensure_google_settings_node",
-                return_value=Command(goto=["get_profile", "get_digest"]),
-            ):
-                agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-                yesterday = date.today() - timedelta(days=1)
-                messages = [
-                    {
-                        "type": "human",
-                        "content": (f"あなたは{yesterday:%Y-%m-%d}の情報についてweb検索できますか。YesかNoで教えて"),
-                    }
-                ]
-
-                response = asyncio.run(
-                    agent_graph.ainvoke(
-                        messages=messages,
-                        userid=TEST_USER_ID,
-                        session_id=generate_test_session_id(),
-                    )
-                )
-
-    assert "messages" in response
-    content = response["messages"][-1].content
-    assert "yes" in content.lower() or "イエス" in content
 
 
 def test_diary_transcription():

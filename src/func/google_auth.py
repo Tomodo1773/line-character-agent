@@ -12,6 +12,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from logger import logger
+from cosmos_connection import resolve_cosmos_connection_verify
 
 # Functions 側は Drive の読み取りのみを行うため、Docs API 専用スコープは不要。
 # リフレッシュトークン発行時に承認されたスコープと一致させておくことで
@@ -26,19 +27,6 @@ def get_env_variable(name: str) -> str:
     return value
 
 
-def _get_connection_verify():
-    verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
-    if verify_setting is None:
-        return True
-
-    lowered = verify_setting.lower()
-    if lowered in {"false", "0", "no"}:
-        return False
-    if lowered in {"true", "1", "yes"}:
-        return True
-    return verify_setting
-
-
 @dataclass
 class GoogleDriveUserContext:
     userid: str
@@ -50,7 +38,8 @@ def _get_cosmos_client() -> CosmosClient:
     return CosmosClient(
         url=get_env_variable("COSMOS_DB_ACCOUNT_URL"),
         credential=get_env_variable("COSMOS_DB_ACCOUNT_KEY"),
-        connection_verify=_get_connection_verify(),
+        connection_verify=resolve_cosmos_connection_verify(),
+        connection_timeout=15,
     )
 
 
@@ -108,7 +97,9 @@ def credentials_from_dict(token_data: Dict[str, Any]) -> Optional[Credentials]:
 class UserTokenRepository:
     def __init__(self):
         self.client = _get_cosmos_client()
-        self.database = self.client.get_database_client("main")
+        # `get_database_client` は DB が存在しない場合でもハンドルを返すだけで、
+        # 後続のコンテナ操作が 404 で落ちる。まず DB を確実に作る。
+        self.database = self.client.create_database_if_not_exists(id="main", offer_throughput=600)
         self.container = self.database.get_container_client("users")
 
     @staticmethod

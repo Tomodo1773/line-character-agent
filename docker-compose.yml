@@ -1,5 +1,4 @@
 services:
-
   cosmosdb:
     image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
     restart: unless-stopped
@@ -11,7 +10,7 @@ services:
       AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 2
       AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "true"
     volumes:
-      - cosmosdb-data:/data
+      - cosmosdb-data:/tmp/cosmos/appdata
     healthcheck:
       test: ["CMD", "curl", "-skf", "https://localhost:8081/_explorer/emulator.pem"]
       interval: 30s

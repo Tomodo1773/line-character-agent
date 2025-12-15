@@ -42,7 +42,8 @@ class CosmosCore:
 
     def _init_container(self, container_name: str):
         """コンテナの初期化"""
-        database = self._client.create_database_if_not_exists(id="main")
+        # mainデータベースを600 RU/sの共有スループットで作成（存在しない場合のみ）
+        database = self._client.create_database_if_not_exists(id="main", offer_throughput=600)
         return database.create_container_if_not_exists(id=container_name, partition_key=PartitionKey(path="/id"))
 
     def save(self, data: Dict[str, Any]) -> None:
