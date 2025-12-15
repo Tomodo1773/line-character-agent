@@ -217,33 +217,43 @@ def get_user_credentials(userid: str, user_repository: UserRepository):
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     try:
+        logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
         userid = event.source.user_id
         user_repository = UserRepository()
 
         # 会話履歴リセットのキーワードをチェック
         if event.message.text.strip() == "閑話休題":
+            logger.info(f"Resetting session for user {userid}")
             session = user_repository.reset_session(userid)
             logger.info(f"Session reset for user {userid}. New session_id: {session.session_id}")
             reply_text = "会話履歴をリセットしたよ。新しい気持ちで話そうね！"
             line_messenger.reply_message([TextMessage(text=reply_text)])
             return
 
+        logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
+        logger.info("Initializing ChatbotAgent with checkpointer")
         agent = ChatbotAgent(checkpointer=app.state.checkpointer)
 
         # ローディングアニメーションを表示
+        logger.info("Showing loading animation")
         line_messenger.show_loading_animation()
 
         messages = [{"type": "human", "content": event.message.text}]
+        logger.info(f"Invoking agent for session_id: {session.session_id}")
         if await agent.has_pending_interrupt(session.session_id):
+            logger.info("Resuming agent from interrupt")
             response = await agent.aresume(session.session_id, event.message.text)
         else:
+            logger.info("Invoking agent with new message")
             response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
 
+        logger.info("Extracting agent response text")
         reply_text, _ = extract_agent_text(response)
         logger.info(f"Generated text response: {reply_text}")
 
+        logger.info("Sending reply message")
         reply_messages = [TextMessage(text=reply_text)]
         line_messenger.reply_message(reply_messages)
 
@@ -274,18 +284,25 @@ def handle_text(event):
 async def handle_audio_async(event):
     logger.info(f"Start handling audio message: {event.message.id}")
     try:
+        logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
         user_repository = UserRepository()
         userid = event.source.user_id
+        logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
 
         # ローディングアニメーションを表示
+        logger.info("Showing loading animation")
         line_messenger.show_loading_animation()
 
         # 音声データを取得
+        logger.info("Getting audio content from LINE")
         audio = line_messenger.get_content()
+        logger.info("Audio content retrieved successfully")
 
+        logger.info("Getting diary workflow")
         workflow = get_diary_workflow(agent_checkpointer=app.state.checkpointer)
+        logger.info("Invoking diary workflow")
 
         result = await workflow.ainvoke(
             {"messages": [], "userid": userid, "session_id": session.session_id, "audio": audio},
@@ -293,10 +310,12 @@ async def handle_audio_async(event):
         )
 
         if result.get("__interrupt__"):
+            logger.info("Workflow returned interrupt")
             interrupt_message, _ = extract_agent_text(result)
             line_messenger.reply_message([TextMessage(text=interrupt_message)])
             return
 
+        logger.info("Processing workflow results")
         diary_text = result.get("diary_text")
         saved_filename = result.get("saved_filename")
         message_updates = result.get("messages") or []
@@ -314,6 +333,7 @@ async def handle_audio_async(event):
             fallback, _ = extract_agent_text(result)
             reply_texts.append(fallback)
 
+        logger.info("Sending reply messages")
         reply_messages = [TextMessage(text=text) for text in reply_texts]
         line_messenger.reply_message(reply_messages)
 
