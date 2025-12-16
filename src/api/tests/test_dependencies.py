@@ -58,7 +58,6 @@ class TestGetOAuthManager:
         monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "test_client_secret")
         monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost/callback")
 
-        mock_client = MagicMock(spec=CosmosClient)
         mock_core = MagicMock(spec=CosmosCore)
         user_repository = UserRepository(mock_core)
 
