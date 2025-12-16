@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
@@ -16,8 +16,12 @@ logger = create_logger(__name__)
 class GoogleDriveOAuthManager:
     """Google DriveのOAuth認可と資格情報管理を行うクラス"""
 
-    def __init__(self, user_repository: Optional[UserRepository] = None):
-        self.user_repository = user_repository or UserRepository()
+    def __init__(self, user_repository: UserRepository):
+        """
+        Args:
+            user_repository: UserRepository インスタンス
+        """
+        self.user_repository = user_repository
         self.client_id = get_env_variable("GOOGLE_CLIENT_ID")
         self.client_secret = get_env_variable("GOOGLE_CLIENT_SECRET")
         self.redirect_uri = get_env_variable("GOOGLE_OAUTH_REDIRECT_URI")
@@ -62,7 +66,7 @@ class GoogleDriveOAuthManager:
         }
 
     @staticmethod
-    def credentials_from_dict(token_data: Dict) -> Optional[Credentials]:
+    def credentials_from_dict(token_data: Dict) -> Credentials | None:
         if not token_data:
             return None
 
@@ -86,7 +90,7 @@ class GoogleDriveOAuthManager:
         self.user_repository.save_google_tokens(userid, self.credentials_to_dict(credentials))
         logger.info("Saved Google Drive credentials for user: %s", userid)
 
-    def get_user_credentials(self, userid: str) -> Optional[Credentials]:
+    def get_user_credentials(self, userid: str) -> Credentials | None:
         """
         ユーザーの資格情報を取得する。
 

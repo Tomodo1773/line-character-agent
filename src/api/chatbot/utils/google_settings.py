@@ -40,7 +40,14 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
         interruptは例外メカニズムを利用しているためです。
     """
     logger.info("--- Ensure Google Settings ---")
-    user_repository = UserRepository()
+
+    # DI: CosmosClient から UserRepository を作成
+    from chatbot.agent.tools import get_cosmos_client
+    from chatbot.database.core import CosmosCore
+
+    cosmos_client = get_cosmos_client()
+    cosmos_core = CosmosCore(cosmos_client, "users")
+    user_repository = UserRepository(cosmos_core)
     oauth_manager = GoogleDriveOAuthManager(user_repository)
 
     # OAuth認証情報のチェック

@@ -199,12 +199,19 @@ def get_user_profile(userid: str) -> str:
     global _cached
     if userid not in _cached["profile"]:
         logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
+        from chatbot.agent.tools import get_cosmos_client
+        from chatbot.database.core import CosmosCore
         from chatbot.database.repositories import UserRepository
         from chatbot.utils.google_auth import GoogleDriveOAuthManager
         from chatbot.utils.google_drive import GoogleDriveHandler
         from chatbot.utils.google_drive_utils import get_profile_from_drive
 
-        auth_manager = GoogleDriveOAuthManager()
+        # DI: CosmosClient から UserRepository を作成
+        cosmos_client = get_cosmos_client()
+        cosmos_core = CosmosCore(cosmos_client, "users")
+        user_repository = UserRepository(cosmos_core)
+
+        auth_manager = GoogleDriveOAuthManager(user_repository)
         credentials = auth_manager.get_user_credentials(userid)
 
         if not credentials:
@@ -212,7 +219,6 @@ def get_user_profile(userid: str) -> str:
             _cached["profile"][userid] = ""
             return ""
 
-        user_repository = UserRepository()
         folder_id = user_repository.fetch_drive_folder_id(userid)
         if not folder_id:
             logger.warning("Google Drive folder ID not found for user: %s", userid)
@@ -234,12 +240,19 @@ def get_user_digest(userid: str) -> str:
     global _cached
     if userid not in _cached["digest"]:
         logger.info(f"Fetching user digest from Google Drive as it is not cached: {userid}")
+        from chatbot.agent.tools import get_cosmos_client
+        from chatbot.database.core import CosmosCore
         from chatbot.database.repositories import UserRepository
         from chatbot.utils.google_auth import GoogleDriveOAuthManager
         from chatbot.utils.google_drive import GoogleDriveHandler
         from chatbot.utils.google_drive_utils import get_digest_from_drive
 
-        auth_manager = GoogleDriveOAuthManager()
+        # DI: CosmosClient から UserRepository を作成
+        cosmos_client = get_cosmos_client()
+        cosmos_core = CosmosCore(cosmos_client, "users")
+        user_repository = UserRepository(cosmos_core)
+
+        auth_manager = GoogleDriveOAuthManager(user_repository)
         credentials = auth_manager.get_user_credentials(userid)
 
         if not credentials:
@@ -247,7 +260,6 @@ def get_user_digest(userid: str) -> str:
             _cached["digest"][userid] = ""
             return ""
 
-        user_repository = UserRepository()
         folder_id = user_repository.fetch_drive_folder_id(userid)
         if not folder_id:
             logger.warning("Google Drive folder ID not found for user: %s", userid)

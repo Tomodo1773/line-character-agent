@@ -15,8 +15,12 @@ class UserRepository(BaseRepository):
     SESSION_TTL = timedelta(hours=1)
     TIMEZONE = pytz.timezone("Asia/Tokyo")
 
-    def __init__(self):
-        self._core = CosmosCore("users")
+    def __init__(self, cosmos_core: CosmosCore):
+        """
+        Args:
+            cosmos_core: CosmosCore インスタンス
+        """
+        self._core = cosmos_core
 
     @staticmethod
     def _sanitize_item(item: Dict[str, Any]) -> Dict[str, Any]:

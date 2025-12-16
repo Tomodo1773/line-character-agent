@@ -43,7 +43,24 @@ logger = create_logger(__name__)
 
 
 def _create_drive_handler(userid: str) -> GoogleDriveHandler | None:
-    user_repository = UserRepository()
+    """ユーザー固有の GoogleDriveHandler を作成。
+
+    DI により共有 CosmosClient から UserRepository を生成します。
+
+    Args:
+        userid: ユーザーID
+
+    Returns:
+        GoogleDriveHandler | None: 作成された GoogleDriveHandler、または設定不足の場合 None
+    """
+    from chatbot.agent.tools import get_cosmos_client
+    from chatbot.database.core import CosmosCore
+
+    # DI: CosmosClient から UserRepository を作成
+    cosmos_client = get_cosmos_client()
+    cosmos_core = CosmosCore(cosmos_client, "users")
+    user_repository = UserRepository(cosmos_core)
+
     credentials = GoogleDriveOAuthManager(user_repository).get_user_credentials(userid)
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not credentials or not folder_id:

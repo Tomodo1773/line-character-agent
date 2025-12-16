@@ -21,35 +21,33 @@ class DiarySearchInput(BaseModel):
     order: Optional[str] = Field(default="asc", description="日付の並べ替え方向")
 
 
-# Cosmos DB接続用のシングルトン
+# Cosmos DB接続用のグローバル変数（FastAPI startup 時に初期化）
 _cosmos_client = None
 _cosmos_container = None
 
 
-def _resolve_connection_verify():
-    verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
-    if verify_setting is None:
-        return True
+def initialize_cosmos_client(client: CosmosClient):
+    """FastAPI startup 時に呼び出される CosmosClient 初期化関数。
 
-    lowered = verify_setting.lower()
-    if lowered in {"false", "0", "no"}:
-        return False
-    if lowered in {"true", "1", "yes"}:
-        return True
-
-    return verify_setting
-
-
-def get_cosmos_client():
-    """CosmosDBクライアントを取得"""
+    Args:
+        client: 共有する CosmosClient インスタンス
+    """
     global _cosmos_client
+    _cosmos_client = client
+    logger.info("CosmosClient initialized for agent tools")
+
+
+def get_cosmos_client() -> CosmosClient:
+    """初期化済みの CosmosClient を取得。
+
+    Returns:
+        CosmosClient: 共有 CosmosClient インスタンス
+
+    Raises:
+        RuntimeError: CosmosClient が未初期化の場合
+    """
     if _cosmos_client is None:
-        _cosmos_client = CosmosClient(
-            url=os.getenv("COSMOS_DB_ACCOUNT_URL"),
-            credential=os.getenv("COSMOS_DB_ACCOUNT_KEY"),
-            connection_verify=_resolve_connection_verify(),
-            connection_timeout=15,
-        )
+        raise RuntimeError("CosmosClient not initialized. Call initialize_cosmos_client() first.")
     return _cosmos_client
 
 

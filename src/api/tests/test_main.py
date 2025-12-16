@@ -189,6 +189,7 @@ def test_spotify_agent():
 
 def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
     """OAuth設定がない場合に認可URLを案内するレスポンスになることを検証"""
+    from unittest.mock import MagicMock
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -209,7 +210,13 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
         },
     )()
 
-    monkeypatch.setattr("chatbot.utils.google_settings.UserRepository", lambda: DummyUserRepository())
+    # DI パターン用のモック設定
+    def mock_get_cosmos_client():
+        return MagicMock()
+
+    monkeypatch.setattr("chatbot.utils.google_settings.get_cosmos_client", mock_get_cosmos_client)
+    monkeypatch.setattr("chatbot.utils.google_settings.CosmosCore", lambda client, name: MagicMock())
+    monkeypatch.setattr("chatbot.utils.google_settings.UserRepository", lambda core: DummyUserRepository())
     monkeypatch.setattr("chatbot.utils.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
     state = {"userid": "user", "session_id": "session", "messages": []}
@@ -225,6 +232,7 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
 
 def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
     """フォルダIDが未設定の場合に入力を促し登録するフローを検証"""
+    from unittest.mock import MagicMock
 
     saved_folder_ids: list[str] = []
 
@@ -247,7 +255,13 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
         },
     )()
 
-    monkeypatch.setattr("chatbot.utils.google_settings.UserRepository", lambda: DummyUserRepository())
+    # DI パターン用のモック設定
+    def mock_get_cosmos_client():
+        return MagicMock()
+
+    monkeypatch.setattr("chatbot.utils.google_settings.get_cosmos_client", mock_get_cosmos_client)
+    monkeypatch.setattr("chatbot.utils.google_settings.CosmosCore", lambda client, name: MagicMock())
+    monkeypatch.setattr("chatbot.utils.google_settings.UserRepository", lambda core: DummyUserRepository())
     monkeypatch.setattr("chatbot.utils.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
     monkeypatch.setattr(
         "chatbot.utils.google_settings.interrupt",
@@ -344,33 +358,31 @@ def test_reset_session():
     - reset_sessionを呼び出すと新しいセッションIDが生成されることを確認
     - 同じユーザーで2回reset_sessionを呼ぶと異なるセッションIDが返されることを確認
     """
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock
 
     from chatbot.database.repositories import UserRepository
 
-    # CosmosDBへの接続をモック化
-    with patch("chatbot.database.repositories.CosmosCore") as mock_cosmos_core:
-        mock_core_instance = MagicMock()
-        mock_cosmos_core.return_value = mock_core_instance
+    # CosmosCore のモック作成
+    mock_core_instance = MagicMock()
 
-        # UserRepositoryのインスタンスを作成
-        user_repository = UserRepository()
+    # UserRepositoryのインスタンスを作成（DI 対応）
+    user_repository = UserRepository(mock_core_instance)
 
-        # fetch_userをモック化
-        user_repository.fetch_user = MagicMock(return_value={"id": TEST_USER_ID, "userid": TEST_USER_ID})
+    # fetch_userをモック化
+    user_repository.fetch_user = MagicMock(return_value={"id": TEST_USER_ID, "userid": TEST_USER_ID})
 
-        # 最初のreset_sessionを呼び出し
-        session1 = user_repository.reset_session(TEST_USER_ID)
+    # 最初のreset_sessionを呼び出し
+    session1 = user_repository.reset_session(TEST_USER_ID)
 
-        # セッションIDが生成されていることを確認
-        assert session1.session_id is not None
-        assert len(session1.session_id) > 0
+    # セッションIDが生成されていることを確認
+    assert session1.session_id is not None
+    assert len(session1.session_id) > 0
 
-        # 2回目のreset_sessionを呼び出し
-        session2 = user_repository.reset_session(TEST_USER_ID)
+    # 2回目のreset_sessionを呼び出し
+    session2 = user_repository.reset_session(TEST_USER_ID)
 
-        # 異なるセッションIDが生成されていることを確認
-        assert session2.session_id != session1.session_id
+    # 異なるセッションIDが生成されていることを確認
+    assert session2.session_id != session1.session_id
 
 
 def test_handle_text_async_with_reset_keyword():
@@ -390,28 +402,32 @@ def test_handle_text_async_with_reset_keyword():
     event.source.user_id = TEST_USER_ID
     event.reply_token = "test-reply-token"
 
-    # UserRepositoryのモック作成
-    with patch("chatbot.main.UserRepository") as mock_user_repo_class:
-        mock_user_repo = MagicMock()
-        mock_user_repo_class.return_value = mock_user_repo
+    # UserRepositoryのモック作成（DI 対応）
+    mock_user_repo = MagicMock()
+    mock_cosmos_core = MagicMock()
 
-        # reset_sessionが呼ばれることを確認するためのモック設定
-        new_session_id = "new-session-id"
-        mock_user_repo.reset_session.return_value = SessionMetadata(session_id=new_session_id, last_accessed=MagicMock())
+    # reset_sessionが呼ばれることを確認するためのモック設定
+    new_session_id = "new-session-id"
+    mock_user_repo.reset_session.return_value = SessionMetadata(session_id=new_session_id, last_accessed=MagicMock())
 
-        # LineMessengerのモック作成
-        with patch("chatbot.main.LineMessenger") as mock_messenger_class:
-            mock_messenger = MagicMock()
-            mock_messenger_class.return_value = mock_messenger
+    with patch("chatbot.main.CosmosCore") as mock_core_class:
+        mock_core_class.return_value = mock_cosmos_core
+        with patch("chatbot.main.UserRepository") as mock_user_repo_class:
+            mock_user_repo_class.return_value = mock_user_repo
 
-            # handle_text_asyncを実行
-            asyncio.run(handle_text_async(event))
+            # LineMessengerのモック作成
+            with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                mock_messenger = MagicMock()
+                mock_messenger_class.return_value = mock_messenger
 
-            # reset_sessionが呼ばれたことを確認
-            mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
+                # handle_text_asyncを実行
+                asyncio.run(handle_text_async(event))
 
-            # 適切なメッセージが返信されたことを確認
-            mock_messenger.reply_message.assert_called_once()
-            reply_messages = mock_messenger.reply_message.call_args[0][0]
-            assert len(reply_messages) == 1
-            assert "会話履歴をリセットしたよ" in reply_messages[0].text
+                # reset_sessionが呼ばれたことを確認
+                mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
+
+                # 適切なメッセージが返信されたことを確認
+                mock_messenger.reply_message.assert_called_once()
+                reply_messages = mock_messenger.reply_message.call_args[0][0]
+                assert len(reply_messages) == 1
+                assert "会話履歴をリセットしたよ" in reply_messages[0].text
