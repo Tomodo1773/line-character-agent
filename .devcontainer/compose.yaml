@@ -16,6 +16,7 @@ services:
       - dind-var-lib-docker:/var/lib/docker
       - ${HOME}/.codex:/home/vscode/.codex:cached
       - ${HOME}/.claude:/home/vscode/.claude:cached
+      - ${HOME}/.claude.json:/home/vscode/.claude.json:cached
 
 volumes:
   dind-var-lib-docker:
