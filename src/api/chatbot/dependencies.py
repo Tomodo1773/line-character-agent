@@ -4,6 +4,7 @@
 OAuth マネージャーのインスタンスを提供します。
 """
 
+from azure.cosmos import CosmosClient
 from fastapi import Depends, Request
 
 from chatbot.database.core import CosmosCore
@@ -58,3 +59,24 @@ def get_oauth_manager(user_repository: UserRepository = Depends(get_user_reposit
         GoogleDriveOAuthManager: 新規作成された GoogleDriveOAuthManager インスタンス
     """
     return GoogleDriveOAuthManager(user_repository)
+
+
+def create_user_repository(cosmos_client: CosmosClient | None = None) -> UserRepository:
+    """UserRepository を生成するヘルパー関数。
+
+    FastAPI コンテキスト内外の両方で使用可能。
+
+    Args:
+        cosmos_client: CosmosClient インスタンス。
+                      Noneの場合は get_cosmos_client() から取得。
+
+    Returns:
+        UserRepository: 新規作成された UserRepository インスタンス
+    """
+    if cosmos_client is None:
+        from chatbot.agent.tools import get_cosmos_client
+
+        cosmos_client = get_cosmos_client()
+
+    cosmos_core = CosmosCore(cosmos_client, "users")
+    return UserRepository(cosmos_core)

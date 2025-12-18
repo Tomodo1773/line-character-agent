@@ -42,12 +42,9 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     logger.info("--- Ensure Google Settings ---")
 
     # DI: CosmosClient から UserRepository を作成
-    from chatbot.agent.tools import get_cosmos_client
-    from chatbot.database.core import CosmosCore
+    from chatbot.dependencies import create_user_repository
 
-    cosmos_client = get_cosmos_client()
-    cosmos_core = CosmosCore(cosmos_client, "users")
-    user_repository = UserRepository(cosmos_core)
+    user_repository = create_user_repository()
     oauth_manager = GoogleDriveOAuthManager(user_repository)
 
     # OAuth認証情報のチェック

@@ -231,11 +231,9 @@ async def handle_text_async(event):
         userid = event.source.user_id
 
         # DI: CosmosClient から UserRepository を作成
-        from chatbot.database.core import CosmosCore
+        from chatbot.dependencies import create_user_repository
 
-        cosmos_client = app.state.cosmos_client
-        cosmos_core = CosmosCore(cosmos_client, "users")
-        user_repository = UserRepository(cosmos_core)
+        user_repository = create_user_repository(app.state.cosmos_client)
 
         # 会話履歴リセットのキーワードをチェック
         if event.message.text.strip() == "閑話休題":
@@ -304,11 +302,9 @@ async def handle_audio_async(event):
         userid = event.source.user_id
 
         # DI: CosmosClient から UserRepository を作成
-        from chatbot.database.core import CosmosCore
+        from chatbot.dependencies import create_user_repository
 
-        cosmos_client = app.state.cosmos_client
-        cosmos_core = CosmosCore(cosmos_client, "users")
-        user_repository = UserRepository(cosmos_core)
+        user_repository = create_user_repository(app.state.cosmos_client)
         logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
 
