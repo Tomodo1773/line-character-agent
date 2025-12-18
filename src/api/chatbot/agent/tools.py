@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from azure.cosmos import CosmosClient, PartitionKey
 from dotenv import load_dotenv
@@ -14,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 class DiarySearchInput(BaseModel):
     query_text: str = Field(description="検索したい自然文")
-    top_k: Optional[int] = Field(default=5, description="返す件数 (1-20)", ge=1, le=20)
-    start_date: Optional[str] = Field(default=None, description="絞り込み開始日 (YYYY-MM-DD形式)")
-    end_date: Optional[str] = Field(default=None, description="絞り込み終了日 (YYYY-MM-DD形式)")
-    order: Optional[str] = Field(default="asc", description="日付の並べ替え方向")
+    top_k: int | None = Field(default=5, description="返す件数 (1-20)", ge=1, le=20)
+    start_date: str | None = Field(default=None, description="絞り込み開始日 (YYYY-MM-DD形式)")
+    end_date: str | None = Field(default=None, description="絞り込み終了日 (YYYY-MM-DD形式)")
+    order: str | None = Field(default="asc", description="日付の並べ替え方向")
 
 
 # Cosmos DB接続用のグローバル変数（FastAPI startup 時に初期化）
@@ -179,8 +178,8 @@ def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = No
 def diary_search_tool(
     query_text: str,
     top_k: int = 5,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     order: str = "asc",
 ) -> str:
     """ユーザの日記コレクションをハイブリッド検索し、条件に合うエントリを返す"""

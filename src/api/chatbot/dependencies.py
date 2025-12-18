@@ -25,8 +25,10 @@ def get_cosmos_client(request: Request):
         CosmosClient: 共有 CosmosClient インスタンス
 
     Raises:
-        AttributeError: cosmos_client が初期化されていない場合
+        RuntimeError: cosmos_client が初期化されていない場合
     """
+    if not hasattr(request.app.state, "cosmos_client"):
+        raise RuntimeError("CosmosClient not initialized in app.state. Check lifespan configuration.")
     return request.app.state.cosmos_client
 
 

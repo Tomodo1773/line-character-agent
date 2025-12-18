@@ -31,6 +31,21 @@ class TestGetCosmosClient:
         # Assert
         assert result is mock_client
 
+    def test_get_cosmos_client_raises_runtime_error_when_not_initialized(self):
+        """app.state.cosmos_client が初期化されていない場合に RuntimeError を発生させることを確認。"""
+        # Arrange
+        mock_app = FastAPI()
+        # cosmos_client を設定しない
+
+        mock_request = MagicMock()
+        mock_request.app = mock_app
+
+        # Act & Assert
+        with pytest.raises(RuntimeError) as exc_info:
+            get_cosmos_client(mock_request)
+
+        assert "CosmosClient not initialized in app.state" in str(exc_info.value)
+
 
 class TestGetUserRepository:
     """get_user_repository 関数のテスト。"""
