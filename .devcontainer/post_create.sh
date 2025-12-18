@@ -20,3 +20,5 @@ git config --global codespaces-theme.hide-status 1
 (cd src/mcp && uv sync) || true
 uv tool install pre-commit
 pre-commit install
+
+npm install -g @anthropic-ai/claude-code
