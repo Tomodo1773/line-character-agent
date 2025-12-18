@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from azure.cosmos import CosmosClient
 
+import chatbot.agent.tools as agent_tools
 from chatbot.agent.tools import get_cosmos_client, initialize_cosmos_client
 
 
@@ -42,9 +43,7 @@ class TestGetCosmosClient:
     def test_get_cosmos_client_raises_runtime_error_when_not_initialized(self):
         """未初期化時に RuntimeError を発生させることを確認。"""
         # Arrange - グローバル変数をリセット
-        import chatbot.agent.tools
-
-        chatbot.agent.tools._cosmos_client = None
+        agent_tools._cosmos_client = None
 
         # Act & Assert
         with pytest.raises(RuntimeError) as exc_info:
