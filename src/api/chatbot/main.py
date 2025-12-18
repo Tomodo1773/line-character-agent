@@ -24,6 +24,7 @@ from psycopg_pool import AsyncConnectionPool
 from chatbot.agent import ChatbotAgent
 from chatbot.agent.diary_workflow import DiaryWorkflowError, get_diary_workflow
 from chatbot.database.repositories import UserRepository
+from chatbot.dependencies import get_oauth_manager, get_user_repository
 from chatbot.models import (
     ChatCompletionRequest,
     ChatCompletionStreamResponse,
@@ -94,6 +95,18 @@ async def lifespan(app: FastAPI):
         app.state.checkpointer = checkpointer
         app.state.pool = pool
 
+        # CosmosClient を初期化（DI で使用）
+        from chatbot.database.core import _create_cosmos_client
+
+        cosmos_client = _create_cosmos_client()
+        app.state.cosmos_client = cosmos_client
+        logger.info("CosmosClient initialized")
+
+        # agent tools の CosmosClient も初期化
+        from chatbot.agent.tools import initialize_cosmos_client
+
+        initialize_cosmos_client(cosmos_client)
+
         yield
 
     except Exception as e:
@@ -127,8 +140,12 @@ async def root():
 
 
 @app.get("/auth/google/callback")
-async def google_drive_oauth_callback(code: str, state: str):
-    user_repository = UserRepository()
+async def google_drive_oauth_callback(
+    code: str,
+    state: str,
+    user_repository: UserRepository = Depends(get_user_repository),
+    oauth_manager: GoogleDriveOAuthManager = Depends(get_oauth_manager),
+):
     # state には userid を渡している前提
     userid = state
     user_data = user_repository.fetch_user(userid)
@@ -142,7 +159,6 @@ async def google_drive_oauth_callback(code: str, state: str):
         session = user_repository.ensure_session(userid)
         session_id = session.session_id
 
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
     line_messenger = LineMessenger(user_id=userid)
 
     try:
@@ -207,20 +223,17 @@ def _schedule_coroutine(coro, *, description: str) -> None:
     future.add_done_callback(_done_callback)
 
 
-def get_user_credentials(userid: str, user_repository: UserRepository):
-    """ユーザーのGoogle認可情報を取得する"""
-    user_repository.ensure_user(userid)
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
-    return oauth_manager.get_user_credentials(userid)
-
-
 async def handle_text_async(event):
     logger.info(f"Start handling text message: {event.message.text}")
     try:
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
         userid = event.source.user_id
-        user_repository = UserRepository()
+
+        # DI: CosmosClient から UserRepository を作成
+        from chatbot.dependencies import create_user_repository
+
+        user_repository = create_user_repository(app.state.cosmos_client)
 
         # 会話履歴リセットのキーワードをチェック
         if event.message.text.strip() == "閑話休題":
@@ -286,8 +299,12 @@ async def handle_audio_async(event):
     try:
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
-        user_repository = UserRepository()
         userid = event.source.user_id
+
+        # DI: CosmosClient から UserRepository を作成
+        from chatbot.dependencies import create_user_repository
+
+        user_repository = create_user_repository(app.state.cosmos_client)
         logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
 
@@ -388,9 +405,9 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
 async def create_chat_completion(
     request: ChatCompletionRequest,
     api_key: str = Depends(get_api_key),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
     """OpenAI互換のチャット補完APIエンドポイント"""
-    user_repository = UserRepository()
     userid = "openai-compatible-api-user"
     session = user_repository.ensure_session(userid)
 

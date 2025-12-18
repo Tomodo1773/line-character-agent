@@ -12,7 +12,6 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent import ChatbotAgent
-from chatbot.database.repositories import UserRepository
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
@@ -43,7 +42,21 @@ logger = create_logger(__name__)
 
 
 def _create_drive_handler(userid: str) -> GoogleDriveHandler | None:
-    user_repository = UserRepository()
+    """ユーザー固有の GoogleDriveHandler を作成。
+
+    DI により共有 CosmosClient から UserRepository を生成します。
+
+    Args:
+        userid: ユーザーID
+
+    Returns:
+        GoogleDriveHandler | None: 作成された GoogleDriveHandler、または設定不足の場合 None
+    """
+    from chatbot.dependencies import create_user_repository
+
+    # DI: CosmosClient から UserRepository を作成
+    user_repository = create_user_repository()
+
     credentials = GoogleDriveOAuthManager(user_repository).get_user_credentials(userid)
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not credentials or not folder_id:

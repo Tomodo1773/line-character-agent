@@ -11,34 +11,14 @@ from fastapi import HTTPException
 class CosmosCore:
     """CosmosDBの基本操作を提供するクラス"""
 
-    def __init__(self, container_name: str):
+    def __init__(self, cosmos_client: CosmosClient, container_name: str):
         """
         Args:
+            cosmos_client: CosmosClient インスタンス
             container_name: コンテナ名
         """
-        self._client = self._get_client()
+        self._client = cosmos_client
         self._container = self._init_container(container_name)
-
-    def _get_client(self):
-        """CosmosDBクライアントの初期化"""
-        url = os.getenv("COSMOS_DB_ACCOUNT_URL")
-        key = os.getenv("COSMOS_DB_ACCOUNT_KEY")
-        verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
-
-        if verify_setting is None:
-            connection_verify = True
-        else:
-            lowered = verify_setting.lower()
-            if lowered in {"false", "0", "no"}:
-                connection_verify = False
-            elif lowered in {"true", "1", "yes"}:
-                connection_verify = True
-            else:
-                connection_verify = verify_setting
-
-        # Cosmos SDK は同期 I/O のため、ネットワーク障害時に無期限待ちにならないようタイムアウトを必ず設定する。
-        # `connection_timeout` は秒。
-        return CosmosClient(url=url, credential=key, connection_verify=connection_verify, connection_timeout=15)
 
     def _init_container(self, container_name: str):
         """コンテナの初期化"""
@@ -69,3 +49,32 @@ class CosmosCore:
             return list(self._container.query_items(query=query, parameters=parameters, enable_cross_partition_query=True))
         except Exception as e:
             raise HTTPException(status_code=500, detail="Failed to fetch data") from e
+
+
+def _create_cosmos_client() -> CosmosClient:
+    """CosmosDBクライアントを作成する。
+
+    環境変数から接続情報を読み取り、新しい CosmosClient インスタンスを生成します。
+    アプリケーション起動時に一度だけ呼び出されることを想定しています。
+
+    Returns:
+        CosmosClient: 新規作成された CosmosClient インスタンス
+    """
+    url = os.getenv("COSMOS_DB_ACCOUNT_URL")
+    key = os.getenv("COSMOS_DB_ACCOUNT_KEY")
+    verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
+
+    if verify_setting is None:
+        connection_verify = True
+    else:
+        lowered = verify_setting.lower()
+        if lowered in {"false", "0", "no"}:
+            connection_verify = False
+        elif lowered in {"true", "1", "yes"}:
+            connection_verify = True
+        else:
+            connection_verify = verify_setting
+
+    # Cosmos SDK は同期 I/O のため、ネットワーク障害時に無期限待ちにならないようタイムアウトを必ず設定する。
+    # `connection_timeout` は秒。
+    return CosmosClient(url=url, credential=key, connection_verify=connection_verify, connection_timeout=15)

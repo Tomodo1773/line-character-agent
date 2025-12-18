@@ -1,6 +1,4 @@
 import logging
-import os
-from typing import Optional
 
 from azure.cosmos import CosmosClient, PartitionKey
 from dotenv import load_dotenv
@@ -15,41 +13,39 @@ logger = logging.getLogger(__name__)
 
 class DiarySearchInput(BaseModel):
     query_text: str = Field(description="検索したい自然文")
-    top_k: Optional[int] = Field(default=5, description="返す件数 (1-20)", ge=1, le=20)
-    start_date: Optional[str] = Field(default=None, description="絞り込み開始日 (YYYY-MM-DD形式)")
-    end_date: Optional[str] = Field(default=None, description="絞り込み終了日 (YYYY-MM-DD形式)")
-    order: Optional[str] = Field(default="asc", description="日付の並べ替え方向")
+    top_k: int | None = Field(default=5, description="返す件数 (1-20)", ge=1, le=20)
+    start_date: str | None = Field(default=None, description="絞り込み開始日 (YYYY-MM-DD形式)")
+    end_date: str | None = Field(default=None, description="絞り込み終了日 (YYYY-MM-DD形式)")
+    order: str | None = Field(default="asc", description="日付の並べ替え方向")
 
 
-# Cosmos DB接続用のシングルトン
+# Cosmos DB接続用のグローバル変数（FastAPI startup 時に初期化）
 _cosmos_client = None
 _cosmos_container = None
 
 
-def _resolve_connection_verify():
-    verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
-    if verify_setting is None:
-        return True
+def initialize_cosmos_client(client: CosmosClient):
+    """FastAPI startup 時に呼び出される CosmosClient 初期化関数。
 
-    lowered = verify_setting.lower()
-    if lowered in {"false", "0", "no"}:
-        return False
-    if lowered in {"true", "1", "yes"}:
-        return True
-
-    return verify_setting
-
-
-def get_cosmos_client():
-    """CosmosDBクライアントを取得"""
+    Args:
+        client: 共有する CosmosClient インスタンス
+    """
     global _cosmos_client
+    _cosmos_client = client
+    logger.info("CosmosClient initialized for agent tools")
+
+
+def get_cosmos_client() -> CosmosClient:
+    """初期化済みの CosmosClient を取得。
+
+    Returns:
+        CosmosClient: 共有 CosmosClient インスタンス
+
+    Raises:
+        RuntimeError: CosmosClient が未初期化の場合
+    """
     if _cosmos_client is None:
-        _cosmos_client = CosmosClient(
-            url=os.getenv("COSMOS_DB_ACCOUNT_URL"),
-            credential=os.getenv("COSMOS_DB_ACCOUNT_KEY"),
-            connection_verify=_resolve_connection_verify(),
-            connection_timeout=15,
-        )
+        raise RuntimeError("CosmosClient not initialized. Call initialize_cosmos_client() first.")
     return _cosmos_client
 
 
@@ -182,8 +178,8 @@ def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = No
 def diary_search_tool(
     query_text: str,
     top_k: int = 5,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     order: str = "asc",
 ) -> str:
     """ユーザの日記コレクションをハイブリッド検索し、条件に合うエントリを返す"""
