@@ -63,6 +63,12 @@ def _get_effective_userid(original_userid: str) -> str:
     """
     local_user_id = os.getenv("LOCAL_USER_ID")
     if local_user_id:
+        # 基本的なバリデーション: 空白のみや制御文字を含む値は無視
+        local_user_id = local_user_id.strip()
+        if not local_user_id or any(ord(c) < 32 for c in local_user_id):
+            logger.warning("Invalid LOCAL_USER_ID detected. Using original user_id.")
+            return original_userid
+
         # プライバシー保護のため、元のuseridの一部のみログに記録
         if len(original_userid) > _USER_ID_LOG_PREFIX_LENGTH:
             masked_original = original_userid[:_USER_ID_LOG_PREFIX_LENGTH] + "..."
