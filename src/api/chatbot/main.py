@@ -43,9 +43,6 @@ logger = create_logger(__name__)
 # FastAPI アプリケーションのイベントループ（AsyncPostgresSaver と共有する）
 event_loop = None
 
-# ログ出力時のユーザーID表示文字数（プライバシー保護のため）
-_USER_ID_LOG_PREFIX_LENGTH = 8
-
 
 def _get_effective_userid(original_userid: str) -> str:
     """
@@ -63,19 +60,7 @@ def _get_effective_userid(original_userid: str) -> str:
     """
     local_user_id = os.getenv("LOCAL_USER_ID")
     if local_user_id:
-        # 基本的なバリデーション: 空白のみや印刷不可能な文字を含む値は無視
-        stripped_value = local_user_id.strip()
-        if not stripped_value or not stripped_value.isprintable():
-            logger.warning("Invalid LOCAL_USER_ID detected. Using original user_id.")
-            return original_userid
-
-        # プライバシー保護のため、元のuseridの一部のみログに記録
-        if len(original_userid) > _USER_ID_LOG_PREFIX_LENGTH:
-            masked_original = original_userid[:_USER_ID_LOG_PREFIX_LENGTH] + "..."
-        else:
-            masked_original = original_userid
-        logger.info(f"Using local development user_id override (original: {masked_original})")
-        return stripped_value
+        return local_user_id
     return original_userid
 
 

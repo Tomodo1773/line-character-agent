@@ -39,28 +39,6 @@ def test_get_effective_userid_with_local_override():
         assert result == local_userid
 
 
-def test_get_effective_userid_with_invalid_local_override():
-    """
-    LOCAL_USER_IDが無効な値（空白のみや印刷不可能文字）の場合、元のuseridが返されることを確認
-    """
-    original_userid = "line-user-12345"
-
-    # 空白のみの場合
-    with patch.dict(os.environ, {"LOCAL_USER_ID": "   "}):
-        result = _get_effective_userid(original_userid)
-        assert result == original_userid
-
-    # 制御文字を含む場合（null文字）
-    with patch.dict(os.environ, {"LOCAL_USER_ID": "test\x00user"}):
-        result = _get_effective_userid(original_userid)
-        assert result == original_userid
-
-    # DEL文字を含む場合
-    with patch.dict(os.environ, {"LOCAL_USER_ID": "test\x7fuser"}):
-        result = _get_effective_userid(original_userid)
-        assert result == original_userid
-
-
 def generate_test_session_id() -> str:
     """テストごとにユニークなセッションIDを生成する"""
     return uuid.uuid4().hex
