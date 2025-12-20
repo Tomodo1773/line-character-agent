@@ -51,8 +51,9 @@ def test_chatbot_agent_response():
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
+            # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
             with patch(
-                "chatbot.agent.character_graph.nodes.ensure_google_settings_node",
+                "chatbot.agent.character_graph.graph.ensure_google_settings_node",
                 return_value=Command(goto=["get_profile", "get_digest"]),
             ):
                 agent_graph = ChatbotAgent(checkpointer=MemorySaver())
@@ -107,8 +108,9 @@ def test_spotify_agent_mcp_fallback():
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
+            # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
             with patch(
-                "chatbot.agent.character_graph.nodes.ensure_google_settings_node",
+                "chatbot.agent.character_graph.graph.ensure_google_settings_node",
                 return_value=Command(goto=["get_profile", "get_digest"]),
             ):
                 # get_mcp_toolsを空のリストを返すようにモック
