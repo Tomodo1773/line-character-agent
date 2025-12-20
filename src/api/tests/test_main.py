@@ -21,10 +21,9 @@ def test_get_effective_userid_without_local_override():
     LOCAL_USER_IDが設定されていない場合、元のuseridが返されることを確認
     """
     original_userid = "line-user-12345"
-    with patch.dict(os.environ, {}, clear=False):
-        # LOCAL_USER_ID が環境変数にない場合
-        if "LOCAL_USER_ID" in os.environ:
-            del os.environ["LOCAL_USER_ID"]
+    # LOCAL_USER_ID を含まない環境で実行
+    env_without_local_user_id = {k: v for k, v in os.environ.items() if k != "LOCAL_USER_ID"}
+    with patch.dict(os.environ, env_without_local_user_id, clear=True):
         result = _get_effective_userid(original_userid)
         assert result == original_userid
 
@@ -35,7 +34,10 @@ def test_get_effective_userid_with_local_override():
     """
     original_userid = "line-user-12345"
     local_userid = "local-dev-user"
-    with patch.dict(os.environ, {"LOCAL_USER_ID": local_userid}, clear=False):
+    # LOCAL_USER_ID を含む環境で実行
+    env_with_local_user_id = {k: v for k, v in os.environ.items() if k != "LOCAL_USER_ID"}
+    env_with_local_user_id["LOCAL_USER_ID"] = local_userid
+    with patch.dict(os.environ, env_with_local_user_id, clear=True):
         result = _get_effective_userid(original_userid)
         assert result == local_userid
 
