@@ -21,9 +21,8 @@ def test_get_effective_userid_without_local_override():
     LOCAL_USER_IDが設定されていない場合、元のuseridが返されることを確認
     """
     original_userid = "line-user-12345"
-    # LOCAL_USER_ID なしの環境で実行（空辞書で上書き）
-    env_without_local = {k: v for k, v in os.environ.items() if k != "LOCAL_USER_ID"}
-    with patch.dict(os.environ, env_without_local, clear=True):
+    # LOCAL_USER_ID なしの環境で実行
+    with patch.object(os, "getenv", return_value=None):
         result = _get_effective_userid(original_userid)
         assert result == original_userid
 
