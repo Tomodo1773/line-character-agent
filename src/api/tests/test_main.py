@@ -10,10 +10,34 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from chatbot.agent import ChatbotAgent, ensure_google_settings_node
-from chatbot.main import app, extract_agent_text
+from chatbot.main import _get_effective_userid, app, extract_agent_text
 
 client = TestClient(app)
 TEST_USER_ID = "test-user"
+
+
+def test_get_effective_userid_without_local_override():
+    """
+    LOCAL_USER_IDが設定されていない場合、元のuseridが返されることを確認
+    """
+    original_userid = "line-user-12345"
+    with patch.dict(os.environ, {}, clear=False):
+        # LOCAL_USER_ID が環境変数にない場合
+        if "LOCAL_USER_ID" in os.environ:
+            del os.environ["LOCAL_USER_ID"]
+        result = _get_effective_userid(original_userid)
+        assert result == original_userid
+
+
+def test_get_effective_userid_with_local_override():
+    """
+    LOCAL_USER_IDが設定されている場合、その値が返されることを確認
+    """
+    original_userid = "line-user-12345"
+    local_userid = "local-dev-user"
+    with patch.dict(os.environ, {"LOCAL_USER_ID": local_userid}, clear=False):
+        result = _get_effective_userid(original_userid)
+        assert result == local_userid
 
 
 def generate_test_session_id() -> str:
