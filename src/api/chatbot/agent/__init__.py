@@ -1,7 +1,7 @@
 """Chatbot agent public API exports."""
 
-from chatbot.agent.character import (
-    ChatbotAgent,
+from chatbot.agent.character_graph import ChatbotAgent
+from chatbot.agent.character_graph.nodes import (
     diary_agent_node,
     ensure_google_settings_node,
     spotify_agent_node,

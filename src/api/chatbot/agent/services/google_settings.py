@@ -1,6 +1,6 @@
-"""Google Drive設定の確認と初期化のためのユーティリティモジュール。
+"""Google Drive設定の確認と初期化のためのサービスモジュール。
 
-このモジュールは、character.pyとdiary_workflow.pyの両方で使用される
+このモジュールは、character_graphとdiary_workflowの両方で使用される
 Google Drive設定の確認ロジックを提供します。
 """
 
