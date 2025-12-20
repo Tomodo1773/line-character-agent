@@ -11,13 +11,13 @@ from langgraph.types import Command
 from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
-from chatbot.agent import ChatbotAgent
+from chatbot.agent.character_graph import ChatbotAgent
+from chatbot.agent.services.google_settings import ensure_google_settings
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
-from chatbot.utils.google_settings import ensure_google_settings
 from chatbot.utils.transcript import DiaryTranscription
 
 

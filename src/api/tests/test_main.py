@@ -48,11 +48,11 @@ def test_chatbot_agent_response():
     """
     require_openai_api_key()
 
-    with patch("chatbot.agent.character.get_user_profile", return_value=""):
-        with patch("chatbot.agent.character.get_user_digest", return_value=""):
+    with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
+        with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
             with patch(
-                "chatbot.agent.character.ensure_google_settings_node",
+                "chatbot.agent.character_graph.nodes.ensure_google_settings_node",
                 return_value=Command(goto=["get_profile", "get_digest"]),
             ):
                 agent_graph = ChatbotAgent(checkpointer=MemorySaver())
@@ -102,20 +102,21 @@ def test_spotify_agent_mcp_fallback():
     """
     require_openai_api_key()
 
-    from chatbot.agent import character
+    from chatbot.agent.character_graph import nodes
 
-    with patch("chatbot.agent.character.get_user_profile", return_value=""):
-        with patch("chatbot.agent.character.get_user_digest", return_value=""):
+    with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
+        with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
             # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
             with patch(
-                "chatbot.agent.character.ensure_google_settings_node", return_value=Command(goto=["get_profile", "get_digest"])
+                "chatbot.agent.character_graph.nodes.ensure_google_settings_node",
+                return_value=Command(goto=["get_profile", "get_digest"]),
             ):
                 # get_mcp_toolsを空のリストを返すようにモック
-                with patch.object(character, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+                with patch.object(nodes, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
                     mock_get_mcp_tools.return_value = []
 
                     # routerをモックしてspotify_agentに直接ルーティング
-                    with patch.object(character, "router_node") as mock_router:
+                    with patch.object(nodes, "router_node") as mock_router:
                         mock_router.return_value = Command(goto="spotify_agent")
 
                         agent_graph = ChatbotAgent(checkpointer=MemorySaver())
@@ -156,7 +157,7 @@ def test_spotify_agent():
         # ダミーツールを返す（実際のツールは使用しない）
         return [dummy_tool]
 
-    with patch("chatbot.agent.character.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+    with patch("chatbot.agent.character_graph.nodes.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
         mock_get_mcp_tools.side_effect = fake_get_mcp_tools
 
         # spotify_agent_node を直接呼び出す
@@ -211,7 +212,7 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
 
     # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.utils.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
@@ -249,9 +250,9 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
 
     # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.utils.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
     monkeypatch.setattr(
-        "chatbot.utils.google_settings.interrupt",
+        "chatbot.agent.services.google_settings.interrupt",
         lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
     )
 
@@ -319,7 +320,7 @@ def test_diary_agent():
 
         return "dummy diary response"
 
-    with patch("chatbot.agent.character.diary_search_tool", dummy_diary_tool):
+    with patch("chatbot.agent.character_graph.nodes.diary_search_tool", dummy_diary_tool):
         initial_state = {
             "messages": [HumanMessage(content="こんにちは")],
             "userid": TEST_USER_ID,
