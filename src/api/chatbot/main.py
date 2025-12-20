@@ -63,9 +63,9 @@ def _get_effective_userid(original_userid: str) -> str:
     """
     local_user_id = os.getenv("LOCAL_USER_ID")
     if local_user_id:
-        # 基本的なバリデーション: 空白のみや制御文字を含む値は無視
+        # 基本的なバリデーション: 空白のみや印刷不可能な文字を含む値は無視
         local_user_id = local_user_id.strip()
-        if not local_user_id or any(ord(c) < 32 for c in local_user_id):
+        if not local_user_id or not local_user_id.isprintable():
             logger.warning("Invalid LOCAL_USER_ID detected. Using original user_id.")
             return original_userid
 
@@ -74,7 +74,7 @@ def _get_effective_userid(original_userid: str) -> str:
             masked_original = original_userid[:_USER_ID_LOG_PREFIX_LENGTH] + "..."
         else:
             masked_original = original_userid
-        logger.info(f"Using local development user_id: {local_user_id} (original: {masked_original})")
+        logger.info(f"Using local development user_id override (original: {masked_original})")
         return local_user_id
     return original_userid
 

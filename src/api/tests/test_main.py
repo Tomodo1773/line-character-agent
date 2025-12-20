@@ -42,7 +42,7 @@ def test_get_effective_userid_with_local_override():
 
 def test_get_effective_userid_with_invalid_local_override():
     """
-    LOCAL_USER_IDが無効な値（空白のみや制御文字）の場合、元のuseridが返されることを確認
+    LOCAL_USER_IDが無効な値（空白のみや印刷不可能文字）の場合、元のuseridが返されることを確認
     """
     original_userid = "line-user-12345"
 
@@ -51,8 +51,13 @@ def test_get_effective_userid_with_invalid_local_override():
         result = _get_effective_userid(original_userid)
         assert result == original_userid
 
-    # 制御文字を含む場合
+    # 制御文字を含む場合（null文字）
     with patch.dict(os.environ, {"LOCAL_USER_ID": "test\x00user"}):
+        result = _get_effective_userid(original_userid)
+        assert result == original_userid
+
+    # DEL文字を含む場合
+    with patch.dict(os.environ, {"LOCAL_USER_ID": "test\x7fuser"}):
         result = _get_effective_userid(original_userid)
         assert result == original_userid
 
