@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime, timezone, timedelta
 
 import azure.functions as func
 from openai import OpenAI
@@ -484,3 +485,51 @@ Steps:
     except Exception as e:
         logger.error(f"OpenAI Web検索でエラー: {str(e)}")
         return f"OpenAI Web検索でエラーが発生しました: {str(e)}"
+
+
+# Seasonal Anime Playlist Tool
+def get_current_season_anime_playlist_name() -> str:
+    """
+    Generate the current season anime playlist name based on Japanese time.
+    Season definitions:
+    - Winter (冬): January - March
+    - Spring (春): April - June
+    - Summer (夏): July - September
+    - Autumn (秋): October - December
+    """
+    # Japanese timezone (UTC+9)
+    jst = timezone(timedelta(hours=9))
+    now = datetime.now(jst)
+
+    year = now.year
+    month = now.month
+
+    if 1 <= month <= 3:
+        season = "冬"
+    elif 4 <= month <= 6:
+        season = "春"
+    elif 7 <= month <= 9:
+        season = "夏"
+    else:  # 10 <= month <= 12
+        season = "秋"
+
+    return f"{year}{season}アニメ"
+
+
+@app.generic_trigger(
+    arg_name="context",
+    type="mcpToolTrigger",
+    toolName="get_current_anime_playlist",
+    description="Get the current season anime playlist name based on Japanese time. Returns a playlist name like '2025冬アニメ', '2025春アニメ', '2025夏アニメ', or '2025秋アニメ'.",
+    toolProperties="[]",
+)
+def get_current_anime_playlist(context) -> str:
+    """MCP tool to get the current season anime playlist name."""
+    try:
+        playlist_name = get_current_season_anime_playlist_name()
+        logger.info(f"Generated current anime playlist name: {playlist_name}")
+        return json.dumps({"playlist_name": playlist_name}, ensure_ascii=False)
+    except Exception as e:
+        error_msg = f"Unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        return "An internal server error occurred. Please try again later."
