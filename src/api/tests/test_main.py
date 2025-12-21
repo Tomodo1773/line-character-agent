@@ -10,7 +10,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from chatbot.agent import ChatbotAgent, ensure_drive_folder_node, ensure_oauth_node
-from chatbot.agent.character_graph.nodes import OAUTH_COMPLETED_KEYWORD
+from chatbot.agent.services.google_settings import OAUTH_COMPLETED_KEYWORD
 from chatbot.main import _get_effective_userid, app, extract_agent_text
 
 client = TestClient(app)
@@ -305,13 +305,12 @@ def test_ensure_drive_folder_node_registers_folder_id(monkeypatch):
     assert saved_folder_ids == ["test-folder-id"]
 
 
-def test_ensure_drive_folder_node_with_oauth_completed_keyword(monkeypatch):
-    """OAuthコールバック完了後にフォルダID入力を要求することを検証
+def test_ensure_oauth_node_with_oauth_completed_keyword(monkeypatch):
+    """OAuthコールバック完了後にensure_drive_folderへ遷移することを検証
 
-    OAUTH_COMPLETED_KEYWORDがresume_valueとして渡された場合、
-    即座にフォルダID入力のinterruptが発生する。
+    interruptからOAUTH_COMPLETED_KEYWORDが返された場合、
+    ensure_drive_folderノードへgotoする。
     """
-    from langgraph.errors import GraphInterrupt
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover
@@ -323,27 +322,32 @@ def test_ensure_drive_folder_node_with_oauth_completed_keyword(monkeypatch):
         def save_drive_folder_id(self, userid: str, folder_id: str) -> None:  # pragma: no cover
             return None
 
+    dummy_manager = type(
+        "DummyManager",
+        (),
+        {
+            "get_user_credentials": lambda self, userid: None,
+            "generate_authorization_url": lambda self, state: ("https://example.com/auth", state),
+        },
+    )()
+
     # DI パターン用のモック設定
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
+    monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
-    captured_payloads = []
+    # interruptがOAUTH_COMPLETED_KEYWORDを返すようにモック
+    monkeypatch.setattr(
+        "chatbot.agent.services.google_settings.interrupt",
+        lambda payload: OAUTH_COMPLETED_KEYWORD,
+    )
 
-    def mock_interrupt(payload):
-        captured_payloads.append(payload)
-        raise GraphInterrupt(payload)
+    state = {"userid": "user", "session_id": "session", "messages": []}
 
-    monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", mock_interrupt)
+    result = ensure_oauth_node(state)
 
-    # OAUTH_COMPLETED_KEYWORDがresume_valueとして渡された場合
-    state = {"userid": "user", "session_id": "session", "messages": [], "resume_value": OAUTH_COMPLETED_KEYWORD}
-
-    with pytest.raises(GraphInterrupt):
-        ensure_drive_folder_node(state)
-
-    # フォルダID入力のinterruptが発生することを確認
-    assert len(captured_payloads) == 1
-    payload = captured_payloads[0]
-    assert payload["type"] == "missing_drive_folder_id"
+    # ensure_drive_folderへ遷移することを確認
+    assert isinstance(result, Command)
+    assert result.goto == "ensure_drive_folder"
 
 
 def test_extract_agent_text_non_interrupt():

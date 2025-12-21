@@ -10,7 +10,6 @@ from langgraph.graph import START, StateGraph
 from langgraph.types import Command
 
 from chatbot.agent.character_graph.nodes import (
-    OAUTH_COMPLETED_KEYWORD,
     chatbot_node,
     diary_agent_node,
     ensure_drive_folder_node,
@@ -21,6 +20,7 @@ from chatbot.agent.character_graph.nodes import (
     set_cached,
     spotify_agent_node,
 )
+from chatbot.agent.services.google_settings import OAUTH_COMPLETED_KEYWORD
 from chatbot.agent.character_graph.state import State
 from chatbot.utils.config import check_environment_variables, create_logger
 

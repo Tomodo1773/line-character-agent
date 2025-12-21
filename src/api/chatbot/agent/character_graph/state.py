@@ -18,4 +18,3 @@ class State(TypedDict):
     userid: str
     profile: NotRequired[str]
     digest: NotRequired[str]
-    resume_value: NotRequired[str]  # aresumeで渡された値を保持

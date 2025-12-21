@@ -22,23 +22,24 @@ logger = create_logger(__name__)
 OAUTH_COMPLETED_KEYWORD = "__oauth_completed__"
 
 
-def ensure_oauth(userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
+def ensure_oauth(userid: str, success_goto: str | list[str], oauth_success_goto: str) -> Command[str | list[str]]:
     """
     OAuth認証情報の存在を確認し、適切なCommandを返す。
 
     フロー:
     1. credentialsがない場合、interruptで認証URLを返す
     2. OAuthコールバック後にaresumeされると、interruptからOAUTH_COMPLETED_KEYWORDが返される
-    3. credentialsを再確認し、あればsuccess_gotoへ遷移
+    3. resume値がOAUTH_COMPLETED_KEYWORDならoauth_success_gotoへ遷移
 
     Args:
         userid (str): ユーザーID。
         success_goto (str | list[str]): 認証済みの場合に遷移するノード名。
+        oauth_success_goto (str): OAuthコールバック後に遷移するノード名。
 
     Returns:
         Command[str | list[str]]: 次の状態への遷移を表すCommand。
                                   - OAuth未設定: interruptで中断（認証URL付き）
-                                  - OAuth設定済み: success_gotoへの遷移（update含む）
+                                  - OAuth設定済み: success_gotoへの遷移
     """
     logger.info("--- Ensure OAuth ---")
 
@@ -52,42 +53,31 @@ def ensure_oauth(userid: str, success_goto: str | list[str]) -> Command[str | li
         # interruptで中断し、aresumeで再開されると値が返される
         resume_value = _request_oauth_via_interrupt(oauth_manager, userid)
 
-        # aresumeで再開された場合、credentialsを再確認
-        credentials = oauth_manager.get_user_credentials(userid)
-        if not credentials:
-            # まだcredentialsがない場合はエラー
-            logger.error("OAuth completed but credentials still not found")
-            from langchain_core.messages import AIMessage
+        # aresumeで再開された場合、resume_valueを確認
+        if resume_value == OAUTH_COMPLETED_KEYWORD:
+            # OAuthコールバック経由で再開された場合、フォルダID入力ノードへ遷移
+            logger.info("OAuth completed via callback. Going to %s.", oauth_success_goto)
+            return Command(goto=oauth_success_goto)
 
-            return Command(
-                goto="__end__",
-                update={"messages": [AIMessage(content="OAuth設定に失敗したみたい。もう一度試してね。")]},
-            )
-
-        # OAUTH_COMPLETED_KEYWORDが渡された場合、resume_valueをstateに保存して次のノードへ
-        goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
-        logger.info("OAuth completed via callback. Going to %s with resume_value.", goto_desc)
-        return Command(goto=success_goto, update={"resume_value": resume_value})
+        # 想定外のresume_valueの場合はエラー
+        logger.error("Unexpected resume_value: %s", resume_value)
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content="予期しないエラーが発生したよ。もう一度試してね。")]},
+        )
 
     goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
     logger.info("OAuth credentials found. Going to %s.", goto_desc)
     return Command(goto=success_goto)
 
 
-def ensure_drive_folder(
-    userid: str, success_goto: str | list[str], resume_value: str | None = None
-) -> Command[str | list[str]]:
+def ensure_drive_folder(userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
     """
     Drive フォルダIDの存在を確認し、適切なCommandを返す。
-
-    OAuthコールバック後にaresumeで特定キーワードが渡された場合は、
-    interruptをスキップしてフォルダID入力を要求する。
 
     Args:
         userid (str): ユーザーID。
         success_goto (str | list[str]): フォルダID設定済みの場合に遷移するノード名。
-        resume_value (str | None): aresumeで渡された値。OAuthコールバック完了キーワードの場合は
-                                   フォルダID入力をスキップして直接interruptする。
 
     Returns:
         Command[str | list[str]]: 次の状態への遷移を表すCommand。
@@ -107,9 +97,8 @@ def ensure_drive_folder(
         logger.info("Google Drive folder ID already set. Going to %s.", goto_desc)
         return Command(goto=success_goto)
 
-    # OAuthコールバック完了キーワードが渡された場合、フォルダID入力を要求
-    # 通常のテキストメッセージの場合もフォルダID入力として処理
-    return _handle_folder_id_registration(user_repository, userid, success_goto, resume_value)
+    # フォルダID入力を要求
+    return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
 def _request_oauth_via_interrupt(oauth_manager: GoogleDriveOAuthManager, userid: str) -> str:
@@ -142,7 +131,7 @@ def _request_oauth_via_interrupt(oauth_manager: GoogleDriveOAuthManager, userid:
 
 
 def _handle_folder_id_registration(
-    user_repository: UserRepository, userid: str, success_goto: str | list[str], resume_value: str | None = None
+    user_repository: UserRepository, userid: str, success_goto: str | list[str]
 ) -> Command[str | list[str]]:
     """
     フォルダIDの登録を処理する。
@@ -151,23 +140,17 @@ def _handle_folder_id_registration(
         user_repository: UserRepositoryインスタンス
         userid: ユーザーID
         success_goto: 登録成功時の遷移先ノード名
-        resume_value: aresumeで渡された値（OAuthコールバック完了キーワードまたはフォルダID）
 
     Returns:
         Command[str | list[str]]: 登録結果に応じたCommand
     """
     logger.info("Google Drive folder ID not set for user. Requesting folder ID via interrupt.")
 
-    # resume_valueがOAuth完了キーワードの場合、またはNoneの場合はinterruptでフォルダIDを要求
-    if resume_value is None or resume_value == OAUTH_COMPLETED_KEYWORD:
-        interrupt_payload = {
-            "type": "missing_drive_folder_id",
-            "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
-        }
-        user_input = interrupt(interrupt_payload)
-    else:
-        # resume_valueがフォルダIDとして渡された場合（ユーザーからの入力）
-        user_input = resume_value
+    interrupt_payload = {
+        "type": "missing_drive_folder_id",
+        "message": "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。",
+    }
+    user_input = interrupt(interrupt_payload)
 
     extracted_id = extract_drive_folder_id(str(user_input))
 

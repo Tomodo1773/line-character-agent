@@ -173,10 +173,10 @@ async def google_drive_oauth_callback(
     フロー:
     1. OAuth認証情報を保存
     2. aresumeでOAUTH_COMPLETED_KEYWORDを渡す
-    3. ensure_oauth_nodeが再実行され、今度はcredentialsがあるのでensure_drive_folderへ遷移
+    3. ensure_oauth_nodeでresume値を確認し、OKならensure_drive_folderへgoto
     4. ensure_drive_folder_nodeでフォルダID入力をinterruptで要求
     """
-    from chatbot.agent.character_graph.nodes import OAUTH_COMPLETED_KEYWORD
+    from chatbot.agent.services.google_settings import OAUTH_COMPLETED_KEYWORD
 
     # state には userid を渡している前提
     userid = state
@@ -206,8 +206,8 @@ async def google_drive_oauth_callback(
 
         if interrupt_type == "missing_oauth":
             # OAuth要求のinterruptに対してaresumeを使用
-            # OAUTH_COMPLETED_KEYWORDを渡すことで、ensure_drive_folder_nodeで
-            # 即座にフォルダID入力のinterruptが発生する
+            # OAUTH_COMPLETED_KEYWORDを渡すことで、ensure_oauth_node内で
+            # resume値を確認し、ensure_drive_folderへgotoする
             logger.info("Resuming from missing_oauth interrupt with OAUTH_COMPLETED_KEYWORD")
             response = await agent.aresume(session_id, OAUTH_COMPLETED_KEYWORD)
         else:

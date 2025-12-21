@@ -20,7 +20,6 @@ from chatbot.agent.character_graph.prompts import (
 )
 from chatbot.agent.character_graph.state import State
 from chatbot.agent.services.google_settings import (
-    OAUTH_COMPLETED_KEYWORD,
     ensure_drive_folder,
     ensure_google_settings,
     ensure_oauth,
@@ -153,15 +152,17 @@ def get_user_digest(userid: str) -> str:
 
 
 @traceable(run_type="tool", name="Ensure OAuth")
-def ensure_oauth_node(state: State) -> Command[Literal["ensure_drive_folder", "__end__"]]:
+def ensure_oauth_node(state: State) -> Command[Literal["ensure_drive_folder", "get_profile", "get_digest", "__end__"]]:
     """OAuth認証情報の存在を確認するノード。
 
     OAuth未設定の場合はinterruptで認証URLを返す。
-    OAuth設定済みの場合はensure_drive_folderノードへ遷移。
+    OAuthコールバック後は（resume値を確認して）ensure_drive_folderへ遷移。
+    OAuth設定済みの場合はget_profile/get_digestノードへ遷移。
     """
     return ensure_oauth(
         userid=state["userid"],
-        success_goto="ensure_drive_folder",
+        success_goto=["get_profile", "get_digest"],
+        oauth_success_goto="ensure_drive_folder",
     )
 
 
@@ -171,16 +172,10 @@ def ensure_drive_folder_node(state: State) -> Command[Literal["get_profile", "ge
 
     フォルダID未設定の場合はinterruptで入力を要求。
     フォルダID設定済みの場合はget_profile/get_digestノードへ遷移。
-
-    OAuthコールバック完了後はaresumeでOAUTH_COMPLETED_KEYWORDが渡されるので、
-    その場合は即座にフォルダID入力をinterruptで要求する。
     """
-    # stateからresume_valueを取得（aresumeで渡された値）
-    resume_value = state.get("resume_value")
     return ensure_drive_folder(
         userid=state["userid"],
         success_goto=["get_profile", "get_digest"],
-        resume_value=resume_value,
     )
 
 
