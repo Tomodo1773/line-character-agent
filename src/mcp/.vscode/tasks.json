@@ -10,7 +10,7 @@
 		{
 			"type": "func",
 			"label": "func: host start",
-			"command": "host start --verbose --language-worker -- '-m debugpy --listen 0.0.0.0:9091'",
+			"command": "host start --port 7071 --verbose --language-worker -- '-m debugpy --listen 0.0.0.0:9091'",
 			"problemMatcher": "$func-watch",
 			"isBackground": true,
 			"dependsOn": "uv sync (functions)"
