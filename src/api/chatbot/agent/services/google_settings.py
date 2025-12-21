@@ -31,8 +31,8 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
 
     Returns:
         Command[str | list[str]]: 次の状態への遷移を表すCommand。
-                                  - OAuth未設定: __end__への遷移（認証URL付き）
-                                  - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
+                                  - OAuth未設定: interruptで中断（認証URL付き、会話履歴に残らない）
+                                  - フォルダID未設定: interruptで入力を要求後、success_gotoへの遷移
                                   - すべて設定済み: success_gotoへの遷移
 
     Note:
@@ -50,7 +50,9 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     # OAuth認証情報のチェック
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
-        return _create_auth_required_command(oauth_manager, userid)
+        # interruptを使用して認証URLを返す（会話履歴に残らない）
+        # interruptで処理が中断され、aresumeで再開されるとノードが最初から再実行される
+        _request_oauth_via_interrupt(oauth_manager, userid)
 
     # フォルダIDのチェック
     folder_id = user_repository.fetch_drive_folder_id(userid)
@@ -63,16 +65,21 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
-def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid: str) -> Command[str]:
+def _request_oauth_via_interrupt(oauth_manager: GoogleDriveOAuthManager, userid: str) -> None:
     """
-    OAuth認証が必要な場合のCommandを生成する。
+    OAuth認証が必要な場合にinterruptを使用して認証URLを返す。
+
+    interruptを使用することで、認証URLメッセージが会話履歴に残らないようにする。
+    OAuthコールバック後はaresumeで処理を再開し、ノードが最初から再実行される。
 
     Args:
         oauth_manager: GoogleDriveOAuthManagerインスタンス
         userid: ユーザーID
 
-    Returns:
-        Command[str]: __end__への遷移と認証URLメッセージを含むCommand
+    Note:
+        この関数はinterruptを呼び出した時点で処理を中断する。
+        aresumeで再開されるとノードが最初から再実行されるため、
+        この関数からは戻らない（interruptが例外的に処理を中断するため）。
     """
     logger.info("Google credentials not found for user. Generating auth URL.")
     # OAuth の state には userid を渡す
@@ -81,10 +88,13 @@ def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid
 以下のURLから認可してね。
 {auth_url}""".strip()
 
-    return Command(
-        goto="__end__",
-        update={"messages": [AIMessage(content=message)]},
-    )
+    interrupt_payload = {
+        "type": "missing_oauth",
+        "message": message,
+    }
+    # interruptで中断し、OAuthコールバック後にaresumeで再開される
+    # aresumeで再開されるとノードが最初から再実行されるため、この関数からは戻らない
+    interrupt(interrupt_payload)
 
 
 def _handle_folder_id_registration(
@@ -103,8 +113,8 @@ def _handle_folder_id_registration(
 
     Returns:
         Command[str | list[str]]: 登録結果に応じたCommand
-                                  - 成功: success_gotoへの遷移（確認メッセージ付き）
-                                  - 失敗: __end__への遷移（エラーメッセージ付き）
+                                  - 成功: success_gotoへの遷移（確認メッセージなし、会話履歴を汚染しない）
+                                  - 失敗: __end__への遷移（エラーメッセージ付き、異常系は許容）
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
@@ -128,10 +138,7 @@ def _handle_folder_id_registration(
         )
 
     user_repository.save_drive_folder_id(userid, extracted_id)
-    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
     goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
     logger.info("Drive folder ID saved for user. Going to %s.", goto_desc)
-    return Command(
-        goto=success_goto,
-        update={"messages": [AIMessage(content=confirmation)]},
-    )
+    # 確認メッセージを会話履歴に追加しない（正常系は会話履歴を汚染しない）
+    return Command(goto=success_goto)

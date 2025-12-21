@@ -213,8 +213,12 @@ def test_spotify_agent():
         assert len(returned_messages[0].content) > 0
 
 
-def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
-    """OAuth設定がない場合に認可URLを案内するレスポンスになることを検証"""
+def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
+    """OAuth設定がない場合にinterruptで認可URLを返すことを検証
+
+    正常系ではOAuth設定メッセージが会話履歴に残らないようにinterruptを使用する。
+    """
+    from langgraph.types import interrupt as real_interrupt
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -239,19 +243,34 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
     monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
 
+    # interruptをモックして、呼び出し時の引数をキャプチャ
+    captured_payloads = []
+
+    def mock_interrupt(payload):
+        captured_payloads.append(payload)
+        # 実際のinterruptと同様に処理を中断するため例外を発生させる
+        raise real_interrupt(payload)
+
+    monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", mock_interrupt)
+
     state = {"userid": "user", "session_id": "session", "messages": []}
 
-    result = ensure_google_settings_node(state)
+    # interruptが呼ばれることを確認（例外が発生する）
+    with pytest.raises(Exception):
+        ensure_google_settings_node(state)
 
-    assert isinstance(result, Command)
-    assert result.goto == "__end__"
-    message = result.update["messages"][0]
-    assert isinstance(message, AIMessage)
-    assert "https://example.com/auth" in message.content
+    # interruptのペイロードを検証
+    assert len(captured_payloads) == 1
+    payload = captured_payloads[0]
+    assert payload["type"] == "missing_oauth"
+    assert "https://example.com/auth" in payload["message"]
 
 
 def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
-    """フォルダIDが未設定の場合に入力を促し登録するフローを検証"""
+    """フォルダIDが未設定の場合に入力を促し登録するフローを検証
+
+    正常系ではフォルダID登録完了メッセージを会話履歴に追加しない。
+    """
     saved_folder_ids: list[str] = []
 
     class DummyUserRepository:
@@ -287,9 +306,8 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
 
     assert isinstance(result, Command)
     assert result.goto == ["get_profile", "get_digest"]
-    message = result.update["messages"][0]
-    assert isinstance(message, AIMessage)
-    assert "フォルダIDを登録" in message.content
+    # 正常系では確認メッセージを会話履歴に追加しない（会話履歴を汚染しない）
+    assert result.update is None or "messages" not in result.update
     assert saved_folder_ids == ["test-folder-id"]
 
 
