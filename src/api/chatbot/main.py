@@ -188,8 +188,8 @@ async def google_drive_oauth_callback(
         oauth_manager.save_user_credentials(userid, credentials)
 
         agent = ChatbotAgent(checkpointer=app.state.checkpointer)
-        resume_messages = [{"type": "human", "content": "Google DriveのOAuth設定が完了しました"}]
-        response = await agent.ainvoke(messages=resume_messages, userid=userid, session_id=session_id)
+        # interruptからresumeして会話を再開（会話履歴にメッセージを追加しない）
+        response = await agent.aresume(session_id, "oauth_completed")
         reply_text, is_interrupt = extract_agent_text(response)
         line_messenger.push_message([TextMessage(text=reply_text)])
 

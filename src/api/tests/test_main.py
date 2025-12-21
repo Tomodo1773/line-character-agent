@@ -213,8 +213,13 @@ def test_spotify_agent():
         assert len(returned_messages[0].content) > 0
 
 
-def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
-    """OAuth設定がない場合に認可URLを案内するレスポンスになることを検証"""
+def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
+    """OAuth設定がない場合にinterruptで認可URLを案内することを検証"""
+    captured_payloads: list[dict] = []
+
+    def capture_interrupt(payload):
+        captured_payloads.append(payload)
+        return "oauth_completed"
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -238,16 +243,19 @@ def test_ensure_google_settings_node_returns_auth_message(monkeypatch):
     # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
     monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", capture_interrupt)
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
     result = ensure_google_settings_node(state)
 
     assert isinstance(result, Command)
-    assert result.goto == "__end__"
-    message = result.update["messages"][0]
-    assert isinstance(message, AIMessage)
-    assert "https://example.com/auth" in message.content
+    # interruptからresumeした後はsuccess_gotoへ遷移
+    assert result.goto == ["get_profile", "get_digest"]
+    # interruptペイロードを検証
+    assert len(captured_payloads) == 1
+    assert captured_payloads[0]["type"] == "missing_oauth"
+    assert "https://example.com/auth" in captured_payloads[0]["message"]
 
 
 def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
@@ -287,9 +295,8 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
 
     assert isinstance(result, Command)
     assert result.goto == ["get_profile", "get_digest"]
-    message = result.update["messages"][0]
-    assert isinstance(message, AIMessage)
-    assert "フォルダIDを登録" in message.content
+    # 確認メッセージは削除され、会話履歴に追加されない
+    assert result.update is None
     assert saved_folder_ids == ["test-folder-id"]
 
 

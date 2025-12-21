@@ -4,10 +4,10 @@ from typing import Any, Tuple
 def _extract_interrupt_message(interrupts: list[Any]) -> str:
     """
     interrupt payload は `ensure_google_settings_node` が投入する
-    `{type: missing_drive_folder_id, message: ...}` を想定する。
+    `{type: missing_oauth | missing_drive_folder_id, message: ...}` を想定する。
     """
     if not interrupts:
-        return "入力が必要みたい。フォルダのURLかIDを送ってね。"
+        return "入力が必要みたい。"
 
     value = getattr(interrupts[0], "value", None)
     if isinstance(value, dict):
@@ -18,7 +18,7 @@ def _extract_interrupt_message(interrupts: list[Any]) -> str:
     if isinstance(value, str):
         return value
 
-    return "入力が必要みたい。フォルダのURLかIDを送ってね。"
+    return "入力が必要みたい。"
 
 
 def extract_agent_text(response: dict[str, Any]) -> Tuple[str, bool]:

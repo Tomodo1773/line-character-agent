@@ -20,7 +20,7 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     Google DriveのOAuth設定とフォルダIDの有無を確認し、適切なCommandを返す。
 
     この関数は、以下の順序でGoogle Drive設定をチェックします:
-    1. OAuth認証情報の存在確認 → ない場合は認証URLを返して終了
+    1. OAuth認証情報の存在確認 → ない場合はinterruptで認証URLを提示
     2. フォルダIDの存在確認 → ない場合はinterruptで入力を要求
     3. すべて揃っている場合は、success_gotoで指定されたノードへ遷移
 
@@ -31,8 +31,8 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
 
     Returns:
         Command[str | list[str]]: 次の状態への遷移を表すCommand。
-                                  - OAuth未設定: __end__への遷移（認証URL付き）
-                                  - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
+                                  - OAuth未設定: interruptで中断後、resumeでsuccess_gotoへ遷移
+                                  - フォルダID未設定: interruptで中断後、resumeでsuccess_gotoへ遷移
                                   - すべて設定済み: success_gotoへの遷移
 
     Note:
@@ -50,7 +50,7 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     # OAuth認証情報のチェック
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
-        return _create_auth_required_command(oauth_manager, userid)
+        return _create_auth_required_command(oauth_manager, userid, success_goto)
 
     # フォルダIDのチェック
     folder_id = user_repository.fetch_drive_folder_id(userid)
@@ -63,16 +63,19 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
-def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid: str) -> Command[str]:
+def _create_auth_required_command(
+    oauth_manager: GoogleDriveOAuthManager, userid: str, success_goto: str | list[str]
+) -> Command[str | list[str]]:
     """
-    OAuth認証が必要な場合のCommandを生成する。
+    OAuth認証が必要な場合、interruptでユーザーに認証URLを提示し、認証完了後にresumeする。
 
     Args:
         oauth_manager: GoogleDriveOAuthManagerインスタンス
         userid: ユーザーID
+        success_goto: 認証完了後に遷移するノード名
 
     Returns:
-        Command[str]: __end__への遷移と認証URLメッセージを含むCommand
+        Command[str | list[str]]: 認証完了後の遷移先への遷移を表すCommand
     """
     logger.info("Google credentials not found for user. Generating auth URL.")
     # OAuth の state には userid を渡す
@@ -81,10 +84,15 @@ def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid
 以下のURLから認可してね。
 {auth_url}""".strip()
 
-    return Command(
-        goto="__end__",
-        update={"messages": [AIMessage(content=message)]},
-    )
+    interrupt_payload = {
+        "type": "missing_oauth",
+        "message": message,
+    }
+    # interruptでユーザーに認証URLを提示し、OAuthコールバック後にresumeされる
+    interrupt(interrupt_payload)
+
+    # resume後はsuccess_gotoへ遷移（フォルダID確認は再度ensure_google_settingsが呼ばれる）
+    return Command(goto=success_goto)
 
 
 def _handle_folder_id_registration(
@@ -103,7 +111,7 @@ def _handle_folder_id_registration(
 
     Returns:
         Command[str | list[str]]: 登録結果に応じたCommand
-                                  - 成功: success_gotoへの遷移（確認メッセージ付き）
+                                  - 成功: success_gotoへの遷移
                                   - 失敗: __end__への遷移（エラーメッセージ付き）
 
     Note:
@@ -128,10 +136,6 @@ def _handle_folder_id_registration(
         )
 
     user_repository.save_drive_folder_id(userid, extracted_id)
-    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
     goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
     logger.info("Drive folder ID saved for user. Going to %s.", goto_desc)
-    return Command(
-        goto=success_goto,
-        update={"messages": [AIMessage(content=confirmation)]},
-    )
+    return Command(goto=success_goto)
