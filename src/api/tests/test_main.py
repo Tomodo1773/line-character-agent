@@ -73,7 +73,7 @@ def test_chatbot_agent_response():
 
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_oauth_settings_node と ensure_folder_id_settings_node をスキップ
+            # OAuth設定がないテスト環境では ensure_oauth_settings_node と ensure_folder_id_settings_node をモック
             # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
             with patch(
                 "chatbot.agent.character_graph.graph.ensure_oauth_settings_node",
@@ -134,7 +134,7 @@ def test_spotify_agent_mcp_fallback():
 
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_oauth_settings_node と ensure_folder_id_settings_node をスキップ
+            # OAuth設定がないテスト環境では ensure_oauth_settings_node と ensure_folder_id_settings_node をモック
             # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
             with patch(
                 "chatbot.agent.character_graph.graph.ensure_oauth_settings_node",

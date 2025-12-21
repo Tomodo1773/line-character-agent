@@ -170,7 +170,7 @@ def ensure_oauth_settings_node(state: State) -> Command[Literal["ensure_folder_i
 
 
 @traceable(run_type="tool", name="Ensure Folder ID Settings")
-def ensure_folder_id_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
+def ensure_folder_id_settings_node(state: State) -> Command[Literal["get_profile", "get_digest"]]:
     """Google DriveのフォルダID設定の有無を確認するノード"""
     return ensure_folder_id_settings(
         userid=state["userid"],

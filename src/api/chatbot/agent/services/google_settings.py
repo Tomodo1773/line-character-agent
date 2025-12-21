@@ -102,7 +102,7 @@ def ensure_folder_id_settings(userid: str, success_goto: str | list[str]) -> Com
     Google DriveのフォルダIDの有無を確認し、適切なCommandを返す。
 
     この関数は、フォルダIDの存在確認を行います:
-    - フォルダIDがない場合はinterruptで入力を要求
+    - フォルダIDがない場合はinterruptで入力を要求し、登録後にsuccess_gotoへ遷移
     - フォルダIDがある場合はsuccess_gotoで指定されたノードへ遷移
 
     Args:
@@ -112,7 +112,7 @@ def ensure_folder_id_settings(userid: str, success_goto: str | list[str]) -> Com
 
     Returns:
         Command[str | list[str]]: 次の状態への遷移を表すCommand。
-                                  - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
+                                  - フォルダID未設定: 登録処理を経てsuccess_gotoへの遷移（登録完了メッセージ付き）
                                   - フォルダID設定済み: success_gotoへの遷移
 
     Note:
