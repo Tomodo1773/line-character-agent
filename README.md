@@ -243,8 +243,9 @@ sequenceDiagram
 以下のサービスがDocker Composeで提供されます：
 
 - **postgres**: PostgreSQL データベース（ポート 5432）
-- **cosmosdb**: CosmosDB エミュレータ（ポート 8081）
 - **azurite**: Azure Storage エミュレータ（ポート 10000-10002）
+
+**注**: CosmosDBはクラウド上の実際のCosmosDBインスタンスを使用します。エミュレータは削除されました。
 
 ```bash
 # エミュレータを起動
@@ -269,6 +270,11 @@ cp src/mcp/.env.sample src/mcp/.env
 
 `.env` ファイルを編集して必要な環境変数を設定してください。
 
+**ローカル開発時の注意点**:
+- `COSMOS_DB_ACCOUNT_URL` と `COSMOS_DB_ACCOUNT_KEY` にクラウド上のCosmosDBの接続情報を設定してください
+- `LOCAL_USER_ID` を設定することで、本番とは別のユーザーとして動作させることができます（例: `LOCAL_USER_ID=local-dev-user`）
+- これにより本番環境とは異なるGoogle DriveフォルダやOAuth認証情報を使用して開発できます
+
 #### 3. 各サービスの起動
 
 以下の「個別サービスの開発」セクションを参照して、各サービスをローカルで起動してください。
@@ -276,7 +282,7 @@ cp src/mcp/.env.sample src/mcp/.env
 #### 接続情報
 
 - PostgreSQL: `postgresql://postgres:postgres@localhost:5432/chatbot`
-- Cosmos DB Emulator: https://localhost:8081
+- Cosmos DB: クラウド上のCosmosDBインスタンス（環境変数で設定）
 - Azurite Blob: http://localhost:10000
 - Azurite Queue: http://localhost:10001
 - Azurite Table: http://localhost:10002

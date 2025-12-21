@@ -1,23 +1,4 @@
 services:
-  cosmosdb:
-    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
-    restart: unless-stopped
-    mem_limit: 3g
-    ports:
-      - "8081:8081"
-      - "10250-10255:10250-10255"
-    environment:
-      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 2
-      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "true"
-    volumes:
-      - cosmosdb-data:/tmp/cosmos/appdata
-    healthcheck:
-      test: ["CMD", "curl", "-skf", "https://localhost:8081/_explorer/emulator.pem"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -47,6 +28,5 @@ services:
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data --loose
 
 volumes:
-  cosmosdb-data:
   postgres-data:
   azurite-data:

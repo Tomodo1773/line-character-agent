@@ -42,6 +42,28 @@ load_dotenv()
 logger = create_logger(__name__)
 # FastAPI アプリケーションのイベントループ（AsyncPostgresSaver と共有する）
 event_loop = None
+
+
+def _get_effective_userid(original_userid: str) -> str:
+    """
+    ローカル開発時にユーザーIDを上書きする。
+
+    環境変数 LOCAL_USER_ID が設定されている場合、LINE webhookから取得した
+    user_idをその値で上書きする。これによりローカル環境では本番とは別の
+    Google DriveフォルダやOAuth認証情報を使用できる。
+
+    Args:
+        original_userid: LINE webhookから取得したuser_id
+
+    Returns:
+        str: 有効なuser_id（LOCAL_USER_IDが設定されていればその値、なければ元の値）
+    """
+    local_user_id = os.getenv("LOCAL_USER_ID")
+    if local_user_id:
+        return local_user_id
+    return original_userid
+
+
 # 環境変数のチェック
 is_valid, missing_vars = check_environment_variables()
 if not is_valid:
@@ -228,7 +250,7 @@ async def handle_text_async(event):
     try:
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
-        userid = event.source.user_id
+        userid = _get_effective_userid(event.source.user_id)
 
         # DI: CosmosClient から UserRepository を作成
         from chatbot.dependencies import create_user_repository
@@ -299,7 +321,7 @@ async def handle_audio_async(event):
     try:
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
-        userid = event.source.user_id
+        userid = _get_effective_userid(event.source.user_id)
 
         # DI: CosmosClient から UserRepository を作成
         from chatbot.dependencies import create_user_repository
