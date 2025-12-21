@@ -84,6 +84,28 @@ class ChatbotAgent:
         state = await self.graph.aget_state(self._config(session_id))
         return bool(getattr(state, "interrupts", None))
 
+    async def get_pending_interrupt_type(self, session_id: str) -> str | None:
+        """pending interruptのタイプを取得する。
+
+        Returns:
+            str | None: interruptのタイプ（"missing_oauth", "missing_drive_folder_id"など）。
+                        interruptがない場合はNone。
+        """
+        if not self.checkpointer:
+            return None
+
+        state = await self.graph.aget_state(self._config(session_id))
+        interrupts = getattr(state, "interrupts", None)
+        if not interrupts:
+            return None
+
+        # 最初のinterruptのvalueからtypeを取得
+        first_interrupt = interrupts[0]
+        value = getattr(first_interrupt, "value", None)
+        if isinstance(value, dict):
+            return value.get("type")
+        return None
+
     def create_image(self):
         # imagesフォルダがなければ作成
         images_dir = "images"

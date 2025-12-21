@@ -4,6 +4,8 @@
 Google Drive設定の確認ロジックを提供します。
 """
 
+from typing import NoReturn
+
 from langchain_core.messages import AIMessage
 from langgraph.types import Command, interrupt
 
@@ -65,7 +67,7 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
-def _request_oauth_via_interrupt(oauth_manager: GoogleDriveOAuthManager, userid: str) -> None:
+def _request_oauth_via_interrupt(oauth_manager: GoogleDriveOAuthManager, userid: str) -> NoReturn:
     """
     OAuth認証が必要な場合にinterruptを使用して認証URLを返す。
 
@@ -75,6 +77,9 @@ def _request_oauth_via_interrupt(oauth_manager: GoogleDriveOAuthManager, userid:
     Args:
         oauth_manager: GoogleDriveOAuthManagerインスタンス
         userid: ユーザーID
+
+    Raises:
+        langgraph.types.GraphInterrupt: 常にこの例外が発生し、正常には戻らない。
 
     Note:
         この関数はinterruptを呼び出した時点で処理を中断する。

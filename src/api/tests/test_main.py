@@ -218,7 +218,7 @@ def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
 
     正常系ではOAuth設定メッセージが会話履歴に残らないようにinterruptを使用する。
     """
-    from langgraph.types import interrupt as real_interrupt
+    from langgraph.types import GraphInterrupt, interrupt as real_interrupt
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -255,8 +255,8 @@ def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
-    # interruptが呼ばれることを確認（例外が発生する）
-    with pytest.raises(Exception):
+    # interruptが呼ばれることを確認（GraphInterrupt例外が発生する）
+    with pytest.raises(GraphInterrupt):
         ensure_google_settings_node(state)
 
     # interruptのペイロードを検証
@@ -465,3 +465,35 @@ def test_handle_text_async_with_reset_keyword():
                 reply_messages = mock_messenger.reply_message.call_args[0][0]
                 assert len(reply_messages) == 1
                 assert "会話履歴をリセットしたよ" in reply_messages[0].text
+
+
+def test_get_pending_interrupt_type_returns_none_without_checkpointer():
+    """checkpointerがない場合にNoneを返すことを確認"""
+    agent = ChatbotAgent(checkpointer=None)
+    result = asyncio.run(agent.get_pending_interrupt_type("test-session"))
+    assert result is None
+
+
+def test_get_pending_interrupt_type_returns_none_without_interrupt():
+    """interruptがない場合にNoneを返すことを確認"""
+    with patch(
+        "chatbot.agent.character_graph.graph.ensure_google_settings_node",
+        return_value=Command(goto=["get_profile", "get_digest"]),
+    ):
+        with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
+            with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
+                agent = ChatbotAgent(checkpointer=MemorySaver())
+                session_id = generate_test_session_id()
+
+                # interruptなしでinvokeを実行
+                asyncio.run(
+                    agent.ainvoke(
+                        messages=[{"type": "human", "content": "test"}],
+                        userid=TEST_USER_ID,
+                        session_id=session_id,
+                    )
+                )
+
+                # interruptがないのでNoneが返される
+                result = asyncio.run(agent.get_pending_interrupt_type(session_id))
+                assert result is None

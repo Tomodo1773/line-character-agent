@@ -190,9 +190,25 @@ async def google_drive_oauth_callback(
         oauth_manager.save_user_credentials(userid, credentials)
 
         agent = ChatbotAgent(checkpointer=app.state.checkpointer)
-        # aresumeを使用してinterruptからの再開を行う（会話履歴に残らない）
-        # resume_valueは"oauth_completed"を渡すが、ノードが最初から再実行されるため実際には使用されない
-        response = await agent.aresume(session_id, "oauth_completed")
+
+        # pending interruptのタイプを確認
+        interrupt_type = await agent.get_pending_interrupt_type(session_id)
+
+        if interrupt_type == "missing_oauth":
+            # OAuth要求のinterruptに対してのみaresumeを使用
+            # resume_valueは"oauth_completed"を渡すが、ノードが最初から再実行されるため実際には使用されない
+            logger.info("Resuming from missing_oauth interrupt")
+            response = await agent.aresume(session_id, "oauth_completed")
+        else:
+            # missing_oauth以外のinterrupt（またはinterruptなし）の場合は新しいinvokeを開始
+            # これにより、以前のフォルダID要求interruptに誤ってresumeすることを防ぐ
+            logger.info(f"Starting new invoke (interrupt_type={interrupt_type})")
+            response = await agent.ainvoke(
+                messages=[{"type": "human", "content": "OAuth設定が完了したよ"}],
+                userid=userid,
+                session_id=session_id,
+            )
+
         reply_text, is_interrupt = extract_agent_text(response)
         line_messenger.push_message([TextMessage(text=reply_text)])
 
