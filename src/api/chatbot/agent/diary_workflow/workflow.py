@@ -12,7 +12,11 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent.character_graph import ChatbotAgent
-from chatbot.agent.services.google_settings import ensure_google_settings
+from chatbot.agent.services.google_settings import (
+    ensure_folder_id_settings,
+    ensure_google_settings,
+    ensure_oauth_settings,
+)
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
@@ -67,12 +71,19 @@ def _create_drive_handler(userid: str) -> GoogleDriveHandler | None:
 def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) -> Any:
     graph_builder = StateGraph(DiaryWorkflowState)
 
-    @traceable(run_type="tool", name="Ensure Google Settings")
-    def ensure_google_settings_node(
+    @traceable(run_type="tool", name="Ensure OAuth Settings")
+    def ensure_oauth_settings_node(
+        state: DiaryWorkflowState,
+    ) -> Command[Literal["ensure_folder_id_settings_node", "__end__"]]:
+        logger.info("--- Diary Workflow: ensure_oauth_settings ---")
+        return ensure_oauth_settings(userid=state["userid"], success_goto="ensure_folder_id_settings_node")
+
+    @traceable(run_type="tool", name="Ensure Folder ID Settings")
+    def ensure_folder_id_settings_node(
         state: DiaryWorkflowState,
     ) -> Command[Literal["transcribe_diary_node", "__end__"]]:
-        logger.info("--- Diary Workflow: ensure_google_settings ---")
-        return ensure_google_settings(userid=state["userid"], success_goto="transcribe_diary_node")
+        logger.info("--- Diary Workflow: ensure_folder_id_settings ---")
+        return ensure_folder_id_settings(userid=state["userid"], success_goto="transcribe_diary_node")
 
     @traceable(run_type="chain", name="Transcribe Diary")
     def transcribe_diary_node(state: DiaryWorkflowState) -> Command[Literal["save_diary_node"]]:
@@ -159,8 +170,9 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             update={"character_comment": reaction, "messages": [AIMessage(content=reaction)]},
         )
 
-    graph_builder.add_node("ensure_google_settings_node", ensure_google_settings_node)
-    graph_builder.add_edge(START, "ensure_google_settings_node")
+    graph_builder.add_node("ensure_oauth_settings_node", ensure_oauth_settings_node)
+    graph_builder.add_edge(START, "ensure_oauth_settings_node")
+    graph_builder.add_node("ensure_folder_id_settings_node", ensure_folder_id_settings_node)
     graph_builder.add_node("transcribe_diary_node", transcribe_diary_node)
     graph_builder.add_node("save_diary_node", save_diary_node)
     graph_builder.add_node("generate_digest_node", generate_digest_node)

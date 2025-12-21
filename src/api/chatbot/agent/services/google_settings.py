@@ -63,6 +63,80 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
+def ensure_oauth_settings(userid: str, success_goto: str) -> Command[str]:
+    """
+    Google DriveのOAuth設定の有無を確認し、適切なCommandを返す。
+
+    この関数は、OAuth認証情報の存在確認を行います:
+    - OAuth認証情報がない場合は認証URLを返して__end__へ
+    - OAuth認証情報がある場合はsuccess_gotoで指定されたノードへ遷移
+
+    Args:
+        userid (str): ユーザーID。
+        success_goto (str): OAuth設定が揃った場合に遷移するノード名。
+
+    Returns:
+        Command[str]: 次の状態への遷移を表すCommand。
+                      - OAuth未設定: __end__への遷移（認証URL付き）
+                      - OAuth設定済み: success_gotoへの遷移
+    """
+    logger.info("--- Ensure OAuth Settings ---")
+
+    # DI: CosmosClient から UserRepository を作成
+    from chatbot.dependencies import create_user_repository
+
+    user_repository = create_user_repository()
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+
+    # OAuth認証情報のチェック
+    credentials = oauth_manager.get_user_credentials(userid)
+    if not credentials:
+        return _create_auth_required_command(oauth_manager, userid)
+
+    logger.info("OAuth credentials verified for user. Going to %s.", success_goto)
+    return Command(goto=success_goto)
+
+
+def ensure_folder_id_settings(userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
+    """
+    Google DriveのフォルダIDの有無を確認し、適切なCommandを返す。
+
+    この関数は、フォルダIDの存在確認を行います:
+    - フォルダIDがない場合はinterruptで入力を要求
+    - フォルダIDがある場合はsuccess_gotoで指定されたノードへ遷移
+
+    Args:
+        userid (str): ユーザーID。
+        success_goto (str | list[str]): フォルダID設定が揃った場合に遷移するノード名。
+                                         文字列または文字列のリスト（並列実行用）。
+
+    Returns:
+        Command[str | list[str]]: 次の状態への遷移を表すCommand。
+                                  - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
+                                  - フォルダID設定済み: success_gotoへの遷移
+
+    Note:
+        この関数内のinterruptはtry-catchで囲んではいけません。
+        interruptは例外メカニズムを利用しているためです。
+    """
+    logger.info("--- Ensure Folder ID Settings ---")
+
+    # DI: CosmosClient から UserRepository を作成
+    from chatbot.dependencies import create_user_repository
+
+    user_repository = create_user_repository()
+
+    # フォルダIDのチェック
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if folder_id:
+        goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
+        logger.info("Google Drive folder ID already set for user. Going to %s.", goto_desc)
+        return Command(goto=success_goto)
+
+    # フォルダIDが未設定の場合、interruptで入力を要求
+    return _handle_folder_id_registration(user_repository, userid, success_goto)
+
+
 def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid: str) -> Command[str]:
     """
     OAuth認証が必要な場合のCommandを生成する。

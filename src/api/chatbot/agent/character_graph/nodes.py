@@ -19,7 +19,11 @@ from chatbot.agent.character_graph.prompts import (
     SISTER_EDINET_SHORT_PROMPT,
 )
 from chatbot.agent.character_graph.state import State
-from chatbot.agent.services.google_settings import ensure_google_settings
+from chatbot.agent.services.google_settings import (
+    ensure_folder_id_settings,
+    ensure_google_settings,
+    ensure_oauth_settings,
+)
 from chatbot.agent.tools import diary_search_tool
 from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import create_logger
@@ -151,6 +155,24 @@ def get_user_digest(userid: str) -> str:
 def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
     """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
     return ensure_google_settings(
+        userid=state["userid"],
+        success_goto=["get_profile", "get_digest"],
+    )
+
+
+@traceable(run_type="tool", name="Ensure OAuth Settings")
+def ensure_oauth_settings_node(state: State) -> Command[Literal["ensure_folder_id_settings", "__end__"]]:
+    """Google DriveのOAuth設定の有無を確認するノード"""
+    return ensure_oauth_settings(
+        userid=state["userid"],
+        success_goto="ensure_folder_id_settings",
+    )
+
+
+@traceable(run_type="tool", name="Ensure Folder ID Settings")
+def ensure_folder_id_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
+    """Google DriveのフォルダID設定の有無を確認するノード"""
+    return ensure_folder_id_settings(
         userid=state["userid"],
         success_goto=["get_profile", "get_digest"],
     )
