@@ -165,7 +165,7 @@ def test_spotify_agent():
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import HumanMessage
     from langchain_core.tools import tool
 
     from chatbot.agent import spotify_agent_node
@@ -343,7 +343,7 @@ def test_diary_agent():
     - ダミーの diary search tool を使用し、エージェントが正常に動作することを確認
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     """
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import HumanMessage
     from langchain_core.tools import tool
     from langgraph.types import Command
 
