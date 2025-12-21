@@ -181,7 +181,9 @@ async def google_drive_oauth_callback(
         session = user_repository.ensure_session(userid)
         session_id = session.session_id
 
-    line_messenger = LineMessenger(user_id=userid)
+    # ローカル開発時は LOCAL_LINE_USER_ID を使用（LINE APIに送信するため正式なLINE user IDが必要）
+    line_user_id = os.getenv("LOCAL_LINE_USER_ID") or userid
+    line_messenger = LineMessenger(user_id=line_user_id)
 
     try:
         credentials = oauth_manager.exchange_code_for_credentials(code)
