@@ -88,7 +88,8 @@
 	"forwardPorts": [
 		8000, // API (src/api)
 		5432, // Postgres
-		8081 // CosmosDB Emulator Console
+		7071, // MCP Functions (HTTP endpoint)
+		7072 // FUNC Functions (HTTP endpoint)
 	]
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
