@@ -168,6 +168,16 @@ async def google_drive_oauth_callback(
     user_repository: UserRepository = Depends(get_user_repository),
     oauth_manager: GoogleDriveOAuthManager = Depends(get_oauth_manager),
 ):
+    """OAuthコールバックを処理し、フォルダID入力へ遷移する。
+
+    フロー:
+    1. OAuth認証情報を保存
+    2. aresumeでOAUTH_COMPLETED_KEYWORDを渡す
+    3. ensure_oauth_nodeが再実行され、今度はcredentialsがあるのでensure_drive_folderへ遷移
+    4. ensure_drive_folder_nodeでフォルダID入力をinterruptで要求
+    """
+    from chatbot.agent.character_graph.nodes import OAUTH_COMPLETED_KEYWORD
+
     # state には userid を渡している前提
     userid = state
     user_data = user_repository.fetch_user(userid)
@@ -195,13 +205,13 @@ async def google_drive_oauth_callback(
         interrupt_type = await agent.get_pending_interrupt_type(session_id)
 
         if interrupt_type == "missing_oauth":
-            # OAuth要求のinterruptに対してのみaresumeを使用
-            # resume_valueは"oauth_completed"を渡すが、ノードが最初から再実行されるため実際には使用されない
-            logger.info("Resuming from missing_oauth interrupt")
-            response = await agent.aresume(session_id, "oauth_completed")
+            # OAuth要求のinterruptに対してaresumeを使用
+            # OAUTH_COMPLETED_KEYWORDを渡すことで、ensure_drive_folder_nodeで
+            # 即座にフォルダID入力のinterruptが発生する
+            logger.info("Resuming from missing_oauth interrupt with OAUTH_COMPLETED_KEYWORD")
+            response = await agent.aresume(session_id, OAUTH_COMPLETED_KEYWORD)
         else:
             # missing_oauth以外のinterrupt（またはinterruptなし）の場合は新しいinvokeを開始
-            # これにより、以前のフォルダID要求interruptに誤ってresumeすることを防ぐ
             logger.info(f"Starting new invoke (interrupt_type={interrupt_type})")
             response = await agent.ainvoke(
                 messages=[{"type": "human", "content": "OAuth設定が完了したよ"}],

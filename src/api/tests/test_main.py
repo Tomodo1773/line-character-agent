@@ -9,7 +9,8 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-from chatbot.agent import ChatbotAgent, ensure_google_settings_node
+from chatbot.agent import ChatbotAgent, ensure_drive_folder_node, ensure_oauth_node
+from chatbot.agent.character_graph.nodes import OAUTH_COMPLETED_KEYWORD
 from chatbot.main import _get_effective_userid, app, extract_agent_text
 
 client = TestClient(app)
@@ -73,18 +74,21 @@ def test_chatbot_agent_response():
 
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
+            # OAuth設定がないテスト環境では ensure_oauth_node と ensure_drive_folder_node をスキップ
             with patch(
-                "chatbot.agent.character_graph.graph.ensure_google_settings_node",
-                return_value=Command(goto=["get_profile", "get_digest"]),
+                "chatbot.agent.character_graph.graph.ensure_oauth_node",
+                return_value=Command(goto="ensure_drive_folder"),
             ):
-                agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-                messages = [{"type": "human", "content": "こんにちは"}]
+                with patch(
+                    "chatbot.agent.character_graph.graph.ensure_drive_folder_node",
+                    return_value=Command(goto=["get_profile", "get_digest"]),
+                ):
+                    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+                    messages = [{"type": "human", "content": "こんにちは"}]
 
-                response = asyncio.run(
-                    agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-                )
+                    response = asyncio.run(
+                        agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+                    )
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -130,21 +134,24 @@ def test_spotify_agent_mcp_fallback():
 
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_google_settings_node をスキップ
-            # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
+            # OAuth設定がないテスト環境では ensure_oauth_node と ensure_drive_folder_node をスキップ
             with patch(
-                "chatbot.agent.character_graph.graph.ensure_google_settings_node",
-                return_value=Command(goto=["get_profile", "get_digest"]),
+                "chatbot.agent.character_graph.graph.ensure_oauth_node",
+                return_value=Command(goto="ensure_drive_folder"),
             ):
-                # get_mcp_toolsを空のリストを返すようにモック
-                with patch.object(nodes, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
-                    mock_get_mcp_tools.return_value = []
+                with patch(
+                    "chatbot.agent.character_graph.graph.ensure_drive_folder_node",
+                    return_value=Command(goto=["get_profile", "get_digest"]),
+                ):
+                    # get_mcp_toolsを空のリストを返すようにモック
+                    with patch.object(nodes, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+                        mock_get_mcp_tools.return_value = []
 
-                    # routerをモックしてspotify_agentに直接ルーティング
-                    with patch.object(nodes, "router_node") as mock_router:
-                        mock_router.return_value = Command(goto="spotify_agent")
+                        # routerをモックしてspotify_agentに直接ルーティング
+                        with patch.object(nodes, "router_node") as mock_router:
+                            mock_router.return_value = Command(goto="spotify_agent")
 
-                        agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+                            agent_graph = ChatbotAgent(checkpointer=MemorySaver())
                     # B'zの曲検索をリクエスト
                     messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
@@ -213,11 +220,8 @@ def test_spotify_agent():
         assert len(returned_messages[0].content) > 0
 
 
-def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
-    """OAuth設定がない場合にinterruptで認可URLを返すことを検証
-
-    正常系ではOAuth設定メッセージが会話履歴に残らないようにinterruptを使用する。
-    """
+def test_ensure_oauth_node_returns_auth_interrupt(monkeypatch):
+    """OAuth設定がない場合にinterruptで認可URLを返すことを検証"""
     from langgraph.errors import GraphInterrupt
 
     class DummyUserRepository:
@@ -257,7 +261,7 @@ def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
 
     # interruptが呼ばれることを確認（GraphInterrupt例外が発生する）
     with pytest.raises(GraphInterrupt):
-        ensure_google_settings_node(state)
+        ensure_oauth_node(state)
 
     # interruptのペイロードを検証
     assert len(captured_payloads) == 1
@@ -266,7 +270,7 @@ def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
     assert "https://example.com/auth" in payload["message"]
 
 
-def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
+def test_ensure_drive_folder_node_registers_folder_id(monkeypatch):
     """フォルダIDが未設定の場合に入力を促し登録するフローを検証
 
     正常系ではフォルダID登録完了メッセージを会話履歴に追加しない。
@@ -283,18 +287,8 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
         def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
             saved_folder_ids.append(folder_id)
 
-    dummy_manager = type(
-        "DummyManager",
-        (),
-        {
-            "get_user_credentials": lambda self, userid: object(),
-            "generate_authorization_url": lambda self, state: ("https://example.com/auth", state),
-        },
-    )()
-
     # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
     monkeypatch.setattr(
         "chatbot.agent.services.google_settings.interrupt",
         lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
@@ -302,13 +296,54 @@ def test_ensure_google_settings_node_registers_folder_id(monkeypatch):
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
-    result = ensure_google_settings_node(state)
+    result = ensure_drive_folder_node(state)
 
     assert isinstance(result, Command)
     assert result.goto == ["get_profile", "get_digest"]
     # 正常系では確認メッセージを会話履歴に追加しない（会話履歴を汚染しない）
     assert result.update is None or "messages" not in result.update
     assert saved_folder_ids == ["test-folder-id"]
+
+
+def test_ensure_drive_folder_node_with_oauth_completed_keyword(monkeypatch):
+    """OAuthコールバック完了後にフォルダID入力を要求することを検証
+
+    OAUTH_COMPLETED_KEYWORDがresume_valueとして渡された場合、
+    即座にフォルダID入力のinterruptが発生する。
+    """
+    from langgraph.errors import GraphInterrupt
+
+    class DummyUserRepository:
+        def ensure_user(self, userid: str) -> None:  # pragma: no cover
+            return None
+
+        def fetch_drive_folder_id(self, userid: str) -> str:  # pragma: no cover
+            return ""
+
+        def save_drive_folder_id(self, userid: str, folder_id: str) -> None:  # pragma: no cover
+            return None
+
+    # DI パターン用のモック設定
+    monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
+
+    captured_payloads = []
+
+    def mock_interrupt(payload):
+        captured_payloads.append(payload)
+        raise GraphInterrupt(payload)
+
+    monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", mock_interrupt)
+
+    # OAUTH_COMPLETED_KEYWORDがresume_valueとして渡された場合
+    state = {"userid": "user", "session_id": "session", "messages": [], "resume_value": OAUTH_COMPLETED_KEYWORD}
+
+    with pytest.raises(GraphInterrupt):
+        ensure_drive_folder_node(state)
+
+    # フォルダID入力のinterruptが発生することを確認
+    assert len(captured_payloads) == 1
+    payload = captured_payloads[0]
+    assert payload["type"] == "missing_drive_folder_id"
 
 
 def test_extract_agent_text_non_interrupt():
@@ -477,23 +512,27 @@ def test_get_pending_interrupt_type_returns_none_without_checkpointer():
 def test_get_pending_interrupt_type_returns_none_without_interrupt():
     """interruptがない場合にNoneを返すことを確認"""
     with patch(
-        "chatbot.agent.character_graph.graph.ensure_google_settings_node",
-        return_value=Command(goto=["get_profile", "get_digest"]),
+        "chatbot.agent.character_graph.graph.ensure_oauth_node",
+        return_value=Command(goto="ensure_drive_folder"),
     ):
-        with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
-            with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-                agent = ChatbotAgent(checkpointer=MemorySaver())
-                session_id = generate_test_session_id()
+        with patch(
+            "chatbot.agent.character_graph.graph.ensure_drive_folder_node",
+            return_value=Command(goto=["get_profile", "get_digest"]),
+        ):
+            with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
+                with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
+                    agent = ChatbotAgent(checkpointer=MemorySaver())
+                    session_id = generate_test_session_id()
 
-                # interruptなしでinvokeを実行
-                asyncio.run(
-                    agent.ainvoke(
-                        messages=[{"type": "human", "content": "test"}],
-                        userid=TEST_USER_ID,
-                        session_id=session_id,
+                    # interruptなしでinvokeを実行
+                    asyncio.run(
+                        agent.ainvoke(
+                            messages=[{"type": "human", "content": "test"}],
+                            userid=TEST_USER_ID,
+                            session_id=session_id,
+                        )
                     )
-                )
 
-                # interruptがないのでNoneが返される
-                result = asyncio.run(agent.get_pending_interrupt_type(session_id))
-                assert result is None
+                    # interruptがないのでNoneが返される
+                    result = asyncio.run(agent.get_pending_interrupt_type(session_id))
+                    assert result is None

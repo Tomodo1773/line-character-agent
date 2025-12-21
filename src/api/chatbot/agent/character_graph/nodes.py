@@ -19,7 +19,12 @@ from chatbot.agent.character_graph.prompts import (
     SISTER_EDINET_SHORT_PROMPT,
 )
 from chatbot.agent.character_graph.state import State
-from chatbot.agent.services.google_settings import ensure_google_settings
+from chatbot.agent.services.google_settings import (
+    OAUTH_COMPLETED_KEYWORD,
+    ensure_drive_folder,
+    ensure_google_settings,
+    ensure_oauth,
+)
 from chatbot.agent.tools import diary_search_tool
 from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import create_logger
@@ -147,9 +152,46 @@ def get_user_digest(userid: str) -> str:
     return _cached["digest"].get(userid, "")
 
 
+@traceable(run_type="tool", name="Ensure OAuth")
+def ensure_oauth_node(state: State) -> Command[Literal["ensure_drive_folder", "__end__"]]:
+    """OAuth認証情報の存在を確認するノード。
+
+    OAuth未設定の場合はinterruptで認証URLを返す。
+    OAuth設定済みの場合はensure_drive_folderノードへ遷移。
+    """
+    return ensure_oauth(
+        userid=state["userid"],
+        success_goto="ensure_drive_folder",
+    )
+
+
+@traceable(run_type="tool", name="Ensure Drive Folder")
+def ensure_drive_folder_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
+    """Drive フォルダIDの存在を確認するノード。
+
+    フォルダID未設定の場合はinterruptで入力を要求。
+    フォルダID設定済みの場合はget_profile/get_digestノードへ遷移。
+
+    OAuthコールバック完了後はaresumeでOAUTH_COMPLETED_KEYWORDが渡されるので、
+    その場合は即座にフォルダID入力をinterruptで要求する。
+    """
+    # stateからresume_valueを取得（aresumeで渡された値）
+    resume_value = state.get("resume_value")
+    return ensure_drive_folder(
+        userid=state["userid"],
+        success_goto=["get_profile", "get_digest"],
+        resume_value=resume_value,
+    )
+
+
 @traceable(run_type="tool", name="Ensure Google Settings")
 def ensure_google_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
-    """Google DriveのOAuth設定とフォルダIDの有無を確認するノード"""
+    """Google DriveのOAuth設定とフォルダIDの有無を確認するノード（後方互換性用）。
+
+    Note:
+        このノードは後方互換性のために残されています。
+        新しいコードでは ensure_oauth_node と ensure_drive_folder_node を使用してください。
+    """
     return ensure_google_settings(
         userid=state["userid"],
         success_goto=["get_profile", "get_digest"],
