@@ -218,7 +218,7 @@ def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
 
     正常系ではOAuth設定メッセージが会話履歴に残らないようにinterruptを使用する。
     """
-    from langgraph.types import GraphInterrupt, interrupt as real_interrupt
+    from langgraph.errors import GraphInterrupt
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -249,7 +249,7 @@ def test_ensure_google_settings_node_returns_auth_interrupt(monkeypatch):
     def mock_interrupt(payload):
         captured_payloads.append(payload)
         # 実際のinterruptと同様に処理を中断するため例外を発生させる
-        raise real_interrupt(payload)
+        raise GraphInterrupt(payload)
 
     monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", mock_interrupt)
 
