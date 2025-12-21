@@ -532,4 +532,4 @@ def get_current_anime_playlist(context) -> str:
     except Exception as e:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
-        return "An internal server error occurred. Please try again later."
+        return "内部サーバーエラーが発生しました。再度お試しください。"
