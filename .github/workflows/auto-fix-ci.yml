@@ -73,7 +73,7 @@ jobs:
               // Truncate logs to avoid exceeding GitHub Actions output limits
               const logData = typeof logs.data === 'string' ? logs.data : String(logs.data);
               const truncatedLogs = logData.length > 50000 ? 
-                logData.slice(-50000) + '\n[...truncated to last 50000 characters...]' : 
+                '[...truncated to last 50000 characters...]\n' + logData.slice(-50000) : 
                 logData;
               errorLogs.push({
                 jobName: job.name,
