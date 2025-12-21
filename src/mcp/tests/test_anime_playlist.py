@@ -36,7 +36,7 @@ class TestGetCurrentSeasonAnimePlaylistName:
 
         with patch("function_app.datetime") as mock_dt:
             mock_dt.now.return_value = mock_datetime
-            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+            mock_dt.side_effect = datetime
 
             result = get_current_season_anime_playlist_name()
             assert result == f"2025{expected_season}アニメ"
