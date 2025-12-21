@@ -427,20 +427,23 @@ def test_handle_text_async_with_reset_keyword():
     app.state.cosmos_client = mock_cosmos_client
 
     # DI パターン用のモック設定: create_user_repository をモック
-    with patch("chatbot.dependencies.create_user_repository", return_value=mock_user_repo):
-        # LineMessengerのモック作成
-        with patch("chatbot.main.LineMessenger") as mock_messenger_class:
-            mock_messenger = MagicMock()
-            mock_messenger_class.return_value = mock_messenger
+    # LOCAL_USER_ID を含まない環境で実行
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("LOCAL_USER_ID", None)
+        with patch("chatbot.dependencies.create_user_repository", return_value=mock_user_repo):
+            # LineMessengerのモック作成
+            with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                mock_messenger = MagicMock()
+                mock_messenger_class.return_value = mock_messenger
 
-            # handle_text_asyncを実行
-            asyncio.run(handle_text_async(event))
+                # handle_text_asyncを実行
+                asyncio.run(handle_text_async(event))
 
-            # reset_sessionが呼ばれたことを確認
-            mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
+                # reset_sessionが呼ばれたことを確認
+                mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
 
-            # 適切なメッセージが返信されたことを確認
-            mock_messenger.reply_message.assert_called_once()
-            reply_messages = mock_messenger.reply_message.call_args[0][0]
-            assert len(reply_messages) == 1
-            assert "会話履歴をリセットしたよ" in reply_messages[0].text
+                # 適切なメッセージが返信されたことを確認
+                mock_messenger.reply_message.assert_called_once()
+                reply_messages = mock_messenger.reply_message.call_args[0][0]
+                assert len(reply_messages) == 1
+                assert "会話履歴をリセットしたよ" in reply_messages[0].text
