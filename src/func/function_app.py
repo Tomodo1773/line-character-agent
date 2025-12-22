@@ -46,14 +46,21 @@ def upload_recent_diaries(span_days: int = 1):
         cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         drive_handler = GoogleDriveHandler(credentials=context.credentials, folder_id=context.drive_folder_id)
-        files = drive_handler.list(modified_after=cutoff_str)
-        for file in files:
+
+        # 年フォルダ一覧を取得し、各年フォルダ内の日記を探索
+        year_folders = drive_handler.list_folders()
+        all_files = []
+        for folder in year_folders:
+            files = drive_handler.list(folder_id=folder["id"], modified_after=cutoff_str)
+            all_files.extend(files)
+
+        for file in all_files:
             logger.debug(f"{file['name']} ({file['id']}) ({file['createdTime']}) ({file['modifiedTime']})")
 
         uploader = CosmosDBUploader(userid=context.userid)
 
         documents = []
-        for file in files:
+        for file in all_files:
             filename = file["name"]
             if not is_diary_filename(filename):
                 logger.info("File %s is not diary filename pattern. Skipped.", filename)
