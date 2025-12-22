@@ -14,7 +14,6 @@ from typing_extensions import NotRequired, TypedDict
 from chatbot.agent.character_graph import ChatbotAgent
 from chatbot.agent.services.google_settings import (
     ensure_folder_id_settings,
-    ensure_google_settings,
     ensure_oauth_settings,
 )
 from chatbot.utils.agent_response import extract_agent_text
