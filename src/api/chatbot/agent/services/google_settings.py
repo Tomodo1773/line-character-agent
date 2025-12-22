@@ -29,8 +29,8 @@ def ensure_oauth_settings(userid: str, success_goto: str) -> Command[str]:
 
     Returns:
         Command[str]: 次の状態への遷移を表すCommand。
-                      - OAuth未設定: interruptで認証URL表示後、success_gotoへの遷移
-                      - OAuth設定済み: success_gotoへの遷移
+            - OAuth未設定: interruptで認証URL表示後、success_gotoへの遷移
+            - OAuth設定済み: success_gotoへの遷移
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
@@ -64,12 +64,12 @@ def ensure_folder_id_settings(userid: str, success_goto: str | list[str]) -> Com
     Args:
         userid (str): ユーザーID。
         success_goto (str | list[str]): フォルダID設定が揃った場合に遷移するノード名。
-                                         文字列または文字列のリスト（並列実行用）。
+            文字列または文字列のリスト（並列実行用）。
 
     Returns:
         Command[str | list[str]]: 次の状態への遷移を表すCommand。
-                                  - フォルダID未設定: 登録処理を経てsuccess_gotoへの遷移（登録完了メッセージ付き）
-                                  - フォルダID設定済み: success_gotoへの遷移
+            - フォルダID未設定: 登録処理を経てsuccess_gotoへの遷移（登録完了メッセージ付き）
+            - フォルダID設定済み: success_gotoへの遷移
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
@@ -107,7 +107,7 @@ def _handle_oauth_registration(oauth_manager: GoogleDriveOAuthManager, userid: s
 
     Returns:
         Command[str]: 認証結果に応じたCommand
-                      - 成功: success_gotoへの遷移（確認メッセージ付き）
+            - 成功: success_gotoへの遷移（確認メッセージ付き）
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
@@ -144,8 +144,8 @@ def _handle_folder_id_registration(
 
     Returns:
         Command[str | list[str]]: 登録結果に応じたCommand
-                                  - 成功: success_gotoへの遷移（確認メッセージ付き）
-                                  - 失敗: __end__への遷移（エラーメッセージ付き）
+            - 成功: success_gotoへの遷移（確認メッセージ付き）
+            - 失敗: __end__への遷移（エラーメッセージ付き）
 
     Note:
         この関数内のinterruptはtry-catchで囲んではいけません。
