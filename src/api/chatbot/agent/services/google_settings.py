@@ -50,7 +50,16 @@ def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Comman
     # OAuth認証情報のチェック
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
-        return _create_auth_required_command(oauth_manager, userid)
+        # 後方互換性のため、interruptではなく__end__を返す
+        logger.info("Google credentials not found for user. Generating auth URL.")
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
+        message = f"""Google Drive へのアクセス許可がまだ設定されていないみたい。
+以下のURLから認可してね。
+{auth_url}""".strip()
+        return Command(
+            goto="__end__",
+            update={"messages": [AIMessage(content=message)]},
+        )
 
     # フォルダIDのチェック
     folder_id = user_repository.fetch_drive_folder_id(userid)
