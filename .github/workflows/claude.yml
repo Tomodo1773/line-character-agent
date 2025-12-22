@@ -38,6 +38,7 @@ jobs:
           claude_args: |
             --model claude-opus-4-5
             --system-prompt "常に日本語で回答してください。"
+            --allowedTools "Bash(uv run ruff check*),Bash(uv run ruff format*),Bash(uv run pytest*)"
 
           # Optional: Customize the trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
