@@ -173,7 +173,7 @@ def test_spotify_agent():
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
     """
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import HumanMessage
     from langchain_core.tools import tool
 
     from chatbot.agent import spotify_agent_node
@@ -267,9 +267,7 @@ def test_ensure_oauth_settings_node_triggers_interrupt(monkeypatch):
     # resumeされた後のCommandを確認
     assert isinstance(result, Command)
     assert result.goto == "ensure_folder_id_settings"
-    message = result.update["messages"][0]
-    assert isinstance(message, AIMessage)
-    assert "Google Driveの認証が完了した" in message.content
+    assert result.update is None
 
 
 def test_ensure_folder_id_settings_node_registers_folder_id(monkeypatch):
@@ -299,9 +297,7 @@ def test_ensure_folder_id_settings_node_registers_folder_id(monkeypatch):
 
     assert isinstance(result, Command)
     assert result.goto == ["get_profile", "get_digest"]
-    message = result.update["messages"][0]
-    assert isinstance(message, AIMessage)
-    assert "フォルダIDを登録" in message.content
+    assert result.update is None
     assert saved_folder_ids == ["test-folder-id"]
 
 
@@ -337,7 +333,7 @@ def test_diary_agent():
     - ダミーの diary search tool を使用し、エージェントが正常に動作することを確認
     - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
     """
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import HumanMessage
     from langchain_core.tools import tool
     from langgraph.types import Command
 
