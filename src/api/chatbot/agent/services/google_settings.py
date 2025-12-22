@@ -93,9 +93,7 @@ def ensure_folder_id_settings(userid: str, success_goto: str | list[str]) -> Com
     return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
-def _handle_oauth_registration(
-    oauth_manager: GoogleDriveOAuthManager, userid: str, success_goto: str
-) -> Command[str]:
+def _handle_oauth_registration(oauth_manager: GoogleDriveOAuthManager, userid: str, success_goto: str) -> Command[str]:
     """
     OAuth認証の登録を処理する。
 
@@ -126,12 +124,8 @@ def _handle_oauth_registration(
     interrupt(interrupt_payload)
 
     # interruptから再開された場合（OAuth完了後）
-    confirmation = "Google Driveの認証が完了したわ。"
     logger.info("OAuth completed for user. Going to %s.", success_goto)
-    return Command(
-        goto=success_goto,
-        update={"messages": [AIMessage(content=confirmation)]},
-    )
+    return Command(goto=success_goto)
 
 
 def _handle_folder_id_registration(
@@ -175,10 +169,6 @@ def _handle_folder_id_registration(
         )
 
     user_repository.save_drive_folder_id(userid, extracted_id)
-    confirmation = "フォルダIDを登録したわ。次からそのフォルダを使うね。"
     goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
     logger.info("Drive folder ID saved for user. Going to %s.", goto_desc)
-    return Command(
-        goto=success_goto,
-        update={"messages": [AIMessage(content=confirmation)]},
-    )
+    return Command(goto=success_goto)
