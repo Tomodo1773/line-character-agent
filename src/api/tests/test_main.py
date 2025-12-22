@@ -221,8 +221,8 @@ def test_spotify_agent():
         assert len(returned_messages[0].content) > 0
 
 
-def test_ensure_oauth_settings_node_returns_auth_message(monkeypatch):
-    """OAuth設定がない場合に認可URLを案内するレスポンスになることを検証"""
+def test_ensure_oauth_settings_node_triggers_interrupt(monkeypatch):
+    """OAuth設定がない場合にinterruptが発生することを検証"""
 
     class DummyUserRepository:
         def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
@@ -243,19 +243,33 @@ def test_ensure_oauth_settings_node_returns_auth_message(monkeypatch):
         },
     )()
 
+    # interruptが呼ばれたかを記録するリスト
+    interrupt_calls: list[dict] = []
+
+    def mock_interrupt(payload):
+        interrupt_calls.append(payload)
+        return "OAuth completed"  # resumeされた時の値を返す
+
     # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
     monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
     monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
+    monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", mock_interrupt)
 
     state = {"userid": "user", "session_id": "session", "messages": []}
 
     result = ensure_oauth_settings_node(state)
 
+    # interruptが呼ばれたことを確認
+    assert len(interrupt_calls) == 1
+    assert interrupt_calls[0]["type"] == "missing_oauth_credentials"
+    assert "https://example.com/auth" in interrupt_calls[0]["message"]
+
+    # resumeされた後のCommandを確認
     assert isinstance(result, Command)
-    assert result.goto == "__end__"
+    assert result.goto == "ensure_folder_id_settings"
     message = result.update["messages"][0]
     assert isinstance(message, AIMessage)
-    assert "https://example.com/auth" in message.content
+    assert "Google Driveの認証が完了した" in message.content
 
 
 def test_ensure_folder_id_settings_node_registers_folder_id(monkeypatch):

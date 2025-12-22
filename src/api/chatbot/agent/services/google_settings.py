@@ -68,7 +68,7 @@ def ensure_oauth_settings(userid: str, success_goto: str) -> Command[str]:
     Google DriveのOAuth設定の有無を確認し、適切なCommandを返す。
 
     この関数は、OAuth認証情報の存在確認を行います:
-    - OAuth認証情報がない場合は認証URLを返して__end__へ
+    - OAuth認証情報がない場合はinterruptで認証URLを表示し、ユーザーがOAuth完了後にresumeで再開
     - OAuth認証情報がある場合はsuccess_gotoで指定されたノードへ遷移
 
     Args:
@@ -77,8 +77,12 @@ def ensure_oauth_settings(userid: str, success_goto: str) -> Command[str]:
 
     Returns:
         Command[str]: 次の状態への遷移を表すCommand。
-                      - OAuth未設定: __end__への遷移（認証URL付き）
+                      - OAuth未設定: interruptで認証URL表示後、success_gotoへの遷移
                       - OAuth設定済み: success_gotoへの遷移
+
+    Note:
+        この関数内のinterruptはtry-catchで囲んではいけません。
+        interruptは例外メカニズムを利用しているためです。
     """
     logger.info("--- Ensure OAuth Settings ---")
 
@@ -91,7 +95,7 @@ def ensure_oauth_settings(userid: str, success_goto: str) -> Command[str]:
     # OAuth認証情報のチェック
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
-        return _create_auth_required_command(oauth_manager, userid)
+        return _handle_oauth_registration(oauth_manager, userid, success_goto)
 
     logger.info("OAuth credentials verified for user. Going to %s.", success_goto)
     return Command(goto=success_goto)
@@ -137,27 +141,44 @@ def ensure_folder_id_settings(userid: str, success_goto: str | list[str]) -> Com
     return _handle_folder_id_registration(user_repository, userid, success_goto)
 
 
-def _create_auth_required_command(oauth_manager: GoogleDriveOAuthManager, userid: str) -> Command[str]:
+def _handle_oauth_registration(
+    oauth_manager: GoogleDriveOAuthManager, userid: str, success_goto: str
+) -> Command[str]:
     """
-    OAuth認証が必要な場合のCommandを生成する。
+    OAuth認証の登録を処理する。
+
+    interruptを使用してユーザーに認証URLを表示し、
+    OAuth完了後にresumeで再開します。
 
     Args:
         oauth_manager: GoogleDriveOAuthManagerインスタンス
         userid: ユーザーID
+        success_goto: 認証成功時の遷移先ノード名
 
     Returns:
-        Command[str]: __end__への遷移と認証URLメッセージを含むCommand
+        Command[str]: 認証結果に応じたCommand
+                      - 成功: success_gotoへの遷移（確認メッセージ付き）
+
+    Note:
+        この関数内のinterruptはtry-catchで囲んではいけません。
     """
-    logger.info("Google credentials not found for user. Generating auth URL.")
+    logger.info("Google credentials not found for user. Requesting OAuth via interrupt.")
     # OAuth の state には userid を渡す
     auth_url, _ = oauth_manager.generate_authorization_url(userid)
-    message = f"""Google Drive へのアクセス許可がまだ設定されていないみたい。
+    interrupt_payload = {
+        "type": "missing_oauth_credentials",
+        "message": f"""Google Drive へのアクセス許可がまだ設定されていないみたい。
 以下のURLから認可してね。
-{auth_url}""".strip()
+{auth_url}""".strip(),
+    }
+    interrupt(interrupt_payload)
 
+    # interruptから再開された場合（OAuth完了後）
+    confirmation = "Google Driveの認証が完了したわ。"
+    logger.info("OAuth completed for user. Going to %s.", success_goto)
     return Command(
-        goto="__end__",
-        update={"messages": [AIMessage(content=message)]},
+        goto=success_goto,
+        update={"messages": [AIMessage(content=confirmation)]},
     )
 
 
