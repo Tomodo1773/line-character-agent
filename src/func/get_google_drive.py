@@ -155,10 +155,7 @@ class GoogleDriveHandler:
         """
         try:
             target_folder_id = self._resolve_folder_id(folder_id)
-            query = (
-                f"'{target_folder_id}' in parents "
-                f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-            )
+            query = f"'{target_folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
             results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
             folders = results.get("files", [])
             logger.info("%d folders listed from Google Drive.", len(folders))
