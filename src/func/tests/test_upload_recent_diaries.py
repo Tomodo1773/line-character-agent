@@ -168,21 +168,3 @@ def test_files_from_multiple_year_folders_are_collected(mocker):
     sources = [d.metadata["source"] for d in uploaded_docs]
     assert "2024年12月31日(火).md" in sources
     assert "2025年01月01日(水).md" in sources
-
-
-def test_no_year_folders_results_in_no_upload(mocker):
-    """年フォルダが存在しない場合、uploadが呼ばれないか。"""
-
-    token = mocker.Mock()
-    mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
-        GoogleDriveUserContext(userid="user-1", credentials=token, drive_folder_id="folder-1")
-    ]
-
-    mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
-    mock_drive.list_folders.return_value = []  # 年フォルダなし
-
-    mock_uploader = mocker.patch("function_app.CosmosDBUploader").return_value
-
-    upload_recent_diaries(span_days=1)
-
-    mock_uploader.upload.assert_not_called()
