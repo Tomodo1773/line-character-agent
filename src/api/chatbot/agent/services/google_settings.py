@@ -15,63 +15,6 @@ from chatbot.utils.google_auth import GoogleDriveOAuthManager
 logger = create_logger(__name__)
 
 
-def ensure_google_settings(userid: str, success_goto: str | list[str]) -> Command[str | list[str]]:
-    """
-    Google DriveのOAuth設定とフォルダIDの有無を確認し、適切なCommandを返す。
-
-    この関数は、以下の順序でGoogle Drive設定をチェックします:
-    1. OAuth認証情報の存在確認 → ない場合は認証URLを返して終了
-    2. フォルダIDの存在確認 → ない場合はinterruptで入力を要求
-    3. すべて揃っている場合は、success_gotoで指定されたノードへ遷移
-
-    Args:
-        userid (str): ユーザーID。
-        success_goto (str | list[str]): 設定が揃った場合に遷移するノード名。
-                                         文字列または文字列のリスト（並列実行用）。
-
-    Returns:
-        Command[str | list[str]]: 次の状態への遷移を表すCommand。
-                                  - OAuth未設定: __end__への遷移（認証URL付き）
-                                  - フォルダID未設定: success_gotoへの遷移（登録完了メッセージ付き）
-                                  - すべて設定済み: success_gotoへの遷移
-
-    Note:
-        この関数内のinterruptはtry-catchで囲んではいけません。
-        interruptは例外メカニズムを利用しているためです。
-    """
-    logger.info("--- Ensure Google Settings ---")
-
-    # DI: CosmosClient から UserRepository を作成
-    from chatbot.dependencies import create_user_repository
-
-    user_repository = create_user_repository()
-    oauth_manager = GoogleDriveOAuthManager(user_repository)
-
-    # OAuth認証情報のチェック
-    credentials = oauth_manager.get_user_credentials(userid)
-    if not credentials:
-        # 後方互換性のため、interruptではなく__end__を返す
-        logger.info("Google credentials not found for user. Generating auth URL.")
-        auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        message = f"""Google Drive へのアクセス許可がまだ設定されていないみたい。
-以下のURLから認可してね。
-{auth_url}""".strip()
-        return Command(
-            goto="__end__",
-            update={"messages": [AIMessage(content=message)]},
-        )
-
-    # フォルダIDのチェック
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if folder_id:
-        goto_desc = success_goto if isinstance(success_goto, str) else f"nodes {success_goto}"
-        logger.info("Google Drive folder ID already set for user. Going to %s.", goto_desc)
-        return Command(goto=success_goto)
-
-    # フォルダIDが未設定の場合、interruptで入力を要求
-    return _handle_folder_id_registration(user_repository, userid, success_goto)
-
-
 def ensure_oauth_settings(userid: str, success_goto: str) -> Command[str]:
     """
     Google DriveのOAuth設定の有無を確認し、適切なCommandを返す。

@@ -3,8 +3,8 @@ from typing import Any, Tuple
 
 def _extract_interrupt_message(interrupts: list[Any]) -> str:
     """
-    interrupt payload は `ensure_google_settings_node` が投入する
-    `{type: missing_drive_folder_id, message: ...}` を想定する。
+    interrupt payload は `ensure_oauth_settings_node` または `ensure_folder_id_settings_node` が投入する
+    `{type: missing_oauth_credentials, message: ...}` または `{type: missing_drive_folder_id, message: ...}` を想定する。
     """
     if not interrupts:
         return "入力が必要みたい。フォルダのURLかIDを送ってね。"
