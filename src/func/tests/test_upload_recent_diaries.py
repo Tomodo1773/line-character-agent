@@ -22,6 +22,8 @@ def test_only_diary_filename_pattern_is_uploaded(mocker):
 
     mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
     modified = _fixed_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    # 年フォルダを返す
+    mock_drive.list_folders.return_value = [{"id": "year-2025", "name": "2025"}]
     mock_drive.list.return_value = [
         {"id": "f1", "name": "note.md", "createdTime": modified, "modifiedTime": modified},
         {"id": "f2", "name": "2025年05月15日(木).md", "createdTime": modified, "modifiedTime": modified},
@@ -49,6 +51,8 @@ def test_multiple_users_isolated_uploads(mocker):
     ]
 
     drive1, drive2 = mocker.Mock(), mocker.Mock()
+    drive1.list_folders.return_value = [{"id": "year-2025", "name": "2025"}]
+    drive2.list_folders.return_value = [{"id": "year-2025", "name": "2025"}]
     drive1.list.return_value = [{"id": "a1", "name": "2025年05月15日(木).md", "createdTime": "", "modifiedTime": ""}]
     drive2.list.return_value = [{"id": "b1", "name": "2025年05月16日(金).md", "createdTime": "", "modifiedTime": ""}]
     drive1.get.return_value = Document(page_content="alice", metadata={"source": "2025年05月15日(木).md"})
@@ -83,6 +87,7 @@ def test_modified_after_is_calculated_from_span_days(mocker, monkeypatch):
     ]
 
     mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
+    mock_drive.list_folders.return_value = [{"id": "year-2025", "name": "2025"}]
     mock_drive.list.return_value = []
 
     mocker.patch("function_app.CosmosDBUploader")
@@ -102,6 +107,7 @@ def test_no_files_skip_upload(mocker):
     ]
 
     mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
+    mock_drive.list_folders.return_value = [{"id": "year-2025", "name": "2025"}]
     mock_drive.list.return_value = []
 
     mock_uploader = mocker.patch("function_app.CosmosDBUploader").return_value
@@ -126,3 +132,39 @@ def test_skip_when_folder_id_missing(mocker):
 
     drive_class.assert_not_called()
     uploader_class.assert_not_called()
+
+
+def test_files_from_multiple_year_folders_are_collected(mocker):
+    """複数の年フォルダからファイルを収集できるか。"""
+
+    token = mocker.Mock()
+    mocker.patch("function_app.GoogleUserTokenManager").return_value.get_all_user_credentials.return_value = [
+        GoogleDriveUserContext(userid="user-1", credentials=token, drive_folder_id="folder-1")
+    ]
+
+    mock_drive = mocker.patch("function_app.GoogleDriveHandler").return_value
+    modified = _fixed_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    # 複数の年フォルダを返す
+    mock_drive.list_folders.return_value = [
+        {"id": "year-2024", "name": "2024"},
+        {"id": "year-2025", "name": "2025"},
+    ]
+    # 各年フォルダからファイルを返す
+    mock_drive.list.side_effect = [
+        [{"id": "f1", "name": "2024年12月31日(火).md", "createdTime": modified, "modifiedTime": modified}],
+        [{"id": "f2", "name": "2025年01月01日(水).md", "createdTime": modified, "modifiedTime": modified}],
+    ]
+    mock_drive.get.side_effect = [
+        Document(page_content="2024-12-31", metadata={"source": "2024年12月31日(火).md"}),
+        Document(page_content="2025-01-01", metadata={"source": "2025年01月01日(水).md"}),
+    ]
+
+    mock_uploader = mocker.patch("function_app.CosmosDBUploader").return_value
+
+    upload_recent_diaries(span_days=1)
+
+    # 両方の年フォルダから日記が収集される
+    uploaded_docs = mock_uploader.upload.call_args[0][0]
+    sources = [d.metadata["source"] for d in uploaded_docs]
+    assert "2024年12月31日(火).md" in sources
+    assert "2025年01月01日(水).md" in sources

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 from typing import Optional
 
@@ -105,6 +107,64 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error("An error occurred while searching file %s: %s", filename, error)
             return None
+
+    def find_or_create_folder(self, folder_name: str, parent_folder_id: str | None = None) -> str:
+        """指定された名前のフォルダを検索し、なければ作成する。
+
+        Args:
+            folder_name: フォルダ名（例: "2025"）
+            parent_folder_id: 親フォルダID（指定がない場合はコンストラクタで与えたIDを使用）
+
+        Returns:
+            フォルダID
+        """
+        try:
+            target_parent_id = self._resolve_folder_id(parent_folder_id)
+            query = (
+                f"name = '{folder_name}' and '{target_parent_id}' in parents "
+                f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            )
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+            files = results.get("files", [])
+
+            if files:
+                folder_id = files[0]["id"]
+                logger.info("Found existing folder '%s' with ID: %s", folder_name, folder_id)
+                return folder_id
+
+            # フォルダが存在しない場合は作成
+            folder_metadata = {
+                "name": folder_name,
+                "mimeType": "application/vnd.google-apps.folder",
+                "parents": [target_parent_id],
+            }
+            folder = self.service.files().create(body=folder_metadata, fields="id").execute()
+            folder_id = folder.get("id")
+            logger.info("Created new folder '%s' with ID: %s", folder_name, folder_id)
+            return folder_id
+        except HttpError as error:
+            logger.error("An error occurred while finding or creating folder '%s': %s", folder_name, error)
+            raise
+
+    def list_folders(self, folder_id: str | None = None) -> list[dict]:
+        """指定フォルダ内のフォルダのみを一覧取得する。
+
+        Args:
+            folder_id: 親フォルダID（指定がない場合はコンストラクタで与えたIDを使用）
+
+        Returns:
+            フォルダ情報のリスト
+        """
+        try:
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"'{target_folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+            folders = results.get("files", [])
+            logger.info("%d folders listed from Google Drive.", len(folders))
+            return folders
+        except HttpError as error:
+            logger.error("An error occurred while listing folders: %s", error)
+            return []
 
     def upsert_text_file(
         self, filename: str, content: str, *, folder_id: str | None = None, mime_type: str = "application/json"

@@ -65,7 +65,7 @@ def check_filename_duplicate(drive_handler: GoogleDriveHandler, folder_id: str, 
 
 def save_diary_to_drive(diary_content: str, drive_handler: GoogleDriveHandler) -> Optional[str]:
     """
-    日記コンテンツをGoogle Driveに保存する
+    日記コンテンツをGoogle Driveに保存する（年フォルダ配下に保存）
 
     Args:
         diary_content: 保存する日記のテキスト
@@ -75,15 +75,20 @@ def save_diary_to_drive(diary_content: str, drive_handler: GoogleDriveHandler) -
     """
     try:
         filename = generate_diary_filename()
-        folder_id = drive_handler.folder_id
+        year = filename[:4]  # "2025年01月15日(水)" -> "2025"
 
-        filename = check_filename_duplicate(drive_handler, folder_id, filename)
+        # 年フォルダを取得または作成
+        year_folder_id = drive_handler.find_or_create_folder(year)
+
+        # 年フォルダ内で重複チェック
+        filename = check_filename_duplicate(drive_handler, year_folder_id, filename)
         filename_with_ext = f"{filename}.md"
 
-        file_id = drive_handler.save_markdown(diary_content, filename_with_ext, folder_id)
+        # 年フォルダに保存
+        file_id = drive_handler.save_markdown(diary_content, filename_with_ext, year_folder_id)
 
         if file_id:
-            logger.info(f"日記をGoogle Driveに保存しました: {filename}")
+            logger.info(f"日記をGoogle Driveに保存しました: {year}/{filename}")
             return filename
         else:
             logger.error("Google Driveへの保存に失敗しました")

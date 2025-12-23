@@ -196,6 +196,45 @@ class GoogleDriveHandler:
             logger.error(f"JSON decode error: {error}")
             return ""
 
+    def find_or_create_folder(self, folder_name: str, parent_folder_id: Optional[str] = None) -> str:
+        """
+        指定された名前のフォルダを検索し、なければ作成する
+
+        Args:
+            folder_name: フォルダ名（例: "2025"）
+            parent_folder_id: 親フォルダID（指定がない場合はコンストラクタで与えたIDを使用）
+
+        Returns:
+            フォルダID
+        """
+        try:
+            target_parent_id = self._resolve_folder_id(parent_folder_id)
+            query = (
+                f"name = '{folder_name}' and '{target_parent_id}' in parents "
+                f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            )
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+            files = results.get("files", [])
+
+            if files:
+                folder_id = files[0]["id"]
+                logger.info(f"Found existing folder '{folder_name}' with ID: {folder_id}")
+                return folder_id
+
+            # フォルダが存在しない場合は作成
+            folder_metadata = {
+                "name": folder_name,
+                "mimeType": "application/vnd.google-apps.folder",
+                "parents": [target_parent_id],
+            }
+            folder = self.service.files().create(body=folder_metadata, fields="id").execute()
+            folder_id = folder.get("id")
+            logger.info(f"Created new folder '{folder_name}' with ID: {folder_id}")
+            return folder_id
+        except HttpError as error:
+            logger.error(f"An error occurred while finding or creating folder '{folder_name}': {error}")
+            raise
+
     def _create_default_digest_structure(self) -> dict:
         """
         デフォルトのダイジェストJSONデータ構造を作成する
