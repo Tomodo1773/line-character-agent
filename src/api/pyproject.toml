@@ -21,6 +21,7 @@ dependencies = [
     "langgraph>=1.0,<2",
     "langgraph-checkpoint-postgres>=3.0.1,<4",
     "langsmith>=0.1.99",
+    "deepagents>=0.2.8",
     "google-auth>=2.40.3",
     "google-api-python-client>=2.171.0",
     "google-auth-httplib2>=0.2.0",

@@ -327,3 +327,38 @@ class GoogleDriveHandler:
         except HttpError as error:
             logger.error(f"An error occurred while getting dictionary.md: {error}")
             return ""
+
+    def update_profile_md(self, content: str, folder_id: Optional[str] = None) -> str:
+        """
+        profile.mdファイルを更新（上書き）する。ファイルが存在しない場合は新規作成する。
+
+        Args:
+            content: 更新後のprofile.md全文
+            folder_id: フォルダID（指定がない場合はコンストラクタで指定したIDを使用）
+
+        Returns:
+            更新されたファイルのID
+        """
+        try:
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = 'profile.md' and '{target_folder_id}' in parents and trashed = false"
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+            files = results.get("files", [])
+
+            media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="text/markdown", resumable=True)
+
+            if files:
+                file_id = files[0]["id"]
+                self.service.files().update(fileId=file_id, media_body=media).execute()
+                logger.info(f"Updated profile.md in Google Drive. ID: {file_id}")
+                return file_id
+
+            # ファイルが存在しない場合は新規作成
+            file_metadata = {"name": "profile.md", "mimeType": "text/markdown", "parents": [target_folder_id]}
+            file = self.service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+            file_id = file.get("id")
+            logger.info(f"Created new profile.md in Google Drive. ID: {file_id}")
+            return file_id
+        except HttpError as error:
+            logger.error(f"An error occurred while updating profile.md: {error}")
+            return ""

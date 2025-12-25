@@ -1,5 +1,6 @@
 """LangGraphベースの日記登録ワークフロー定義。"""
 
+import asyncio
 import os
 from typing import Annotated, Any, Literal
 
@@ -12,6 +13,7 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent.character_graph import ChatbotAgent
+from chatbot.agent.profile_update_workflow import run_profile_update_workflow
 from chatbot.agent.services.google_settings import (
     ensure_folder_id_settings,
     ensure_oauth_settings,
@@ -164,6 +166,17 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             session_id=state["session_id"],
         )
         reaction, _ = extract_agent_text(response)
+
+        # バックグラウンドでプロファイル更新ワークフローを起動
+        asyncio.create_task(
+            run_profile_update_workflow(
+                userid=state["userid"],
+                session_id=state["session_id"],
+                diary_text=diary_text,
+            )
+        )
+        logger.info("Started profile update workflow in background")
+
         return Command(
             goto="__end__",
             update={"character_comment": reaction, "messages": [AIMessage(content=reaction)]},
