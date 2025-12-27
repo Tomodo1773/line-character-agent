@@ -18,8 +18,7 @@ from typing_extensions import TypedDict
 
 from chatbot.agent.character_graph.nodes import get_cached, set_cached
 from chatbot.utils.config import create_logger
-from chatbot.utils.google_auth import GoogleDriveOAuthManager
-from chatbot.utils.google_drive import GoogleDriveHandler
+from chatbot.utils.google_drive import create_drive_handler
 
 logger = create_logger(__name__)
 
@@ -80,18 +79,6 @@ class ProfileUpdateState(TypedDict):
     updated_profile: str | None
 
 
-def _create_drive_handler(userid: str) -> GoogleDriveHandler | None:
-    """ユーザー固有の GoogleDriveHandler を作成。"""
-    from chatbot.dependencies import create_user_repository
-
-    user_repository = create_user_repository()
-    credentials = GoogleDriveOAuthManager(user_repository).get_user_credentials(userid)
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if not credentials or not folder_id:
-        return None
-    return GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-
-
 def _invalidate_profile_cache(userid: str) -> None:
     """プロファイルのキャッシュを無効化する。"""
     cached = get_cached()
@@ -109,7 +96,7 @@ def get_profile_update_workflow():
     def load_profile_node(state: ProfileUpdateState) -> Command[Literal["extract_memorable_info_node"]]:
         """Google Drive から現在の profile.md を読み込む。"""
         logger.info("--- Profile Update: load_profile ---")
-        drive_handler = _create_drive_handler(state["userid"])
+        drive_handler = create_drive_handler(state["userid"])
 
         if not drive_handler:
             logger.warning("Google Drive handler not available, skipping profile update")
@@ -184,7 +171,7 @@ def get_profile_update_workflow():
             logger.warning("No updated profile to save")
             return Command(goto=END)
 
-        drive_handler = _create_drive_handler(state["userid"])
+        drive_handler = create_drive_handler(state["userid"])
         if not drive_handler:
             logger.error("Failed to create drive handler for saving profile")
             return Command(goto=END)
