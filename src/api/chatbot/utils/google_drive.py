@@ -39,7 +39,12 @@ def create_drive_handler(userid: str) -> "GoogleDriveHandler | None":
 class GoogleDriveHandler:
     """Google Driveとの連携を行うクラス"""
 
-    SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
+    # SCOPESはgoogle_auth.pyのGOOGLE_DRIVE_SCOPESを参照（循環インポート回避のため）
+    @property
+    def SCOPES(self):
+        from chatbot.utils.google_auth import GOOGLE_DRIVE_SCOPES
+
+        return GOOGLE_DRIVE_SCOPES
 
     def __init__(self, credentials: Credentials, folder_id: str):
         """
