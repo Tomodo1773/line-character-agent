@@ -8,9 +8,11 @@ from google_auth_oauthlib.flow import Flow
 
 from chatbot.database.repositories import UserRepository
 from chatbot.utils.config import create_logger, get_env_variable
-from chatbot.utils.google_drive import GoogleDriveHandler
 
 logger = create_logger(__name__)
+
+# Google Drive API のスコープ（循環インポートを避けるためここで定義）
+GOOGLE_DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
 
 
 class GoogleDriveOAuthManager:
@@ -43,7 +45,7 @@ class GoogleDriveOAuthManager:
 
         これにより、コールバック側では state から直接 userid を復元できる。
         """
-        flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
+        flow = Flow.from_client_config(self._client_config(), scopes=GOOGLE_DRIVE_SCOPES, redirect_uri=self.redirect_uri)
         auth_url, flow_state = flow.authorization_url(
             access_type="offline", include_granted_scopes="true", prompt="consent", state=userid
         )
@@ -51,7 +53,7 @@ class GoogleDriveOAuthManager:
         return auth_url, flow_state
 
     def exchange_code_for_credentials(self, code: str) -> Credentials:
-        flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
+        flow = Flow.from_client_config(self._client_config(), scopes=GOOGLE_DRIVE_SCOPES, redirect_uri=self.redirect_uri)
         flow.fetch_token(code=code)
         logger.info("Exchanged authorization code for credentials")
         return flow.credentials
@@ -82,7 +84,7 @@ class GoogleDriveOAuthManager:
             token_uri=token_data.get("token_uri"),
             client_id=client_id,
             client_secret=client_secret,
-            scopes=GoogleDriveHandler.SCOPES,
+            scopes=GOOGLE_DRIVE_SCOPES,
             expiry=expiry_dt,
         )
 
