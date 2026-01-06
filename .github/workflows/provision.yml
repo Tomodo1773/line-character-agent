@@ -39,7 +39,7 @@ jobs:
       mcp_changed: ${{ steps.changes.outputs.mcp }}
       infra_changed: ${{ steps.changes.outputs.infra }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: 変更検知
         id: changes

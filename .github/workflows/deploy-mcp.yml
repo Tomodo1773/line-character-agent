@@ -21,7 +21,7 @@ jobs:
       AZURE_KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
       AZURE_KEYVAULT_RG: ${{ vars.AZURE_KEYVAULT_RG }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: azd のセットアップ
         uses: Azure/setup-azd@v2
