@@ -62,4 +62,5 @@ updates:
       - "github-actions"
     commit-message:
       prefix: "deps(github-actions)"
+      prefix-development: "deps(github-actions)"
       include: "scope"
