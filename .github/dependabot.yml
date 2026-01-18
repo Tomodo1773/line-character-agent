@@ -8,7 +8,12 @@ updates:
     labels:
       - "dependencies"
     groups:
-      api-dependencies:
+      api-version:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      api-security:
+        applies-to: security-updates
         patterns:
           - "*"
     commit-message:
@@ -23,7 +28,12 @@ updates:
     labels:
       - "dependencies"
     groups:
-      func-dependencies:
+      func-version:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      func-security:
+        applies-to: security-updates
         patterns:
           - "*"
     commit-message:
@@ -38,7 +48,12 @@ updates:
     labels:
       - "dependencies"
     groups:
-      mcp-dependencies:
+      mcp-version:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      mcp-security:
+        applies-to: security-updates
         patterns:
           - "*"
     commit-message:
@@ -53,7 +68,12 @@ updates:
       day: "monday"
     groups:
       # すべてのGitHub Actionsを1つのPRにグループ化
-      github-actions:
+      github-actions-version:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: security-updates
         patterns:
           - "*"
     open-pull-requests-limit: 10
