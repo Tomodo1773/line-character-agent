@@ -13,10 +13,12 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      github.actor == 'Tomodo1773' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -30,6 +32,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Install uv and Python
+        id: setup-uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.21"
+          python-version: "3.11"
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -38,7 +47,7 @@ jobs:
           claude_args: |
             --model claude-opus-4-5
             --system-prompt "常に日本語で回答してください。"
-            --allowedTools "Bash(uv run ruff check*),Bash(uv run ruff format*),Bash(uv run pytest*),WebSearch,WebFetch,mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Bash(uv add:*),Bash(uv sync:*),Bash(uv run ruff:*),Bash(uv run pytest:*),WebSearch,WebFetch,Skill(test-creator),Skill(add-package)"
 
           # Optional: Customize the trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
@@ -54,9 +63,26 @@ jobs:
           #   --system-prompt "Follow our coding standards. Ensure all new code has tests. Use TypeScript for new files."
 
           # Optional: Advanced settings configuration
-          # settings: |
-          #   {
-          #     "env": {
-          #       "NODE_ENV": "test"
-          #     }
-          #   }
+          settings: |
+            {
+              "env": {
+                "GOOGLE_CLIENT_ID": "hogehoge",
+                "GOOGLE_CLIENT_SECRET": "hogehoge",
+                "GOOGLE_OAUTH_REDIRECT_URI": "hogehoge",
+                "GOOGLE_TOKEN_ENC_KEY": "hogehoge",
+                "LINE_CHANNEL_ACCESS_TOKEN": "hogehoge",
+                "LINE_CHANNEL_SECRET": "hogehoge",
+                "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
+                "LANGSMITH_API_KEY": "${{ secrets.LANGSMITH_API_KEY }}",
+                "COSMOS_DB_ACCOUNT_URL": "hogehoge",
+                "COSMOS_DB_ACCOUNT_KEY": "hogehoge",
+                "OPENAI_COMPATIBLE_API_KEY": "hogehoge",
+                "MCP_FUNCTION_URL": "hogehoge",
+                "POSTGRES_CHECKPOINT_URL": "hogehoge",
+                "SPOTIFY_CLIENT_ID": "${{ secrets.SPOTIFY_CLIENT_ID }}",
+                "SPOTIFY_CLIENT_SECRET": "${{ secrets.SPOTIFY_CLIENT_SECRET }}",
+                "SPOTIFY_REFRESH_TOKEN": "${{ secrets.SPOTIFY_REFRESH_TOKEN }}",
+                "SPAN_DAYS": "1",
+                "LANGCHAIN_PROJECT": "LINE-AI-BOT-TEST"
+              }
+            }
