@@ -22,9 +22,12 @@ from chatbot.utils.google_drive import create_drive_handler
 
 logger = create_logger(__name__)
 
-# 抽出プロンプト
-EXTRACT_MEMORABLE_INFO_PROMPT = """
-以下の日記から、ユーザープロファイルに記録すべき情報を抽出してください。
+# Deep Agent 用システムプロンプト
+PROFILE_UPDATE_SYSTEM_PROMPT = """
+あなたはユーザープロファイル更新担当のエージェントです。
+ユーザーの日記を分析し、profile.mdに記録すべき情報があれば反映します。
+
+対象ファイル: /profile.md
 
 ## 記録すべき情報の例:
 - 趣味・興味関心
@@ -36,35 +39,17 @@ EXTRACT_MEMORABLE_INFO_PROMPT = """
 - 住んでいる場所・よく行く場所
 - 健康状態や習慣
 
-## 現在のプロファイル:
-{current_profile}
-
-## 本日の日記:
-{diary_text}
-
-## 出力形式:
-記録すべき情報がある場合は、その内容を簡潔に箇条書きで出力してください。
-記録すべき情報がない場合は「NONE」とだけ出力してください。
-"""
-
-# Deep Agent 用システムプロンプト
-PROFILE_UPDATE_SYSTEM_PROMPT = """
-あなたはユーザープロファイル更新担当のエージェントです。
-ユーザーの日記から抽出された新しい情報をprofile.mdに反映します。
-
-対象ファイル: /profile.md
-
-更新の方針:
+## 更新の方針:
 - 新しい情報の追記
 - 既存情報の修正・置換（より正確な情報がある場合）
 - 不要・誤った情報の削除
 - Markdown構造は多少崩れても問題なし（読めればOK）
 - 箇条書きや見出しを適宜使用して読みやすく整理する
+- 記録すべき情報がなければ、何も変更しない
 
-最終成果物の要件:
+## 最終成果物の要件:
 - 有効なMarkdownであること
 - ユーザーにとって読みやすい形式であること
-- 更新内容が適切に反映されていること
 """
 
 
@@ -75,7 +60,6 @@ class ProfileUpdateState(TypedDict):
     session_id: str
     diary_text: str | None
     profile_content: str | None
-    extracted_info: str | None
     updated_profile: str | None
 
 
@@ -93,50 +77,27 @@ def get_profile_update_workflow():
     graph_builder = StateGraph(ProfileUpdateState)
 
     @traceable(run_type="chain", name="Load Profile")
-    def load_profile_node(state: ProfileUpdateState) -> Command[Literal["extract_memorable_info_node"]]:
+    def load_profile_node(state: ProfileUpdateState) -> Command[Literal["update_profile_node", "__end__"]]:
         """Google Drive から現在の profile.md を読み込む。"""
         logger.info("--- Profile Update: load_profile ---")
-        drive_handler = create_drive_handler(state["userid"])
-
-        if not drive_handler:
-            logger.warning("Google Drive handler not available, skipping profile update")
-            return Command(goto=END, update={"profile_content": None})
-
-        profile_content = drive_handler.get_profile_md()
-        return Command(goto="extract_memorable_info_node", update={"profile_content": profile_content})
-
-    @traceable(run_type="chain", name="Extract Memorable Info")
-    def extract_memorable_info_node(state: ProfileUpdateState) -> Command[Literal["update_profile_node", "__end__"]]:
-        """日記から覚えるべき情報を抽出する。"""
-        logger.info("--- Profile Update: extract_memorable_info ---")
-        diary_text = state.get("diary_text")
-        profile_content = state.get("profile_content") or ""
-
-        if not diary_text:
+        if not state.get("diary_text"):
             logger.info("No diary text provided, skipping profile update")
             return Command(goto=END)
 
-        llm = ChatOpenAI(model="gpt-5.2", temperature=0)
-        prompt = EXTRACT_MEMORABLE_INFO_PROMPT.format(
-            current_profile=profile_content,
-            diary_text=diary_text,
-        )
-        response = llm.invoke(prompt)
-        extracted_info = response.content.strip()
-
-        if extracted_info == "NONE" or not extracted_info:
-            logger.info("No memorable info extracted, skipping profile update")
+        drive_handler = create_drive_handler(state["userid"])
+        if not drive_handler:
+            logger.warning("Google Drive handler not available, skipping profile update")
             return Command(goto=END)
 
-        logger.info(f"Extracted memorable info: {extracted_info[:100]}...")
-        return Command(goto="update_profile_node", update={"extracted_info": extracted_info})
+        profile_content = drive_handler.get_profile_md()
+        return Command(goto="update_profile_node", update={"profile_content": profile_content})
 
     @traceable(run_type="chain", name="Update Profile")
-    def update_profile_node(state: ProfileUpdateState) -> Command[Literal["save_profile_node"]]:
-        """Deep Agent を使用して profile.md を更新する。"""
+    def update_profile_node(state: ProfileUpdateState) -> Command[Literal["save_profile_node", "__end__"]]:
+        """Deep Agent を使用して日記から情報を抽出し profile.md を更新する。"""
         logger.info("--- Profile Update: update_profile ---")
         profile_content = state.get("profile_content") or ""
-        extracted_info = state.get("extracted_info") or ""
+        diary_text = state["diary_text"]
 
         with tempfile.TemporaryDirectory() as workspace:
             profile_path = Path(workspace) / "profile.md"
@@ -147,16 +108,20 @@ def get_profile_update_workflow():
             agent = create_deep_agent(model=llm, system_prompt=PROFILE_UPDATE_SYSTEM_PROMPT, backend=backend)
 
             user_prompt = f"""
-以下の新しい情報を profile.md に反映してください。
+以下の日記を分析し、profile.mdに記録すべき情報があれば反映してください。
+記録すべき情報がなければ、何も変更しないでください。
 
-## 新しい情報:
-{extracted_info}
-
-/profile.md を読み込み、新しい情報を適切に追記・更新してください。
+## 本日の日記:
+{diary_text}
 """
             agent.invoke({"messages": [("user", user_prompt)]})
 
             updated_profile = profile_path.read_text(encoding="utf-8")
+
+        # プロファイルに変更がなければ保存をスキップ
+        if updated_profile == profile_content:
+            logger.info("No changes to profile, skipping save")
+            return Command(goto=END)
 
         logger.info("Profile updated by Deep Agent")
         return Command(goto="save_profile_node", update={"updated_profile": updated_profile})
@@ -187,7 +152,6 @@ def get_profile_update_workflow():
         return Command(goto=END)
 
     graph_builder.add_node("load_profile_node", load_profile_node)
-    graph_builder.add_node("extract_memorable_info_node", extract_memorable_info_node)
     graph_builder.add_node("update_profile_node", update_profile_node)
     graph_builder.add_node("save_profile_node", save_profile_node)
 
