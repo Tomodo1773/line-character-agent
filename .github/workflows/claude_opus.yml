@@ -14,10 +14,10 @@ jobs:
   claude:
     if: |
       github.actor == 'Tomodo1773' && (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@opus')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@opus')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@opus')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@opus') || contains(github.event.issue.title, '@opus')))
       )
     runs-on: ubuntu-latest
     permissions:
@@ -47,8 +47,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.CLAUDE_GITHUB_PAT }}
+          trigger_phrase: "@opus"
           settings: |
             {
+              "model": "claude-opus-4-5",
               "language": "Japanese",
               "permissions": {
                 "allow": [
