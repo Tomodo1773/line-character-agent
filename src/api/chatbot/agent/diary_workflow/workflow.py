@@ -1,5 +1,6 @@
 """LangGraphベースの日記登録ワークフロー定義。"""
 
+import asyncio
 import os
 from typing import Annotated, Any, Literal
 
@@ -12,6 +13,7 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent.character_graph import ChatbotAgent
+from chatbot.agent.profile_update_workflow import run_profile_update_workflow
 from chatbot.agent.services.google_settings import (
     ensure_folder_id_settings,
     ensure_oauth_settings,
@@ -19,8 +21,7 @@ from chatbot.agent.services.google_settings import (
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
-from chatbot.utils.google_auth import GoogleDriveOAuthManager
-from chatbot.utils.google_drive import GoogleDriveHandler
+from chatbot.utils.google_drive import GoogleDriveHandler, create_drive_handler
 from chatbot.utils.transcript import DiaryTranscription
 
 
@@ -44,29 +45,6 @@ class DiaryWorkflowState(TypedDict):
 logger = create_logger(__name__)
 
 
-def _create_drive_handler(userid: str) -> GoogleDriveHandler | None:
-    """ユーザー固有の GoogleDriveHandler を作成。
-
-    DI により共有 CosmosClient から UserRepository を生成します。
-
-    Args:
-        userid: ユーザーID
-
-    Returns:
-        GoogleDriveHandler | None: 作成された GoogleDriveHandler、または設定不足の場合 None
-    """
-    from chatbot.dependencies import create_user_repository
-
-    # DI: CosmosClient から UserRepository を作成
-    user_repository = create_user_repository()
-
-    credentials = GoogleDriveOAuthManager(user_repository).get_user_credentials(userid)
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if not credentials or not folder_id:
-        return None
-    return GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-
-
 def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) -> Any:
     graph_builder = StateGraph(DiaryWorkflowState)
 
@@ -87,7 +65,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     @traceable(run_type="chain", name="Transcribe Diary")
     def transcribe_diary_node(state: DiaryWorkflowState) -> Command[Literal["save_diary_node"]]:
         logger.info("--- Diary Workflow: transcribe_diary ---")
-        drive_handler = _create_drive_handler(state["userid"])
+        drive_handler = create_drive_handler(state["userid"])
         audio = state.get("audio")
 
         if not drive_handler:
@@ -164,6 +142,17 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             session_id=state["session_id"],
         )
         reaction, _ = extract_agent_text(response)
+
+        # バックグラウンドでプロファイル更新ワークフローを起動
+        asyncio.create_task(
+            run_profile_update_workflow(
+                userid=state["userid"],
+                session_id=state["session_id"],
+                diary_text=diary_text,
+            )
+        )
+        logger.info("Started profile update workflow in background")
+
         return Command(
             goto="__end__",
             update={"character_comment": reaction, "messages": [AIMessage(content=reaction)]},

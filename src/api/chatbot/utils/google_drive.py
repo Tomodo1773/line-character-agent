@@ -14,10 +14,37 @@ from chatbot.utils.config import create_logger
 logger = create_logger(__name__)
 
 
+def create_drive_handler(userid: str) -> "GoogleDriveHandler | None":
+    """ユーザー固有の GoogleDriveHandler を作成。
+
+    DI により共有 CosmosClient から UserRepository を生成します。
+
+    Args:
+        userid: ユーザーID
+
+    Returns:
+        GoogleDriveHandler | None: 作成された GoogleDriveHandler、または設定不足の場合 None
+    """
+    from chatbot.dependencies import create_user_repository
+    from chatbot.utils.google_auth import GoogleDriveOAuthManager
+
+    user_repository = create_user_repository()
+    credentials = GoogleDriveOAuthManager(user_repository).get_user_credentials(userid)
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if not credentials or not folder_id:
+        return None
+    return GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
+
+
 class GoogleDriveHandler:
     """Google Driveとの連携を行うクラス"""
 
-    SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
+    # SCOPESはgoogle_auth.pyのGOOGLE_DRIVE_SCOPESを参照（循環インポート回避のため）
+    @property
+    def SCOPES(self):
+        from chatbot.utils.google_auth import GOOGLE_DRIVE_SCOPES
+
+        return GOOGLE_DRIVE_SCOPES
 
     def __init__(self, credentials: Credentials, folder_id: str):
         """
@@ -326,4 +353,39 @@ class GoogleDriveHandler:
                 return ""
         except HttpError as error:
             logger.error(f"An error occurred while getting dictionary.md: {error}")
+            return ""
+
+    def update_profile_md(self, content: str, folder_id: Optional[str] = None) -> str:
+        """
+        profile.mdファイルを更新（上書き）する。ファイルが存在しない場合は新規作成する。
+
+        Args:
+            content: 更新後のprofile.md全文
+            folder_id: フォルダID（指定がない場合はコンストラクタで指定したIDを使用）
+
+        Returns:
+            更新されたファイルのID
+        """
+        try:
+            target_folder_id = self._resolve_folder_id(folder_id)
+            query = f"name = 'profile.md' and '{target_folder_id}' in parents and trashed = false"
+            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+            files = results.get("files", [])
+
+            media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="text/markdown", resumable=True)
+
+            if files:
+                file_id = files[0]["id"]
+                self.service.files().update(fileId=file_id, media_body=media).execute()
+                logger.info(f"Updated profile.md in Google Drive. ID: {file_id}")
+                return file_id
+
+            # ファイルが存在しない場合は新規作成
+            file_metadata = {"name": "profile.md", "mimeType": "text/markdown", "parents": [target_folder_id]}
+            file = self.service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+            file_id = file.get("id")
+            logger.info(f"Created new profile.md in Google Drive. ID: {file_id}")
+            return file_id
+        except HttpError as error:
+            logger.error(f"An error occurred while updating profile.md: {error}")
             return ""
