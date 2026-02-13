@@ -17,7 +17,7 @@ var roleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefin
 
 // ループで各principalにroleAssignmentを作成
 resource keyVaultRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for assignment in principalAssignments: {
-  name: guid(assignment.name, keyVault.id, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+  name: guid(keyVault.id, assignment.principalId, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
   scope: keyVault
   properties: {
     principalId: assignment.principalId
