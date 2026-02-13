@@ -111,7 +111,7 @@ module AppService './app/api.bicep' = {
     cosmosDbAccountName: empty(cosmosDbAccountName) ? CosmosDB.outputs.name : existingCosmosDB.name
     cosmosDbResourceGroupName: empty(cosmosDbResourceGroupName) ? rg.name : cosmosDbResourceGroupName
     keyVaultName: keyVaultName
-    alwaysOn: true
+    alwaysOn: false
     appSettings: {
       LANGSMITH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LANGSMITH-API-KEY)'
       LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
