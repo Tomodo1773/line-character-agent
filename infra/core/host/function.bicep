@@ -21,7 +21,7 @@ param kind string = 'app,linux'
 
 // Microsoft.Web/sites/config
 param allowedOrigins array = []
-param alwaysOn bool = true
+param alwaysOn bool = false
 param appCommandLine string = ''
 @secure()
 param appSettings object = {}
