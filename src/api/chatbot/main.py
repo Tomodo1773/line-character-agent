@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -33,7 +32,7 @@ from chatbot.models import (
 )
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.auth import verify_api_key
-from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
+from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.line import LineMessenger
 
@@ -62,14 +61,6 @@ def _get_effective_userid(original_userid: str) -> str:
     if local_user_id:
         return local_user_id
     return original_userid
-
-
-# 環境変数のチェック
-is_valid, missing_vars = check_environment_variables()
-if not is_valid:
-    logger.error("Required environment variables are not set. Exiting application.")
-    logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
-    sys.exit(1)
 
 
 @asynccontextmanager
