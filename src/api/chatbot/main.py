@@ -132,7 +132,7 @@ async def lifespan(app: FastAPI):
 
 
 # アプリの設定
-handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
+handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET", ""))
 
 app = FastAPI(
     title="LINEBOT-AI-AGENT",
