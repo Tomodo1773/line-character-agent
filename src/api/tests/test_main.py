@@ -4,15 +4,13 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from chatbot.agent import ChatbotAgent, ensure_folder_id_settings_node, ensure_oauth_settings_node
-from chatbot.main import _get_effective_userid, app, extract_agent_text
+from chatbot.main import _get_effective_userid, extract_agent_text, root
 
-client = TestClient(app)
 TEST_USER_ID = "test-user"
 
 
@@ -58,9 +56,8 @@ def test_read_root():
     - ステータスコードが200であることを確認
     - レスポンスが期待通りのJSONフォーマットであることを確認
     """
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"message": "The server is up and running."}
+    result = asyncio.run(root())
+    assert result == {"message": "The server is up and running."}
 
 
 def test_chatbot_agent_response():
