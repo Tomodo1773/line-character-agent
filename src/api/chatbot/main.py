@@ -72,7 +72,6 @@ async def lifespan(app: FastAPI):
     """
     global event_loop
     event_loop = asyncio.get_running_loop()
-    get_env_variable("LINE_CHANNEL_SECRET")
     conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
 
     connection_kwargs = {
@@ -132,7 +131,8 @@ async def lifespan(app: FastAPI):
         logger.info("PostgreSQL connection pool closed")
 
 
-# アプリの設定
+# デコレータでハンドラ登録するためモジュールレベルで初期化が必要。
+# テスト時に環境変数が未設定でもインポートできるようデフォルト値を空文字にしている。
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET", ""))
 
 app = FastAPI(
