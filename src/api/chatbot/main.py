@@ -53,7 +53,7 @@ def _handle_error(e: Exception, line_messenger: LineMessenger) -> None:
     elif isinstance(e, HTTPException):
         error_message = f"Error {e.status_code}: {e.detail}"
     else:
-        error_message = f"Error: {e}"
+        error_message = "予期しないエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
     line_messenger.reply_message([TextMessage(text=error_message)])
     logger.error(f"Returned error message to the user: {e}")
 
@@ -134,8 +134,12 @@ async def lifespan(app: FastAPI):
         cosmos_client = _create_cosmos_client()
         logger.info("CosmosClient initialized")
 
-        # users コンテナを初期化（DI で使用）
-        app.state.users_container = init_users_container(cosmos_client)
+        # users コンテナを初期化（DI + agent ノードで使用）
+        from chatbot.dependencies import initialize_users_container
+
+        users_container = init_users_container(cosmos_client)
+        app.state.users_container = users_container
+        initialize_users_container(users_container)
         logger.info("Users container initialized")
 
         # agent tools の CosmosClient も初期化
