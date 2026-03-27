@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-import sys
 import uuid
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -21,7 +20,7 @@ from chatbot.agent.character_graph.nodes import (
     spotify_agent_node,
 )
 from chatbot.agent.character_graph.state import State
-from chatbot.utils.config import check_environment_variables, create_logger
+from chatbot.utils.config import create_logger
 
 logger = create_logger(__name__)
 
@@ -99,13 +98,6 @@ class ChatbotAgent:
 
 
 if __name__ == "__main__":
-    # 環境変数のチェック
-    is_valid, missing_vars = check_environment_variables()
-    if not is_valid:
-        logger.error("必要な環境変数が設定されていません。アプリケーションを終了します。")
-        logger.error(f"未設定の環境変数: {', '.join(missing_vars)}")
-        sys.exit(1)
-
     # CLI 実行時はインメモリのチェックポインタを使用
     from langgraph.checkpoint.memory import MemorySaver
 

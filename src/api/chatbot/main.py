@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -33,7 +32,7 @@ from chatbot.models import (
 )
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.auth import verify_api_key
-from chatbot.utils.config import check_environment_variables, create_logger, get_env_variable
+from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.line import LineMessenger
 
@@ -42,6 +41,21 @@ load_dotenv()
 logger = create_logger(__name__)
 # FastAPI アプリケーションのイベントループ（AsyncPostgresSaver と共有する）
 event_loop = None
+
+
+def _handle_error(e: Exception, line_messenger: LineMessenger) -> None:
+    """例外をユーザー向けメッセージに変換して LINE に返信する。"""
+    if isinstance(e, DiaryWorkflowError):
+        error_message = str(e)
+    elif isinstance(e, PsycopgOperationalError):
+        logger.error(f"PostgreSQL connection error: {e}")
+        error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
+    elif isinstance(e, HTTPException):
+        error_message = f"Error {e.status_code}: {e.detail}"
+    else:
+        error_message = "予期しないエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
+    line_messenger.reply_message([TextMessage(text=error_message)])
+    logger.error(f"Returned error message to the user: {e}")
 
 
 def _get_effective_userid(original_userid: str) -> str:
@@ -64,14 +78,6 @@ def _get_effective_userid(original_userid: str) -> str:
     return original_userid
 
 
-# 環境変数のチェック
-is_valid, missing_vars = check_environment_variables()
-if not is_valid:
-    logger.error("Required environment variables are not set. Exiting application.")
-    logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
-    sys.exit(1)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI アプリのライフサイクルで AsyncPostgresSaver を管理する
@@ -81,6 +87,11 @@ async def lifespan(app: FastAPI):
     """
     global event_loop
     event_loop = asyncio.get_running_loop()
+
+    # LangChain トレーシング設定（既存値があれば上書きしない）
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    os.environ.setdefault("LANGCHAIN_PROJECT", "LINE-AI-BOT")
+
     conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
 
     connection_kwargs = {
@@ -117,12 +128,19 @@ async def lifespan(app: FastAPI):
         app.state.checkpointer = checkpointer
         app.state.pool = pool
 
-        # CosmosClient を初期化（DI で使用）
-        from chatbot.database.core import _create_cosmos_client
+        # CosmosClient を初期化
+        from chatbot.database.core import _create_cosmos_client, init_users_container
 
         cosmos_client = _create_cosmos_client()
-        app.state.cosmos_client = cosmos_client
         logger.info("CosmosClient initialized")
+
+        # users コンテナを初期化（DI + agent ノードで使用）
+        from chatbot.dependencies import initialize_users_container
+
+        users_container = init_users_container(cosmos_client)
+        app.state.users_container = users_container
+        initialize_users_container(users_container)
+        logger.info("Users container initialized")
 
         # agent tools の CosmosClient も初期化
         from chatbot.agent.tools import initialize_cosmos_client
@@ -140,8 +158,9 @@ async def lifespan(app: FastAPI):
         logger.info("PostgreSQL connection pool closed")
 
 
-# アプリの設定
-handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
+# デコレータでハンドラ登録するためモジュールレベルで初期化が必要。
+# テスト時に環境変数が未設定でもインポートできるようデフォルト値を空文字にしている。
+handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET", ""))
 
 app = FastAPI(
     title="LINEBOT-AI-AGENT",
@@ -257,7 +276,7 @@ async def handle_text_async(event):
         # DI: CosmosClient から UserRepository を作成
         from chatbot.dependencies import create_user_repository
 
-        user_repository = create_user_repository(app.state.cosmos_client)
+        user_repository = create_user_repository(app.state.users_container)
 
         # 会話履歴リセットのキーワードをチェック
         if event.message.text.strip() == "閑話休題":
@@ -294,20 +313,8 @@ async def handle_text_async(event):
         reply_messages = [TextMessage(text=reply_text)]
         line_messenger.reply_message(reply_messages)
 
-    except PsycopgOperationalError as e:
-        # PostgreSQL接続エラー（タイムアウト等）の場合
-        logger.error(f"PostgreSQL connection error: {e}")
-        error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
-        line_messenger.reply_message([TextMessage(text=error_message)])
-
     except Exception as e:
-        # メッセージを返信
-        if hasattr(e, "status_code") and hasattr(e, "detail"):
-            error_message = f"Error {e.status_code}: {e.detail}"
-        else:
-            error_message = f"Error: {str(e)}"
-        line_messenger.reply_message([TextMessage(text=error_message)])
-        logger.error(f"Returned error message to the user: {e}")
+        _handle_error(e, line_messenger)
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
@@ -328,7 +335,7 @@ async def handle_audio_async(event):
         # DI: CosmosClient から UserRepository を作成
         from chatbot.dependencies import create_user_repository
 
-        user_repository = create_user_repository(app.state.cosmos_client)
+        user_repository = create_user_repository(app.state.users_container)
         logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
 
@@ -381,20 +388,8 @@ async def handle_audio_async(event):
         if saved_filename:
             logger.info(f"Saved diary to Google Drive: {saved_filename}")
 
-    except DiaryWorkflowError as e:
-        # ワークフロー内でのドメインエラーはメッセージとしてそのままユーザーに返す
-        error_message = str(e)
-        line_messenger.reply_message([TextMessage(text=error_message)])
-        logger.error(f"Diary workflow error: {e}")
-    except PsycopgOperationalError as e:
-        logger.error(f"PostgreSQL connection error during audio processing: {e}")
-        error_message = "データベース接続でエラーが発生しちゃった。少し時間をおいてもう一度試してね。"
-        line_messenger.reply_message([TextMessage(text=error_message)])
-
     except Exception as e:
-        error_message = f"Error: {e}"
-        line_messenger.reply_message([TextMessage(text=error_message)])
-        logger.error(f"Returned error message to the user: {e}")
+        _handle_error(e, line_messenger)
 
 
 @handler.add(MessageEvent, message=AudioMessageContent)

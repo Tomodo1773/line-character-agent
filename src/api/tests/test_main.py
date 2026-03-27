@@ -4,15 +4,13 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from chatbot.agent import ChatbotAgent, ensure_folder_id_settings_node, ensure_oauth_settings_node
-from chatbot.main import _get_effective_userid, app, extract_agent_text
+from chatbot.main import _get_effective_userid, extract_agent_text, root
 
-client = TestClient(app)
 TEST_USER_ID = "test-user"
 
 
@@ -58,9 +56,8 @@ def test_read_root():
     - ステータスコードが200であることを確認
     - レスポンスが期待通りのJSONフォーマットであることを確認
     """
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"message": "The server is up and running."}
+    result = asyncio.run(root())
+    assert result == {"message": "The server is up and running."}
 
 
 def test_chatbot_agent_response():
@@ -430,9 +427,8 @@ def test_handle_text_async_with_reset_keyword():
     new_session_id = "new-session-id"
     mock_user_repo.reset_session.return_value = SessionMetadata(session_id=new_session_id, last_accessed=MagicMock())
 
-    # app.state.cosmos_client をモック
-    mock_cosmos_client = MagicMock()
-    app.state.cosmos_client = mock_cosmos_client
+    # app.state をモック
+    app.state.users_container = MagicMock()
 
     # DI パターン用のモック設定: create_user_repository をモック
     # LOCAL_USER_ID を含まない環境で実行

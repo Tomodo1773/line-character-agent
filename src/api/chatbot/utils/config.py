@@ -1,23 +1,5 @@
 import logging
 import os
-from typing import List, Tuple
-
-# 必要な環境変数のリスト
-REQUIRED_ENV_VARS = [
-    "LINE_CHANNEL_ACCESS_TOKEN",
-    "LINE_CHANNEL_SECRET",
-    "OPENAI_API_KEY",
-    "LANGSMITH_API_KEY",
-    "COSMOS_DB_ACCOUNT_URL",
-    "COSMOS_DB_ACCOUNT_KEY",
-    "OPENAI_COMPATIBLE_API_KEY",
-    "MCP_FUNCTION_URL",
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_OAUTH_REDIRECT_URI",
-    "GOOGLE_TOKEN_ENC_KEY",
-    "POSTGRES_CHECKPOINT_URL",
-]
 
 
 def create_logger(name: str) -> logging.Logger:
@@ -55,22 +37,3 @@ def get_env_variable(key: str) -> str:
         logger.error("環境変数 %s が設定されていません", key)
         raise EnvironmentError(f"環境変数 {key} が設定されていません")
     return value
-
-
-def check_environment_variables() -> Tuple[bool, List[str]]:
-    """
-    必要な環境変数が設定されているかチェックする関数
-
-    Returns:
-        Tuple[bool, List[str]]:
-            - bool: すべての環境変数が設定されている場合はTrue、そうでない場合はFalse
-            - List[str]: 未設定の環境変数のリスト
-    """
-    missing_vars = []
-
-    for var in REQUIRED_ENV_VARS:
-        if not os.getenv(var):
-            missing_vars.append(var)
-            logger.error(f"環境変数 {var} が設定されていません")
-
-    return len(missing_vars) == 0, missing_vars

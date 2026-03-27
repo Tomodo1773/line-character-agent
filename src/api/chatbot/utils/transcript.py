@@ -1,4 +1,3 @@
-import getpass
 import os
 import tempfile
 from typing import Optional
@@ -9,29 +8,11 @@ from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
 
-from chatbot.utils.config import create_logger
+from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.google_drive_utils import get_dictionary_from_drive
 
 logger = create_logger(__name__)
-
-# ############################################
-# 事前準備
-# ############################################
-
-
-def _set_if_undefined(var: str) -> None:
-    # 環境変数が未設定の場合、ユーザーに入力を促す
-    if not os.environ.get(var):
-        os.environ[var] = getpass.getpass(f"Please provide your {var}")
-
-
-# 必要な環境変数を設定
-_set_if_undefined("OPENAI_API_KEY")
-
-# Optional, add tracing in LangSmith (via LangChain)
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT") or "LINE-AI-BOT"
 
 system_prompt = """
 # 命令文
@@ -75,6 +56,7 @@ system_prompt = """
 class DiaryTranscription:
     def __init__(self, drive_handler: Optional[GoogleDriveHandler] = None) -> None:
         self._drive_handler = drive_handler
+        self._openai_client = OpenAI(api_key=get_env_variable("OPENAI_API_KEY"))
         self.chain = self._create_chain()
 
     def invoke(
@@ -116,8 +98,9 @@ class DiaryTranscription:
     def transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)
         with open(file_path, "rb") as f:
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            transcript = client.audio.transcriptions.create(model="gpt-4o-transcribe", file=f, response_format="text")
+            transcript = self._openai_client.audio.transcriptions.create(
+                model="gpt-4o-transcribe", file=f, response_format="text"
+            )
         return {"transcribed_text": transcript}
 
     def _save_audio(self, audio_file: bytes) -> str:

@@ -1,14 +1,21 @@
 import logging
 
 from azure.cosmos import CosmosClient, PartitionKey
-from dotenv import load_dotenv
 from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
+
+_embeddings: OpenAIEmbeddings | None = None
+
+
+def _get_embeddings() -> OpenAIEmbeddings:
+    """OpenAIEmbeddings を遅延初期化して返す（シングルトン）。"""
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    return _embeddings
 
 
 class DiarySearchInput(BaseModel):
@@ -110,9 +117,7 @@ def _build_date_filter(start_date: str = None, end_date: str = None) -> str:
 def hybrid_search(query_text: str, top_k: int = 5, start_date: str = None, end_date: str = None):
     """ハイブリッド検索実装（ベクトル検索 + BM25フルテキスト検索）"""
     try:
-        # 埋め込みを作成
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-        query_vector = embeddings.embed_query(query_text)
+        query_vector = _get_embeddings().embed_query(query_text)
 
         # コンテナを取得
         container = get_cosmos_container()
@@ -148,9 +153,7 @@ def hybrid_search(query_text: str, top_k: int = 5, start_date: str = None, end_d
 def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = None, end_date: str = None):
     """フォールバック用のベクトル検索実装"""
     try:
-        # 埋め込みを作成
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-        query_vector = embeddings.embed_query(query_text)
+        query_vector = _get_embeddings().embed_query(query_text)
 
         # コンテナを取得
         container = get_cosmos_container()

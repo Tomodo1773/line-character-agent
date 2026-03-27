@@ -1,10 +1,4 @@
-import os
-
-from dotenv import load_dotenv
-
-from chatbot.utils.config import create_logger
-
-load_dotenv()
+from chatbot.utils.config import create_logger, get_env_variable
 
 logger = create_logger(__name__)
 
@@ -18,10 +12,5 @@ def verify_api_key(api_key: str) -> bool:
     Returns:
         bool: 検証結果（Trueなら有効）
     """
-    valid_api_key = os.environ.get("OPENAI_COMPATIBLE_API_KEY", "")
-
-    if not valid_api_key:
-        logger.error("OPENAI_COMPATIBLE_API_KEYが設定されていません")
-        return False
-
+    valid_api_key = get_env_variable("OPENAI_COMPATIBLE_API_KEY")
     return api_key == valid_api_key
