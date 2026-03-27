@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 from linebot.v3.messaging import (
     ApiClient,
     Configuration,
@@ -14,16 +13,23 @@ from chatbot.utils.config import create_logger, get_env_variable
 
 logger = create_logger(__name__)
 
-load_dotenv()
+_api_client: ApiClient | None = None
+
+
+def _get_api_client() -> ApiClient:
+    """LINE API クライアントを遅延初期化して返す（シングルトン）。"""
+    global _api_client
+    if _api_client is None:
+        configuration = Configuration(access_token=get_env_variable("LINE_CHANNEL_ACCESS_TOKEN"))
+        _api_client = ApiClient(configuration)
+    return _api_client
 
 
 class LineMessenger:
     def __init__(self, event: MessageEvent | None = None, user_id: str | None = None) -> None:
-        line_api_configuration = Configuration(access_token=get_env_variable("LINE_CHANNEL_ACCESS_TOKEN"))
-
-        self.line_api_client = ApiClient(line_api_configuration)
-        self.line_api = MessagingApi(self.line_api_client)
-        self.line_api_blob = MessagingApiBlob(self.line_api_client)
+        client = _get_api_client()
+        self.line_api = MessagingApi(client)
+        self.line_api_blob = MessagingApiBlob(client)
         if event:
             self.user_id = event.source.user_id
             self.reply_token = event.reply_token

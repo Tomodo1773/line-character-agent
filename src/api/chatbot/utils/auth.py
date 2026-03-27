@@ -1,8 +1,4 @@
-from dotenv import load_dotenv
-
 from chatbot.utils.config import create_logger, get_env_variable
-
-load_dotenv()
 
 logger = create_logger(__name__)
 

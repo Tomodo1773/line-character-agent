@@ -3,60 +3,29 @@
 from unittest.mock import MagicMock
 
 import pytest
-from azure.cosmos import CosmosClient
 from fastapi import FastAPI
 
 from chatbot.database.core import CosmosCore
 from chatbot.database.repositories import UserRepository
-from chatbot.dependencies import create_user_repository, get_cosmos_client, get_oauth_manager, get_user_repository
+from chatbot.dependencies import create_user_repository, get_oauth_manager, get_user_repository
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
-
-
-class TestGetCosmosClient:
-    """get_cosmos_client 関数のテスト。"""
-
-    def test_get_cosmos_client_returns_client_from_app_state(self):
-        """app.state.cosmos_client から CosmosClient が取得できることを確認。"""
-        # Arrange
-        mock_client = MagicMock(spec=CosmosClient)
-        mock_app = FastAPI()
-        mock_app.state.cosmos_client = mock_client
-
-        mock_request = MagicMock()
-        mock_request.app = mock_app
-
-        # Act
-        result = get_cosmos_client(mock_request)
-
-        # Assert
-        assert result is mock_client
-
-    def test_get_cosmos_client_raises_runtime_error_when_not_initialized(self):
-        """app.state.cosmos_client が初期化されていない場合に RuntimeError を発生させることを確認。"""
-        # Arrange
-        mock_app = FastAPI()
-        # cosmos_client を設定しない
-
-        mock_request = MagicMock()
-        mock_request.app = mock_app
-
-        # Act & Assert
-        with pytest.raises(RuntimeError) as exc_info:
-            get_cosmos_client(mock_request)
-
-        assert "CosmosClient not initialized in app.state" in str(exc_info.value)
 
 
 class TestGetUserRepository:
     """get_user_repository 関数のテスト。"""
 
-    def test_get_user_repository_creates_repository_with_cosmos_client(self):
-        """CosmosClient から UserRepository が生成されることを確認。"""
+    def test_get_user_repository_creates_repository_from_container(self):
+        """app.state.users_container から UserRepository が生成されることを確認。"""
         # Arrange
-        mock_client = MagicMock(spec=CosmosClient)
+        mock_container = MagicMock()
+        mock_app = FastAPI()
+        mock_app.state.users_container = mock_container
+
+        mock_request = MagicMock()
+        mock_request.app = mock_app
 
         # Act
-        result = get_user_repository(cosmos_client=mock_client)
+        result = get_user_repository(mock_request)
 
         # Assert
         assert isinstance(result, UserRepository)
@@ -87,31 +56,13 @@ class TestGetOAuthManager:
 class TestCreateUserRepository:
     """create_user_repository 関数のテスト。"""
 
-    def test_create_user_repository_with_cosmos_client(self):
-        """CosmosClient を渡すと UserRepository が生成されることを確認。"""
+    def test_create_user_repository_with_container(self):
+        """コンテナを渡すと UserRepository が生成されることを確認。"""
         # Arrange
-        mock_client = MagicMock(spec=CosmosClient)
+        mock_container = MagicMock()
 
         # Act
-        result = create_user_repository(cosmos_client=mock_client)
-
-        # Assert
-        assert isinstance(result, UserRepository)
-        assert isinstance(result._core, CosmosCore)
-
-    def test_create_user_repository_without_cosmos_client(self, monkeypatch):
-        """CosmosClient を渡さないと get_cosmos_client() から取得して UserRepository が生成されることを確認。"""
-        # Arrange
-        mock_client = MagicMock(spec=CosmosClient)
-
-        # get_cosmos_client() をモック
-        def mock_get_cosmos_client():
-            return mock_client
-
-        monkeypatch.setattr("chatbot.agent.tools.get_cosmos_client", mock_get_cosmos_client)
-
-        # Act
-        result = create_user_repository()
+        result = create_user_repository(container=mock_container)
 
         # Assert
         assert isinstance(result, UserRepository)

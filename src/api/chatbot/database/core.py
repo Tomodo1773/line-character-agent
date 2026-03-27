@@ -10,23 +10,21 @@ from fastapi import HTTPException
 from chatbot.utils.config import get_env_variable
 
 
+def init_users_container(cosmos_client: CosmosClient):
+    """users コンテナを初期化して返す。アプリ起動時に1回だけ呼び出す。"""
+    database = cosmos_client.create_database_if_not_exists(id="main", offer_throughput=600)
+    return database.create_container_if_not_exists(id="users", partition_key=PartitionKey(path="/id"))
+
+
 class CosmosCore:
     """CosmosDBの基本操作を提供するクラス"""
 
-    def __init__(self, cosmos_client: CosmosClient, container_name: str):
+    def __init__(self, container):
         """
         Args:
-            cosmos_client: CosmosClient インスタンス
-            container_name: コンテナ名
+            container: 初期化済みの Cosmos DB コンテナ
         """
-        self._client = cosmos_client
-        self._container = self._init_container(container_name)
-
-    def _init_container(self, container_name: str):
-        """コンテナの初期化"""
-        # mainデータベースを600 RU/sの共有スループットで作成（存在しない場合のみ）
-        database = self._client.create_database_if_not_exists(id="main", offer_throughput=600)
-        return database.create_container_if_not_exists(id=container_name, partition_key=PartitionKey(path="/id"))
+        self._container = container
 
     def save(self, data: Dict[str, Any]) -> None:
         """データの保存"""

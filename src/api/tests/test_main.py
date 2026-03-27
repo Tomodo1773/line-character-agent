@@ -427,9 +427,8 @@ def test_handle_text_async_with_reset_keyword():
     new_session_id = "new-session-id"
     mock_user_repo.reset_session.return_value = SessionMetadata(session_id=new_session_id, last_accessed=MagicMock())
 
-    # app.state.cosmos_client をモック
-    mock_cosmos_client = MagicMock()
-    app.state.cosmos_client = mock_cosmos_client
+    # app.state をモック
+    app.state.users_container = MagicMock()
 
     # DI パターン用のモック設定: create_user_repository をモック
     # LOCAL_USER_ID を含まない環境で実行
