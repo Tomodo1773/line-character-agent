@@ -80,9 +80,6 @@ updates:
       day: "monday"
     cooldown:
       default-days: 7
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 3
     groups:
       # すべてのGitHub Actionsを1つのPRにグループ化
       github-actions-version:
