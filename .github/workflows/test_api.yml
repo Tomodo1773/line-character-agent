@@ -46,10 +46,6 @@ jobs:
           uv run ruff format --check .
 
       - name: Run tests
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
-          LANGCHAIN_PROJECT: "LINE-AI-BOT-TEST"
         run: |
           cd src/api
           uv run pytest -s

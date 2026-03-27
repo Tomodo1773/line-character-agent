@@ -7,6 +7,8 @@ import pytz
 from azure.cosmos import CosmosClient, PartitionKey
 from fastapi import HTTPException
 
+from chatbot.utils.config import get_env_variable
+
 
 class CosmosCore:
     """CosmosDBの基本操作を提供するクラス"""
@@ -60,8 +62,8 @@ def _create_cosmos_client() -> CosmosClient:
     Returns:
         CosmosClient: 新規作成された CosmosClient インスタンス
     """
-    url = os.getenv("COSMOS_DB_ACCOUNT_URL")
-    key = os.getenv("COSMOS_DB_ACCOUNT_KEY")
+    url = get_env_variable("COSMOS_DB_ACCOUNT_URL")
+    key = get_env_variable("COSMOS_DB_ACCOUNT_KEY")
     verify_setting = os.getenv("COSMOS_DB_CONNECTION_VERIFY")
 
     if verify_setting is None:

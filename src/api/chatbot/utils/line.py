@@ -1,5 +1,3 @@
-import os
-
 from dotenv import load_dotenv
 from linebot.v3.messaging import (
     ApiClient,
@@ -12,7 +10,7 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent
 
-from chatbot.utils.config import create_logger
+from chatbot.utils.config import create_logger, get_env_variable
 
 logger = create_logger(__name__)
 
@@ -21,7 +19,7 @@ load_dotenv()
 
 class LineMessenger:
     def __init__(self, event: MessageEvent | None = None, user_id: str | None = None) -> None:
-        line_api_configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
+        line_api_configuration = Configuration(access_token=get_env_variable("LINE_CHANNEL_ACCESS_TOKEN"))
 
         self.line_api_client = ApiClient(line_api_configuration)
         self.line_api = MessagingApi(self.line_api_client)

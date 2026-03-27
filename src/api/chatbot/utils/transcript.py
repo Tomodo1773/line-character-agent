@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
 
-from chatbot.utils.config import create_logger
+from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.google_drive_utils import get_dictionary_from_drive
 
@@ -116,7 +116,7 @@ class DiaryTranscription:
     def transcription(self, audio_file: bytes) -> str:
         file_path = self._save_audio(audio_file)
         with open(file_path, "rb") as f:
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = OpenAI(api_key=get_env_variable("OPENAI_API_KEY"))
             transcript = client.audio.transcriptions.create(model="gpt-4o-transcribe", file=f, response_format="text")
         return {"transcribed_text": transcript}
 

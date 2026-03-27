@@ -72,6 +72,7 @@ async def lifespan(app: FastAPI):
     """
     global event_loop
     event_loop = asyncio.get_running_loop()
+    get_env_variable("LINE_CHANNEL_SECRET")
     conn_string = get_env_variable("POSTGRES_CHECKPOINT_URL")
 
     connection_kwargs = {
