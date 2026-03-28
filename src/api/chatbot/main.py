@@ -23,7 +23,8 @@ from psycopg_pool import AsyncConnectionPool
 from chatbot.agent import ChatbotAgent
 from chatbot.agent.diary_workflow import DiaryWorkflowError, get_diary_workflow
 from chatbot.database.repositories import UserRepository
-from chatbot.dependencies import get_oauth_manager, get_user_repository
+from chatbot.dependencies import create_user_repository, get_oauth_manager, get_user_repository
+from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.models import (
     ChatCompletionRequest,
     ChatCompletionStreamResponse,
@@ -34,6 +35,7 @@ from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
+from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.line import LineMessenger
 
 load_dotenv()
@@ -134,12 +136,9 @@ async def lifespan(app: FastAPI):
         cosmos_client = _create_cosmos_client()
         logger.info("CosmosClient initialized")
 
-        # users コンテナを初期化（DI + agent ノードで使用）
-        from chatbot.dependencies import initialize_users_container
-
+        # users コンテナを初期化
         users_container = init_users_container(cosmos_client)
         app.state.users_container = users_container
-        initialize_users_container(users_container)
         logger.info("Users container initialized")
 
         # agent tools の CosmosClient も初期化
@@ -194,12 +193,6 @@ async def google_drive_oauth_callback(
         logger.warning("No user found for the provided state; prompting user to restart OAuth.")
         return {"message": "ユーザー情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"}
 
-    # セッションIDが既に保存されていればそれを使い、なければ新規に発行する
-    session_id = user_data.get("session_id")
-    if not session_id:
-        session = user_repository.ensure_session(userid)
-        session_id = session.session_id
-
     # ローカル開発時は LOCAL_LINE_USER_ID を使用（LINE APIに送信するため正式なLINE user IDが必要）
     line_user_id = os.getenv("LOCAL_LINE_USER_ID") or userid
     line_messenger = LineMessenger(user_id=line_user_id)
@@ -208,30 +201,14 @@ async def google_drive_oauth_callback(
         credentials = oauth_manager.exchange_code_for_credentials(code)
         oauth_manager.save_user_credentials(userid, credentials)
 
-        agent = ChatbotAgent(checkpointer=app.state.checkpointer)
-        # OAuth完了後、interruptを再開（Command(resume=value)を使用）
-        response = await agent.aresume(session_id, "OAuth completed")
-        reply_text, is_interrupt = extract_agent_text(response)
-        line_messenger.push_message([TextMessage(text=reply_text)])
+        line_messenger.push_message([TextMessage(text="Google Driveの認証が完了したよ。メッセージを送ってね。")])
+        return {"message": "Authorization completed."}
 
-        return {
-            "message": "Authorization completed and conversation resumed."
-            if not is_interrupt
-            else "Authorization completed and awaiting additional input."
-        }
-
-    except (ValueError, HTTPException) as e:
-        logger.error(f"Failed to handle OAuth callback: {e}")
-        fallback_message = (
-            "Google DriveのOAuth設定は完了したけど、会話の再開に失敗しちゃった。続きが必要ならメッセージを送ってね。"
-        )
-        line_messenger.push_message([TextMessage(text=fallback_message)])
-        return {"message": "Authorization completed but resume failed."}
     except Exception as e:
         logger.exception(f"Unexpected error in OAuth callback: {e}")
-        fallback_message = "予期しないエラーが発生しました。もう一度試してね。"
+        fallback_message = "OAuth認証でエラーが発生しました。もう一度試してね。"
         line_messenger.push_message([TextMessage(text=fallback_message)])
-        return {"message": "Authorization completed but resume failed."}
+        return {"message": "Authorization failed."}
 
 
 @app.post("/callback")
@@ -254,6 +231,28 @@ async def callback(
     return "ok"
 
 
+def _check_oauth(user_repository, userid: str, line_messenger: LineMessenger):
+    """OAuth 認証情報を検証し、未設定なら認証URLを返信して None を返す。"""
+    oauth_manager = GoogleDriveOAuthManager(user_repository)
+    credentials = oauth_manager.get_user_credentials(userid)
+    if not credentials:
+        auth_url, _ = oauth_manager.generate_authorization_url(userid)
+        message = f"Google Drive へのアクセス許可がまだ設定されていないみたい。\n以下のURLから認可してね。\n{auth_url}"
+        line_messenger.reply_message([TextMessage(text=message)])
+    return credentials
+
+
+def _check_folder_id(user_repository, userid: str, line_messenger: LineMessenger) -> str | None:
+    """フォルダID を検証し、未設定なら入力を促すメッセージを返信して None を返す。"""
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if not folder_id:
+        message = (
+            "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+        )
+        line_messenger.reply_message([TextMessage(text=message)])
+    return folder_id
+
+
 def _schedule_coroutine(coro, *, description: str) -> None:
     future = asyncio.run_coroutine_threadsafe(coro, event_loop)
 
@@ -272,10 +271,6 @@ async def handle_text_async(event):
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
         userid = _get_effective_userid(event.source.user_id)
-
-        # DI: CosmosClient から UserRepository を作成
-        from chatbot.dependencies import create_user_repository
-
         user_repository = create_user_repository(app.state.users_container)
 
         # 会話履歴リセットのキーワードをチェック
@@ -283,8 +278,22 @@ async def handle_text_async(event):
             logger.info(f"Resetting session for user {userid}")
             session = user_repository.reset_session(userid)
             logger.info(f"Session reset for user {userid}. New session_id: {session.session_id}")
-            reply_text = "会話履歴をリセットしたよ。新しい気持ちで話そうね！"
-            line_messenger.reply_message([TextMessage(text=reply_text)])
+            line_messenger.reply_message([TextMessage(text="会話履歴をリセットしたよ。新しい気持ちで話そうね！")])
+            return
+
+        # OAuth / フォルダ ID の事前チェック
+        if not _check_oauth(user_repository, userid, line_messenger):
+            return
+
+        folder_id = user_repository.fetch_drive_folder_id(userid)
+        if not folder_id:
+            # テキストが Drive URL/ID として解釈できれば登録
+            extracted_id = extract_drive_folder_id(event.message.text.strip())
+            if extracted_id:
+                user_repository.save_drive_folder_id(userid, extracted_id)
+                line_messenger.reply_message([TextMessage(text="フォルダIDを設定したよ。これで準備完了！")])
+            else:
+                _check_folder_id(user_repository, userid, line_messenger)
             return
 
         logger.info(f"Ensuring session for user {userid}")
@@ -298,12 +307,9 @@ async def handle_text_async(event):
 
         messages = [{"type": "human", "content": event.message.text}]
         logger.info(f"Invoking agent for session_id: {session.session_id}")
-        if await agent.has_pending_interrupt(session.session_id):
-            logger.info("Resuming agent from interrupt")
-            response = await agent.aresume(session.session_id, event.message.text)
-        else:
-            logger.info("Invoking agent with new message")
-            response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
+        response = await agent.ainvoke(
+            messages=messages, userid=userid, session_id=session.session_id, user_repository=user_repository
+        )
 
         logger.info("Extracting agent response text")
         reply_text, _ = extract_agent_text(response)
@@ -331,17 +337,25 @@ async def handle_audio_async(event):
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
         userid = _get_effective_userid(event.source.user_id)
-
-        # DI: CosmosClient から UserRepository を作成
-        from chatbot.dependencies import create_user_repository
-
         user_repository = create_user_repository(app.state.users_container)
-        logger.info(f"Ensuring session for user {userid}")
-        session = user_repository.ensure_session(userid)
 
         # ローディングアニメーションを表示
         logger.info("Showing loading animation")
         line_messenger.show_loading_animation()
+
+        # OAuth / フォルダ ID の事前チェック
+        credentials = _check_oauth(user_repository, userid, line_messenger)
+        if not credentials:
+            return
+
+        folder_id = _check_folder_id(user_repository, userid, line_messenger)
+        if not folder_id:
+            return
+
+        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
+
+        logger.info(f"Ensuring session for user {userid}")
+        session = user_repository.ensure_session(userid)
 
         # 音声データを取得
         logger.info("Getting audio content from LINE")
@@ -353,15 +367,15 @@ async def handle_audio_async(event):
         logger.info("Invoking diary workflow")
 
         result = await workflow.ainvoke(
-            {"messages": [], "userid": userid, "session_id": session.session_id, "audio": audio},
-            {"configurable": {"thread_id": session.session_id}},
+            {
+                "messages": [],
+                "userid": userid,
+                "session_id": session.session_id,
+                "audio": audio,
+                "drive_handler": drive_handler,
+            },
+            {"configurable": {"thread_id": session.session_id, "user_repository": user_repository}},
         )
-
-        if result.get("__interrupt__"):
-            logger.info("Workflow returned interrupt")
-            interrupt_message, _ = extract_agent_text(result)
-            line_messenger.reply_message([TextMessage(text=interrupt_message)])
-            return
 
         logger.info("Processing workflow results")
         diary_text = result.get("diary_text")
@@ -453,10 +467,9 @@ async def create_chat_completion(
         yield f"data: {start_response.model_dump_json()}\n\n"
 
         try:
-            if await agent.has_pending_interrupt(session.session_id):
-                response = await agent.aresume(session.session_id, messages[-1]["content"])
-            else:
-                response = await agent.ainvoke(messages=messages, userid=userid, session_id=session.session_id)
+            response = await agent.ainvoke(
+                messages=messages, userid=userid, session_id=session.session_id, user_repository=user_repository
+            )
 
             reply_text, _ = extract_agent_text(response)
             chunk_response = ChatCompletionStreamResponse(

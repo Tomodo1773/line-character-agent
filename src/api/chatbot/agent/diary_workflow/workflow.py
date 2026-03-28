@@ -4,6 +4,7 @@ import os
 from typing import Annotated, Any, Literal
 
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
@@ -12,14 +13,9 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent.character_graph import ChatbotAgent
-from chatbot.agent.services.google_settings import (
-    ensure_folder_id_settings,
-    ensure_oauth_settings,
-)
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
-from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.transcript import DiaryTranscription
 
@@ -44,50 +40,13 @@ class DiaryWorkflowState(TypedDict):
 logger = create_logger(__name__)
 
 
-def _create_drive_handler(userid: str) -> GoogleDriveHandler | None:
-    """ユーザー固有の GoogleDriveHandler を作成。
-
-    DI により共有 CosmosClient から UserRepository を生成します。
-
-    Args:
-        userid: ユーザーID
-
-    Returns:
-        GoogleDriveHandler | None: 作成された GoogleDriveHandler、または設定不足の場合 None
-    """
-    from chatbot.dependencies import create_user_repository
-
-    # DI: CosmosClient から UserRepository を作成
-    user_repository = create_user_repository()
-
-    credentials = GoogleDriveOAuthManager(user_repository).get_user_credentials(userid)
-    folder_id = user_repository.fetch_drive_folder_id(userid)
-    if not credentials or not folder_id:
-        return None
-    return GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-
-
 def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) -> Any:
     graph_builder = StateGraph(DiaryWorkflowState)
-
-    @traceable(run_type="tool", name="Ensure OAuth Settings")
-    def ensure_oauth_settings_node(
-        state: DiaryWorkflowState,
-    ) -> Command[Literal["ensure_folder_id_settings_node", "__end__"]]:
-        logger.info("--- Diary Workflow: ensure_oauth_settings ---")
-        return ensure_oauth_settings(userid=state["userid"], success_goto="ensure_folder_id_settings_node")
-
-    @traceable(run_type="tool", name="Ensure Folder ID Settings")
-    def ensure_folder_id_settings_node(
-        state: DiaryWorkflowState,
-    ) -> Command[Literal["transcribe_diary_node", "__end__"]]:
-        logger.info("--- Diary Workflow: ensure_folder_id_settings ---")
-        return ensure_folder_id_settings(userid=state["userid"], success_goto="transcribe_diary_node")
 
     @traceable(run_type="chain", name="Transcribe Diary")
     def transcribe_diary_node(state: DiaryWorkflowState) -> Command[Literal["save_diary_node"]]:
         logger.info("--- Diary Workflow: transcribe_diary ---")
-        drive_handler = _create_drive_handler(state["userid"])
+        drive_handler = state.get("drive_handler")
         audio = state.get("audio")
 
         if not drive_handler:
@@ -146,6 +105,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     @traceable(run_type="chain", name="Invoke Character Comment")
     async def invoke_character_comment_node(
         state: DiaryWorkflowState,
+        config: RunnableConfig,
     ) -> Command[Literal["__end__"]]:
         logger.info("--- Diary Workflow: invoke_character_comment ---")
         diary_text = state.get("diary_text")
@@ -153,6 +113,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             message = AIMessage(content="日記の文字起こしが空だったからコメントは省略するね。")
             return Command(goto="__end__", update={"messages": [message]})
 
+        user_repository = config["configurable"]["user_repository"]
         agent = ChatbotAgent(checkpointer=agent_checkpointer)
         reaction_prompt = """以下の日記に対して一言だけ感想を言って。
 内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
@@ -162,6 +123,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             messages=[{"type": "human", "content": reaction_prompt}],
             userid=state["userid"],
             session_id=state["session_id"],
+            user_repository=user_repository,
         )
         reaction, _ = extract_agent_text(response)
         return Command(
@@ -169,10 +131,8 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             update={"character_comment": reaction, "messages": [AIMessage(content=reaction)]},
         )
 
-    graph_builder.add_node("ensure_oauth_settings_node", ensure_oauth_settings_node)
-    graph_builder.add_edge(START, "ensure_oauth_settings_node")
-    graph_builder.add_node("ensure_folder_id_settings_node", ensure_folder_id_settings_node)
     graph_builder.add_node("transcribe_diary_node", transcribe_diary_node)
+    graph_builder.add_edge(START, "transcribe_diary_node")
     graph_builder.add_node("save_diary_node", save_diary_node)
     graph_builder.add_node("generate_digest_node", generate_digest_node)
     graph_builder.add_node("invoke_character_comment_node", invoke_character_comment_node)

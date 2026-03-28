@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-from chatbot.agent import ChatbotAgent, ensure_folder_id_settings_node, ensure_oauth_settings_node
+from chatbot.agent import ChatbotAgent
 from chatbot.main import _get_effective_userid, extract_agent_text, root
 
 TEST_USER_ID = "test-user"
@@ -70,22 +70,12 @@ def test_chatbot_agent_response():
 
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_oauth_settings_node と ensure_folder_id_settings_node をモック
-            # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
-            with patch(
-                "chatbot.agent.character_graph.graph.ensure_oauth_settings_node",
-                return_value=Command(goto="ensure_folder_id_settings"),
-            ):
-                with patch(
-                    "chatbot.agent.character_graph.graph.ensure_folder_id_settings_node",
-                    return_value=Command(goto=["get_profile", "get_digest"]),
-                ):
-                    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-                    messages = [{"type": "human", "content": "こんにちは"}]
+            agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+            messages = [{"type": "human", "content": "こんにちは"}]
 
-                    response = asyncio.run(
-                        agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-                    )
+            response = asyncio.run(
+                agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+            )
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -131,36 +121,26 @@ def test_spotify_agent_mcp_fallback():
 
     with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
         with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # OAuth設定がないテスト環境では ensure_oauth_settings_node と ensure_folder_id_settings_node をモック
-            # グラフビルド時にgraph.pyからインポートされた関数を使用するため、graph.pyのパスをパッチ
-            with patch(
-                "chatbot.agent.character_graph.graph.ensure_oauth_settings_node",
-                return_value=Command(goto="ensure_folder_id_settings"),
-            ):
-                with patch(
-                    "chatbot.agent.character_graph.graph.ensure_folder_id_settings_node",
-                    return_value=Command(goto=["get_profile", "get_digest"]),
-                ):
-                    # get_mcp_toolsを空のリストを返すようにモック
-                    with patch.object(nodes, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
-                        mock_get_mcp_tools.return_value = []
+            # get_mcp_toolsを空のリストを返すようにモック
+            with patch.object(nodes, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
+                mock_get_mcp_tools.return_value = []
 
-                        # routerをモックしてspotify_agentに直接ルーティング
-                        with patch.object(nodes, "router_node") as mock_router:
-                            mock_router.return_value = Command(goto="spotify_agent")
+                # routerをモックしてspotify_agentに直接ルーティング
+                with patch.object(nodes, "router_node") as mock_router:
+                    mock_router.return_value = Command(goto="spotify_agent")
 
-                            agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-                        # B'zの曲検索をリクエスト
-                        messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
+                    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+                # B'zの曲検索をリクエスト
+                messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
 
-                        response = asyncio.run(
-                            agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-                        )
+                response = asyncio.run(
+                    agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+                )
 
-                    # レスポンスの検証
-                    assert "messages" in response
-                    last_message = response["messages"][-1].content
-                    assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
+            # レスポンスの検証
+            assert "messages" in response
+            last_message = response["messages"][-1].content
+            assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
 
 
 def test_spotify_agent():
@@ -216,86 +196,6 @@ def test_spotify_agent():
         assert isinstance(returned_messages[0], AIMessage)
         # 応答が空でないことを確認
         assert len(returned_messages[0].content) > 0
-
-
-def test_ensure_oauth_settings_node_triggers_interrupt(monkeypatch):
-    """OAuth設定がない場合にinterruptが発生することを検証"""
-
-    class DummyUserRepository:
-        def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
-            return None
-
-        def fetch_drive_folder_id(self, userid: str) -> str:  # pragma: no cover - no-op for test
-            return ""
-
-        def save_drive_folder_id(self, userid: str, folder_id: str) -> None:  # pragma: no cover
-            return None
-
-    dummy_manager = type(
-        "DummyManager",
-        (),
-        {
-            "get_user_credentials": lambda self, userid: None,
-            "generate_authorization_url": lambda self, state: ("https://example.com/auth", state),
-        },
-    )()
-
-    # interruptが呼ばれたかを記録するリスト
-    interrupt_calls: list[dict] = []
-
-    def mock_interrupt(payload):
-        interrupt_calls.append(payload)
-        return "OAuth completed"  # resumeされた時の値を返す
-
-    # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
-    monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
-    monkeypatch.setattr("chatbot.agent.services.google_settings.GoogleDriveOAuthManager", lambda repo: dummy_manager)
-    monkeypatch.setattr("chatbot.agent.services.google_settings.interrupt", mock_interrupt)
-
-    state = {"userid": "user", "session_id": "session", "messages": []}
-
-    result = ensure_oauth_settings_node(state)
-
-    # interruptが呼ばれたことを確認
-    assert len(interrupt_calls) == 1
-    assert interrupt_calls[0]["type"] == "missing_oauth_credentials"
-    assert "https://example.com/auth" in interrupt_calls[0]["message"]
-
-    # resumeされた後のCommandを確認
-    assert isinstance(result, Command)
-    assert result.goto == "ensure_folder_id_settings"
-    assert result.update is None
-
-
-def test_ensure_folder_id_settings_node_registers_folder_id(monkeypatch):
-    """フォルダIDが未設定の場合に入力を促し登録するフローを検証"""
-    saved_folder_ids: list[str] = []
-
-    class DummyUserRepository:
-        def ensure_user(self, userid: str) -> None:  # pragma: no cover - no-op for test
-            return None
-
-        def fetch_drive_folder_id(self, userid: str) -> str:  # pragma: no cover
-            return ""
-
-        def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
-            saved_folder_ids.append(folder_id)
-
-    # DI パターン用のモック設定: create_user_repository をモック（インポート元をパッチ）
-    monkeypatch.setattr("chatbot.dependencies.create_user_repository", lambda: DummyUserRepository())
-    monkeypatch.setattr(
-        "chatbot.agent.services.google_settings.interrupt",
-        lambda payload: "https://drive.google.com/drive/folders/test-folder-id",
-    )
-
-    state = {"userid": "user", "session_id": "session", "messages": []}
-
-    result = ensure_folder_id_settings_node(state)
-
-    assert isinstance(result, Command)
-    assert result.goto == ["get_profile", "get_digest"]
-    assert result.update is None
-    assert saved_folder_ids == ["test-folder-id"]
 
 
 def test_extract_agent_text_non_interrupt():
@@ -434,7 +334,7 @@ def test_handle_text_async_with_reset_keyword():
     # LOCAL_USER_ID を含まない環境で実行
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("LOCAL_USER_ID", None)
-        with patch("chatbot.dependencies.create_user_repository", return_value=mock_user_repo):
+        with patch("chatbot.main.create_user_repository", return_value=mock_user_repo):
             # LineMessengerのモック作成
             with patch("chatbot.main.LineMessenger") as mock_messenger_class:
                 mock_messenger = MagicMock()
@@ -451,3 +351,189 @@ def test_handle_text_async_with_reset_keyword():
                 reply_messages = mock_messenger.reply_message.call_args[0][0]
                 assert len(reply_messages) == 1
                 assert "会話履歴をリセットしたよ" in reply_messages[0].text
+
+
+class TestHandleAudioAsyncPreChecks:
+    """handle_audio_async の OAuth/フォルダID 事前チェックのテスト"""
+
+    def _create_audio_event(self):
+        from unittest.mock import Mock
+
+        event = Mock()
+        event.message.id = "audio-msg-123"
+        event.source.user_id = TEST_USER_ID
+        event.reply_token = "test-reply-token"
+        return event
+
+    def _run_with_mocks(self, mock_user_repo):
+        """共通のモック設定で handle_audio_async を実行し、LineMessenger のモックを返す"""
+        from unittest.mock import MagicMock, patch
+
+        from chatbot.database.models import SessionMetadata
+        from chatbot.main import app, handle_audio_async
+
+        event = self._create_audio_event()
+        mock_user_repo.ensure_session.return_value = SessionMetadata(session_id="test-session", last_accessed=MagicMock())
+        app.state.users_container = MagicMock()
+        app.state.checkpointer = MagicMock()
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LOCAL_USER_ID", None)
+            with patch("chatbot.main.create_user_repository", return_value=mock_user_repo):
+                with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                    mock_messenger = MagicMock()
+                    mock_messenger_class.return_value = mock_messenger
+
+                    asyncio.run(handle_audio_async(event))
+
+                    return mock_messenger
+
+    def test_oauth_not_configured(self):
+        """OAuth未設定の場合、認証URLを含むメッセージが返される"""
+        from unittest.mock import MagicMock, patch
+
+        mock_user_repo = MagicMock()
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = None
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", TEST_USER_ID)
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            mock_messenger = self._run_with_mocks(mock_user_repo)
+
+        mock_messenger.reply_message.assert_called_once()
+        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
+        assert "Google Drive へのアクセス許可がまだ設定されていない" in reply_text
+        assert "https://example.com/auth" in reply_text
+
+    def test_oauth_configured_but_folder_missing(self):
+        """OAuth設定済みだがフォルダID未設定の場合、フォルダID入力を促すメッセージが返される"""
+        from unittest.mock import MagicMock, patch
+
+        mock_user_repo = MagicMock()
+        mock_user_repo.fetch_drive_folder_id.return_value = None
+
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = MagicMock()  # credentials あり
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            mock_messenger = self._run_with_mocks(mock_user_repo)
+
+        mock_messenger.reply_message.assert_called_once()
+        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
+        assert "日記フォルダのID" in reply_text
+
+    def test_oauth_and_folder_configured(self):
+        """OAuth・フォルダID 両方設定済みの場合、ワークフローが呼び出される"""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_user_repo = MagicMock()
+        mock_user_repo.fetch_drive_folder_id.return_value = "test-folder-id"
+
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = MagicMock()
+
+        mock_drive_handler = MagicMock()
+
+        mock_workflow = MagicMock()
+        mock_workflow.ainvoke = AsyncMock(
+            return_value={"diary_text": "今日はテストした", "messages": [], "saved_filename": "2026-03-28.md"}
+        )
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            with patch("chatbot.main.GoogleDriveHandler", return_value=mock_drive_handler):
+                with patch("chatbot.main.get_diary_workflow", return_value=mock_workflow):
+                    mock_messenger = self._run_with_mocks(mock_user_repo)
+
+        # ワークフローが呼び出されたことを確認
+        mock_workflow.ainvoke.assert_called_once()
+        # drive_handler が state に含まれていることを確認
+        invoke_args = mock_workflow.ainvoke.call_args[0][0]
+        assert invoke_args["drive_handler"] is not None
+        # reply_message が呼ばれたことを確認（ワークフロー結果の返信）
+        mock_messenger.reply_message.assert_called_once()
+
+
+class TestHandleTextAsyncPreChecks:
+    """handle_text_async の OAuth/フォルダID 事前チェックのテスト"""
+
+    def _create_text_event(self, text="こんにちは"):
+        from unittest.mock import Mock
+
+        event = Mock()
+        event.message.text = text
+        event.source.user_id = TEST_USER_ID
+        event.reply_token = "test-reply-token"
+        return event
+
+    def _run_with_mocks(self, mock_user_repo, text="こんにちは"):
+        from unittest.mock import MagicMock, patch
+
+        from chatbot.main import app, handle_text_async
+
+        event = self._create_text_event(text)
+        app.state.users_container = MagicMock()
+        app.state.checkpointer = MagicMock()
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LOCAL_USER_ID", None)
+            with patch("chatbot.main.create_user_repository", return_value=mock_user_repo):
+                with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                    mock_messenger = MagicMock()
+                    mock_messenger_class.return_value = mock_messenger
+
+                    asyncio.run(handle_text_async(event))
+
+                    return mock_messenger
+
+    def test_oauth_not_configured(self):
+        """OAuth未設定の場合、認証URLを含むメッセージが返される"""
+        from unittest.mock import MagicMock, patch
+
+        mock_user_repo = MagicMock()
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = None
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", TEST_USER_ID)
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            mock_messenger = self._run_with_mocks(mock_user_repo)
+
+        mock_messenger.reply_message.assert_called_once()
+        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
+        assert "Google Drive へのアクセス許可がまだ設定されていない" in reply_text
+        assert "https://example.com/auth" in reply_text
+
+    def test_folder_missing_with_unrelated_text(self):
+        """フォルダID未設定かつ通常テキストの場合、入力を促すメッセージが返される"""
+        from unittest.mock import MagicMock, patch
+
+        mock_user_repo = MagicMock()
+        mock_user_repo.fetch_drive_folder_id.return_value = None
+
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = MagicMock()
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            mock_messenger = self._run_with_mocks(mock_user_repo, text="こんにちは")
+
+        mock_messenger.reply_message.assert_called_once()
+        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
+        assert "日記フォルダのID" in reply_text
+
+    def test_folder_missing_with_drive_url(self):
+        """フォルダID未設定かつDrive URLが送られた場合、フォルダIDが登録される"""
+        from unittest.mock import MagicMock, patch
+
+        mock_user_repo = MagicMock()
+        mock_user_repo.fetch_drive_folder_id.return_value = None
+
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = MagicMock()
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            mock_messenger = self._run_with_mocks(
+                mock_user_repo, text="https://drive.google.com/drive/folders/abc123_test-folder-id"
+            )
+
+        mock_user_repo.save_drive_folder_id.assert_called_once_with(TEST_USER_ID, "abc123_test-folder-id")
+        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
+        assert "フォルダIDを設定したよ" in reply_text
