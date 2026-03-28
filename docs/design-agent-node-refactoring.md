@@ -184,11 +184,11 @@ response = await agent.ainvoke(
 
 ```
 START
-  → ensure_oauth_settings     ← interrupt あり（残す）
-  → ensure_folder_id_settings ← interrupt あり（残す）
   → router                    ← profile/digest 取得を内包
   → chatbot / spotify_agent / diary_agent → __end__
 ```
+
+（OAuth/フォルダチェックは handle_text_async で実施済み）
 
 ### diary_workflow
 

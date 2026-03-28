@@ -4,6 +4,7 @@
 OAuth マネージャーのインスタンスを提供します。
 """
 
+from azure.cosmos import ContainerProxy
 from fastapi import Depends, Request
 
 from chatbot.database.core import CosmosCore
@@ -36,7 +37,7 @@ def get_oauth_manager(user_repository: UserRepository = Depends(get_user_reposit
     return GoogleDriveOAuthManager(user_repository)
 
 
-def create_user_repository(container) -> UserRepository:
+def create_user_repository(container: ContainerProxy) -> UserRepository:
     """UserRepository を生成するヘルパー関数。
 
     webhook ハンドラなど FastAPI DI が使えないコンテキストで使用。

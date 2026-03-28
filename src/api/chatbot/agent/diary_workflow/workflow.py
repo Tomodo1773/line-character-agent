@@ -16,7 +16,6 @@ from chatbot.agent.character_graph import ChatbotAgent
 from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
-from chatbot.utils.google_drive import GoogleDriveHandler
 from chatbot.utils.transcript import DiaryTranscription
 
 
@@ -34,7 +33,6 @@ class DiaryWorkflowState(TypedDict):
     digest_text: NotRequired[str | None]
     digest_saved: NotRequired[bool]
     character_comment: NotRequired[str | None]
-    drive_handler: NotRequired[GoogleDriveHandler | None]
 
 
 logger = create_logger(__name__)
@@ -44,29 +42,25 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
     graph_builder = StateGraph(DiaryWorkflowState)
 
     @traceable(run_type="chain", name="Transcribe Diary")
-    def transcribe_diary_node(state: DiaryWorkflowState) -> Command[Literal["save_diary_node"]]:
+    def transcribe_diary_node(state: DiaryWorkflowState, config: RunnableConfig) -> Command[Literal["save_diary_node"]]:
         logger.info("--- Diary Workflow: transcribe_diary ---")
-        drive_handler = state.get("drive_handler")
+        drive_handler = config["configurable"]["drive_handler"]
         audio = state.get("audio")
-
-        if not drive_handler:
-            message = "Google Driveの設定が見つからなかったよ。もう一度確認してみて。"
-            raise DiaryWorkflowError(message)
 
         if not audio:
             message = "音声を受け取れなかったみたい。もう一度送ってね。"
             raise DiaryWorkflowError(message)
 
         diary_text = DiaryTranscription(drive_handler).invoke(audio)
-        return Command(goto="save_diary_node", update={"drive_handler": drive_handler, "diary_text": diary_text})
+        return Command(goto="save_diary_node", update={"diary_text": diary_text})
 
     @traceable(run_type="tool", name="Save Diary")
-    def save_diary_node(state: DiaryWorkflowState) -> Command[Literal["generate_digest_node"]]:
+    def save_diary_node(state: DiaryWorkflowState, config: RunnableConfig) -> Command[Literal["generate_digest_node"]]:
         logger.info("--- Diary Workflow: save_diary ---")
         diary_text = state.get("diary_text")
-        drive_handler = state.get("drive_handler")
+        drive_handler = config["configurable"]["drive_handler"]
 
-        if not diary_text or not drive_handler:
+        if not diary_text:
             message = "日記の文字起こしに失敗しちゃった。もう一度試してね。"
             raise DiaryWorkflowError(message)
 
@@ -78,17 +72,19 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
 
         return Command(
             goto="generate_digest_node",
-            update={"messages": [message], "saved_filename": saved_filename, "drive_handler": drive_handler},
+            update={"messages": [message], "saved_filename": saved_filename},
         )
 
     @traceable(run_type="chain", name="Generate Digest")
-    def generate_digest_node(state: DiaryWorkflowState) -> Command[Literal["invoke_character_comment_node"]]:
+    def generate_digest_node(
+        state: DiaryWorkflowState, config: RunnableConfig
+    ) -> Command[Literal["invoke_character_comment_node"]]:
         logger.info("--- Diary Workflow: generate_digest ---")
         diary_text = state.get("diary_text")
         saved_filename = state.get("saved_filename")
-        drive_handler = state.get("drive_handler")
+        drive_handler = config["configurable"]["drive_handler"]
 
-        if not diary_text or not saved_filename or not drive_handler:
+        if not diary_text or not saved_filename:
             return Command(goto="invoke_character_comment_node")
 
         digest = generate_diary_digest(diary_text)

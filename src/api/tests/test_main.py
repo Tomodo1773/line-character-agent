@@ -446,9 +446,12 @@ class TestHandleAudioAsyncPreChecks:
 
         # ワークフローが呼び出されたことを確認
         mock_workflow.ainvoke.assert_called_once()
-        # drive_handler が state に含まれていることを確認
-        invoke_args = mock_workflow.ainvoke.call_args[0][0]
-        assert invoke_args["drive_handler"] is not None
+        # drive_handler が config に含まれていることを確認
+        invoke_config = mock_workflow.ainvoke.call_args[0][1]
+        assert invoke_config["configurable"]["drive_handler"] is not None
+        # state に drive_handler が含まれていないことを確認
+        invoke_state = mock_workflow.ainvoke.call_args[0][0]
+        assert "drive_handler" not in invoke_state
         # reply_message が呼ばれたことを確認（ワークフロー結果の返信）
         mock_messenger.reply_message.assert_called_once()
 

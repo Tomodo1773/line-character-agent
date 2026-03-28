@@ -20,6 +20,8 @@ from psycopg import OperationalError as PsycopgOperationalError
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from google.oauth2.credentials import Credentials
+
 from chatbot.agent import ChatbotAgent
 from chatbot.agent.diary_workflow import DiaryWorkflowError, get_diary_workflow
 from chatbot.database.repositories import UserRepository
@@ -231,7 +233,7 @@ async def callback(
     return "ok"
 
 
-def _check_oauth(user_repository, userid: str, line_messenger: LineMessenger):
+def _check_oauth(user_repository: UserRepository, userid: str, line_messenger: LineMessenger) -> Credentials | None:
     """OAuth 認証情報を検証し、未設定なら認証URLを返信して None を返す。"""
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     credentials = oauth_manager.get_user_credentials(userid)
@@ -242,7 +244,7 @@ def _check_oauth(user_repository, userid: str, line_messenger: LineMessenger):
     return credentials
 
 
-def _check_folder_id(user_repository, userid: str, line_messenger: LineMessenger) -> str | None:
+def _check_folder_id(user_repository: UserRepository, userid: str, line_messenger: LineMessenger) -> str | None:
     """フォルダID を検証し、未設定なら入力を促すメッセージを返信して None を返す。"""
     folder_id = user_repository.fetch_drive_folder_id(userid)
     if not folder_id:
@@ -293,7 +295,8 @@ async def handle_text_async(event):
                 user_repository.save_drive_folder_id(userid, extracted_id)
                 line_messenger.reply_message([TextMessage(text="フォルダIDを設定したよ。これで準備完了！")])
             else:
-                _check_folder_id(user_repository, userid, line_messenger)
+                message = "Google Driveで使う日記フォルダのIDを教えて。\ndrive.google.comのフォルダURLを貼るか、フォルダIDだけを送ってね。"
+                line_messenger.reply_message([TextMessage(text=message)])
             return
 
         logger.info(f"Ensuring session for user {userid}")
@@ -372,9 +375,14 @@ async def handle_audio_async(event):
                 "userid": userid,
                 "session_id": session.session_id,
                 "audio": audio,
-                "drive_handler": drive_handler,
             },
-            {"configurable": {"thread_id": session.session_id, "user_repository": user_repository}},
+            {
+                "configurable": {
+                    "thread_id": session.session_id,
+                    "user_repository": user_repository,
+                    "drive_handler": drive_handler,
+                }
+            },
         )
 
         logger.info("Processing workflow results")
