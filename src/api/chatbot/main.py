@@ -239,8 +239,12 @@ def _check_oauth(user_repository: UserRepository, userid: str, line_messenger: L
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
         auth_url, _ = oauth_manager.generate_authorization_url(userid)
-        message = f"Google Drive へのアクセス許可がまだ設定されていないみたい。\n以下のURLから認可してね。\n{auth_url}"
-        line_messenger.reply_message([TextMessage(text=message)])
+        line_messenger.reply_message(
+            [
+                TextMessage(text="Google Drive へのアクセス許可がまだ設定されていないみたい。\n以下のURLから認可してね。"),
+                TextMessage(text=auth_url),
+            ]
+        )
     return credentials
 
 

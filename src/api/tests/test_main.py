@@ -401,9 +401,10 @@ class TestHandleAudioAsyncPreChecks:
             mock_messenger = self._run_with_mocks(mock_user_repo)
 
         mock_messenger.reply_message.assert_called_once()
-        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
-        assert "Google Drive へのアクセス許可がまだ設定されていない" in reply_text
-        assert "https://example.com/auth" in reply_text
+        messages = mock_messenger.reply_message.call_args[0][0]
+        assert len(messages) == 2
+        assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
+        assert messages[1].text == "https://example.com/auth"
 
     def test_oauth_configured_but_folder_missing(self):
         """OAuth設定済みだがフォルダID未設定の場合、フォルダID入力を促すメッセージが返される"""
@@ -501,9 +502,10 @@ class TestHandleTextAsyncPreChecks:
             mock_messenger = self._run_with_mocks(mock_user_repo)
 
         mock_messenger.reply_message.assert_called_once()
-        reply_text = mock_messenger.reply_message.call_args[0][0][0].text
-        assert "Google Drive へのアクセス許可がまだ設定されていない" in reply_text
-        assert "https://example.com/auth" in reply_text
+        messages = mock_messenger.reply_message.call_args[0][0]
+        assert len(messages) == 2
+        assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
+        assert messages[1].text == "https://example.com/auth"
 
     def test_folder_missing_with_unrelated_text(self):
         """フォルダID未設定かつ通常テキストの場合、入力を促すメッセージが返される"""
