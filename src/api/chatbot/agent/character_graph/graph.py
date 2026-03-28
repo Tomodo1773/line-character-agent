@@ -6,15 +6,10 @@ import uuid
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
-from langgraph.types import Command
 
 from chatbot.agent.character_graph.nodes import (
     chatbot_node,
     diary_agent_node,
-    ensure_folder_id_settings_node,
-    ensure_oauth_settings_node,
-    get_digest_node,
-    get_profile_node,
     router_node,
     set_cached,
     spotify_agent_node,
@@ -34,56 +29,41 @@ class ChatbotAgent:
             set_cached(cached)
 
         graph_builder = StateGraph(State)
-        graph_builder.add_node("ensure_oauth_settings", ensure_oauth_settings_node)
-        graph_builder.add_edge(START, "ensure_oauth_settings")
-        graph_builder.add_node("ensure_folder_id_settings", ensure_folder_id_settings_node)
-        graph_builder.add_node("get_profile", get_profile_node)
-        graph_builder.add_node("get_digest", get_digest_node)
         graph_builder.add_node("router", router_node)
+        graph_builder.add_edge(START, "router")
         graph_builder.add_node("chatbot", chatbot_node)
         graph_builder.add_node("spotify_agent", spotify_agent_node)
         graph_builder.add_node("diary_agent", diary_agent_node)
         self.checkpointer = checkpointer
         self.graph = graph_builder.compile(checkpointer=self.checkpointer)
 
-    def _config(self, session_id: str) -> dict:
+    def _config(self, session_id: str, user_repository=None) -> dict:
         return {
             "recursion_limit": self.RECURSION_LIMIT,
-            "configurable": {"thread_id": session_id},
+            "configurable": {"thread_id": session_id, "user_repository": user_repository},
         }
 
-    async def ainvoke(self, messages: list, userid: str, session_id: str):
+    async def ainvoke(self, messages: list, userid: str, session_id: str, user_repository=None):
         return await self.graph.ainvoke(
             {"messages": messages, "userid": userid},
-            self._config(session_id),
+            self._config(session_id, user_repository),
         )
 
-    async def aresume(self, session_id: str, resume_value: str):
-        return await self.graph.ainvoke(Command(resume=resume_value), self._config(session_id))
-
-    async def astream(self, messages: list, userid: str, session_id: str):
+    async def astream(self, messages: list, userid: str, session_id: str, user_repository=None):
         async for msg, metadata in self.graph.astream(
             {"messages": messages, "userid": userid},
-            self._config(session_id),
+            self._config(session_id, user_repository),
             stream_mode="messages",
-            # stream_mode=["messages", "values"],
         ):
             yield msg, metadata
 
-    async def astream_updates(self, messages: list, userid: str, session_id: str):
+    async def astream_updates(self, messages: list, userid: str, session_id: str, user_repository=None):
         async for msg in self.graph.astream(
             {"messages": messages, "userid": userid},
-            self._config(session_id),
+            self._config(session_id, user_repository),
             stream_mode="updates",
         ):
             yield msg
-
-    async def has_pending_interrupt(self, session_id: str) -> bool:
-        if not self.checkpointer:
-            return False
-
-        state = await self.graph.aget_state(self._config(session_id))
-        return bool(getattr(state, "interrupts", None))
 
     def create_image(self):
         # imagesフォルダがなければ作成

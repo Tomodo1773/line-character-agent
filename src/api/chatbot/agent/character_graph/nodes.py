@@ -6,10 +6,10 @@ from typing import Literal
 from langchain.agents import create_agent
 from langchain.agents.structured_output import ProviderStrategy
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
-from langsmith import traceable
 from typing_extensions import TypedDict
 
 from chatbot.agent.character_graph.prompts import (
@@ -19,10 +19,6 @@ from chatbot.agent.character_graph.prompts import (
     SISTER_EDINET_SHORT_PROMPT,
 )
 from chatbot.agent.character_graph.state import State
-from chatbot.agent.services.google_settings import (
-    ensure_folder_id_settings,
-    ensure_oauth_settings,
-)
 from chatbot.agent.tools import diary_search_tool
 from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import create_logger
@@ -76,137 +72,66 @@ async def get_mcp_tools():
         return []
 
 
-def get_user_profile(userid: str) -> str:
+def _get_cached_drive_content(userid: str, user_repository, cache_key: str, fetch_fn) -> str:
+    """Google Drive からコンテンツを取得しキャッシュする汎用関数。"""
+    global _cached
+    if userid not in _cached[cache_key]:
+        logger.info(f"Fetching {cache_key} from Google Drive as it is not cached: {userid}")
+        from chatbot.utils.google_auth import GoogleDriveOAuthManager
+        from chatbot.utils.google_drive import GoogleDriveHandler
+
+        auth_manager = GoogleDriveOAuthManager(user_repository)
+        credentials = auth_manager.get_user_credentials(userid)
+        if not credentials:
+            logger.warning("Google Drive credentials not found for user: %s", userid)
+            _cached[cache_key][userid] = ""
+            return ""
+
+        folder_id = user_repository.fetch_drive_folder_id(userid)
+        if not folder_id:
+            logger.warning("Google Drive folder ID not found for user: %s", userid)
+            _cached[cache_key][userid] = ""
+            return ""
+
+        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
+        result = fetch_fn(drive_handler)
+        if result and "content" in result:
+            _cached[cache_key][userid] = result["content"]
+        else:
+            logger.error("Failed to get %s content, using empty value", cache_key)
+            _cached[cache_key][userid] = ""
+    return _cached[cache_key].get(userid, "")
+
+
+def get_user_profile(userid: str, user_repository) -> str:
     """キャッシュされたユーザプロフィール情報を取得、なければGoogle Driveから取得"""
-    global _cached
-    if userid not in _cached["profile"]:
-        logger.info(f"Fetching user profile from Google Drive as it is not cached: {userid}")
-        from chatbot.dependencies import create_user_repository
-        from chatbot.utils.google_auth import GoogleDriveOAuthManager
-        from chatbot.utils.google_drive import GoogleDriveHandler
-        from chatbot.utils.google_drive_utils import get_profile_from_drive
+    from chatbot.utils.google_drive_utils import get_profile_from_drive
 
-        # DI: CosmosClient から UserRepository を作成
-        user_repository = create_user_repository()
-
-        auth_manager = GoogleDriveOAuthManager(user_repository)
-        credentials = auth_manager.get_user_credentials(userid)
-
-        if not credentials:
-            logger.warning("Google Drive credentials not found for user: %s", userid)
-            _cached["profile"][userid] = ""
-            return ""
-
-        folder_id = user_repository.fetch_drive_folder_id(userid)
-        if not folder_id:
-            logger.warning("Google Drive folder ID not found for user: %s", userid)
-            _cached["profile"][userid] = ""
-            return ""
-
-        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-        user_profile = get_profile_from_drive(drive_handler)
-        if user_profile and "content" in user_profile:
-            _cached["profile"][userid] = user_profile["content"]
-        else:
-            logger.error("Failed to get profile content, using empty profile")
-            _cached["profile"][userid] = ""
-    return _cached["profile"].get(userid, "")
+    return _get_cached_drive_content(userid, user_repository, "profile", get_profile_from_drive)
 
 
-def get_user_digest(userid: str) -> str:
+def get_user_digest(userid: str, user_repository) -> str:
     """キャッシュされたユーザダイジェスト情報を取得、なければGoogle Driveから取得"""
-    global _cached
-    if userid not in _cached["digest"]:
-        logger.info(f"Fetching user digest from Google Drive as it is not cached: {userid}")
-        from chatbot.dependencies import create_user_repository
-        from chatbot.utils.google_auth import GoogleDriveOAuthManager
-        from chatbot.utils.google_drive import GoogleDriveHandler
-        from chatbot.utils.google_drive_utils import get_digest_from_drive
+    from chatbot.utils.google_drive_utils import get_digest_from_drive
 
-        # DI: CosmosClient から UserRepository を作成
-        user_repository = create_user_repository()
-
-        auth_manager = GoogleDriveOAuthManager(user_repository)
-        credentials = auth_manager.get_user_credentials(userid)
-
-        if not credentials:
-            logger.warning("Google Drive credentials not found for user: %s", userid)
-            _cached["digest"][userid] = ""
-            return ""
-
-        folder_id = user_repository.fetch_drive_folder_id(userid)
-        if not folder_id:
-            logger.warning("Google Drive folder ID not found for user: %s", userid)
-            _cached["digest"][userid] = ""
-            return ""
-
-        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
-        digest = get_digest_from_drive(drive_handler)
-        if digest and "content" in digest:
-            _cached["digest"][userid] = digest["content"]
-        else:
-            logger.error("Failed to get digest content, using empty digest")
-            _cached["digest"][userid] = ""
-    return _cached["digest"].get(userid, "")
+    return _get_cached_drive_content(userid, user_repository, "digest", get_digest_from_drive)
 
 
-@traceable(run_type="tool", name="Ensure OAuth Settings")
-def ensure_oauth_settings_node(state: State) -> Command[Literal["ensure_folder_id_settings", "__end__"]]:
-    """Google DriveのOAuth設定の有無を確認するノード"""
-    return ensure_oauth_settings(
-        userid=state["userid"],
-        success_goto="ensure_folder_id_settings",
-    )
-
-
-@traceable(run_type="tool", name="Ensure Folder ID Settings")
-def ensure_folder_id_settings_node(state: State) -> Command[Literal["get_profile", "get_digest", "__end__"]]:
-    """Google DriveのフォルダID設定の有無を確認するノード"""
-    return ensure_folder_id_settings(
-        userid=state["userid"],
-        success_goto=["get_profile", "get_digest"],
-    )
-
-
-@traceable(run_type="tool", name="Get Profile")
-def get_profile_node(state: State) -> Command[Literal["router"]]:
+def router_node(state: State, config: RunnableConfig) -> Command[Literal["diary_agent", "chatbot", "spotify_agent"]]:
     """
-    ユーザーのプロフィール情報を取得します。
-    get_digest_nodeと並列実行され、両方完了後にrouterノードへファンインします。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
-    Returns:
-        Command: routerノードへの遷移＆ユーザプロフィール情報
-    """
-    logger.info("--- Get Profile Node ---")
-    profile = get_user_profile(state["userid"])
-    return Command(goto="router", update={"profile": profile})
-
-
-@traceable(run_type="tool", name="Get Digest")
-def get_digest_node(state: State) -> Command[Literal["router"]]:
-    """
-    ユーザーのダイジェスト情報を取得します。
-    get_profile_nodeと並列実行され、両方完了後にrouterノードへファンインします。
-    Args:
-        state (State): LangGraphで各ノードに受け渡しされる状態（情報）。
-    Returns:
-        Command: routerノードへの遷移＆ユーザダイジェスト情報
-    """
-    logger.info("--- Get Digest Node ---")
-    digest = get_user_digest(state["userid"])
-    return Command(goto="router", update={"digest": digest})
-
-
-def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spotify_agent"]]:
-    """
-    現在の状態に基づいて次に遷移するノードを決定します。
+    プロフィール/ダイジェストを取得し、次に遷移するノードを決定します。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+        config (RunnableConfig): LangGraphのconfig。user_repositoryを含む。
     Returns:
-        Command: 次に遷移するノード。
+        Command: 次に遷移するノード（profile/digest の state 更新を含む）。
     """
     logger.info("--- Router Node ---")
+
+    user_repository = config["configurable"]["user_repository"]
+    userid = state["userid"]
+    profile = get_user_profile(userid, user_repository)
+    digest = get_user_digest(userid, user_repository)
 
     class Router(TypedDict):
         """Worker to route to next. If no workers needed, route to FINISH."""
@@ -235,7 +160,7 @@ def router_node(state: State) -> Command[Literal["diary_agent", "chatbot", "spot
     elif goto == "diary_searcher":
         goto = "diary_agent"
 
-    return Command(goto=goto)
+    return Command(goto=goto, update={"profile": profile, "digest": digest})
 
 
 async def chatbot_node(state: State) -> Command[Literal["__end__"]]:
