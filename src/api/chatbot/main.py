@@ -221,7 +221,7 @@ async def callback(
 ):
     body = await request.body()
 
-    logger.info(f"Message received. event: {body.decode('utf-8')}")  # Logging the received message
+    logger.info("Message received.")
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
         logger.info("Added handler to background tasks.")  # Logging the addition of handler to background tasks
@@ -272,7 +272,7 @@ def _schedule_coroutine(coro, *, description: str) -> None:
 
 
 async def handle_text_async(event):
-    logger.info(f"Start handling text message: {event.message.text}")
+    logger.info(f"Start handling text message: {event.message.text[:20]}…")
     try:
         logger.info("Initializing LineMessenger and UserRepository")
         line_messenger = LineMessenger(event)
@@ -320,7 +320,7 @@ async def handle_text_async(event):
 
         logger.info("Extracting agent response text")
         reply_text, _ = extract_agent_text(response)
-        logger.info(f"Generated text response: {reply_text}")
+        logger.info(f"Generated text response: {reply_text[:20]}…")
 
         logger.info("Sending reply message")
         reply_messages = [TextMessage(text=reply_text)]
