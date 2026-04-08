@@ -1,7 +1,7 @@
 import asyncio
 import os
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -250,7 +250,14 @@ def test_diary_agent():
 
         return "dummy diary response"
 
-    with patch("chatbot.agent.character_graph.nodes.diary_search_tool", dummy_diary_tool):
+    mock_user_repository = MagicMock()
+
+    config = {"configurable": {"user_repository": mock_user_repository}}
+
+    with (
+        patch("chatbot.agent.character_graph.nodes.diary_search_tool", dummy_diary_tool),
+        patch("chatbot.agent.character_graph.nodes._create_drive_handler", return_value=None),
+    ):
         initial_state = {
             "messages": [HumanMessage(content="こんにちは")],
             "userid": TEST_USER_ID,
@@ -258,7 +265,7 @@ def test_diary_agent():
             "digest": "",
         }
 
-        result = asyncio.run(diary_agent_node(initial_state))
+        result = asyncio.run(diary_agent_node(initial_state, config))
 
         assert isinstance(result, Command)
         assert result.goto == "__end__"

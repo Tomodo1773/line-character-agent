@@ -175,6 +175,26 @@ class GoogleDriveHandler:
             logger.error(f"JSON decode error: {error}")
             return ""
 
+    def update_markdown(self, file_id: str, content: str) -> bool:
+        """
+        指定されたファイルの内容をMarkdownで全文置換する
+
+        Args:
+            file_id: 更新するファイルのID
+            content: 新しいファイル内容
+
+        Returns:
+            成功した場合はTrue、失敗した場合はFalse
+        """
+        try:
+            media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="text/markdown", resumable=True)
+            self.service.files().update(fileId=file_id, media_body=media).execute()
+            logger.info(f"Updated markdown file in Google Drive. ID: {file_id}")
+            return True
+        except HttpError as error:
+            logger.error(f"An error occurred while updating the file: {error}")
+            return False
+
     def find_folder(self, folder_name: str, parent_folder_id: Optional[str] = None) -> Optional[str]:
         """
         指定された名前のフォルダIDを返す。見つからない場合はNone。
