@@ -189,7 +189,7 @@ def diary_search_tool(
     end_date: str | None = None,
     order: str = "asc",
 ) -> str:
-    """ユーザの日記コレクションをハイブリッド検索し、条件に合うエントリを返す"""
+    """キーワードや話題で日記を検索する。例: 「ラーメン食べた日」「最近の運動」。query_textに自然文を指定し、必要に応じて日付範囲で絞り込む。"""
     try:
         # ハイブリッド検索を実行
         results = hybrid_search(query_text=query_text, top_k=top_k, start_date=start_date, end_date=end_date)
@@ -224,7 +224,7 @@ def create_diary_drive_tool(drive_handler: GoogleDriveHandler):
 
     @tool("diary-drive-tool", args_schema=DiaryDriveInput)
     def diary_drive_tool(date: str) -> str:
-        """指定した日付の日記をGoogle Driveから取得する。日付はYYYY-MM-DD形式で指定する。"""
+        """特定の日付の日記をGoogle Driveから取得する。「昨日の日記」「2025年3月1日の日記」のように日付が明確なときに使う。日付はYYYY-MM-DD形式で指定する。"""
         try:
             target_date = datetime.date.fromisoformat(date)
             filename = generate_diary_filename(target_date)
@@ -249,3 +249,74 @@ def create_diary_drive_tool(drive_handler: GoogleDriveHandler):
             return f"Google Driveからの日記取得中にエラーが発生しました: {str(e)}"
 
     return diary_drive_tool
+
+
+class DiaryCreateInput(BaseModel):
+    date: str = Field(description="日記の対象日付 (YYYY-MM-DD形式)")
+    content: str = Field(description="日記の内容 (Markdown形式)")
+
+
+def create_diary_create_tool(drive_handler: GoogleDriveHandler):
+    """GoogleDriveHandler をクロージャでキャプチャした日記作成ツールを生成する。"""
+
+    @tool("diary-create-tool", args_schema=DiaryCreateInput)
+    def diary_create_tool(date: str, content: str) -> str:
+        """新しい日記をGoogle Driveに作成する。ユーザとの会話から日記の内容をMarkdown形式で生成し、日付と内容を指定して保存する。日付はYYYY-MM-DD形式で指定する。"""
+        try:
+            target_date = datetime.date.fromisoformat(date)
+            filename = generate_diary_filename(target_date)
+            year = str(target_date.year)
+
+            year_folder_id = drive_handler.find_or_create_folder(year)
+
+            # 既存ファイルチェック
+            file_id = drive_handler.find_file_id(f"{filename}.md", year_folder_id)
+            if file_id:
+                return f"{filename}の日記は既に存在します。更新する場合はdiary-update-toolを使ってください。"
+
+            saved_id = drive_handler.save_markdown(content, f"{filename}.md", year_folder_id)
+            if saved_id:
+                return f"{filename}の日記をGoogle Driveに保存しました。"
+            return "日記の保存に失敗しました。"
+        except ValueError:
+            return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"
+        except Exception as e:
+            return f"日記の作成中にエラーが発生しました: {str(e)}"
+
+    return diary_create_tool
+
+
+class DiaryUpdateInput(BaseModel):
+    date: str = Field(description="更新したい日記の対象日付 (YYYY-MM-DD形式)")
+    content: str = Field(description="更新後の日記の全文 (Markdown形式)")
+
+
+def create_diary_update_tool(drive_handler: GoogleDriveHandler):
+    """GoogleDriveHandler をクロージャでキャプチャした日記更新ツールを生成する。"""
+
+    @tool("diary-update-tool", args_schema=DiaryUpdateInput)
+    def diary_update_tool(date: str, content: str) -> str:
+        """既存の日記を更新する。まずdiary-drive-toolで既存内容を取得し、修正・追記した全文をcontentに渡して上書き保存する。日付はYYYY-MM-DD形式で指定する。"""
+        try:
+            target_date = datetime.date.fromisoformat(date)
+            filename = generate_diary_filename(target_date)
+            year = str(target_date.year)
+
+            year_folder_id = drive_handler.find_folder(year)
+            if not year_folder_id:
+                return f"{filename}の日記が見つかりませんでした。新規作成する場合はdiary-create-toolを使ってください。"
+
+            file_id = drive_handler.find_file_id(f"{filename}.md", year_folder_id)
+            if not file_id:
+                return f"{filename}の日記が見つかりませんでした。新規作成する場合はdiary-create-toolを使ってください。"
+
+            success = drive_handler.update_markdown(file_id, content)
+            if success:
+                return f"{filename}の日記を更新しました。"
+            return "日記の更新に失敗しました。"
+        except ValueError:
+            return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"
+        except Exception as e:
+            return f"日記の更新中にエラーが発生しました: {str(e)}"
+
+    return diary_update_tool

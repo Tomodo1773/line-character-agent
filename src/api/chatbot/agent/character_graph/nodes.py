@@ -19,7 +19,7 @@ from chatbot.agent.character_graph.prompts import (
     SISTER_EDINET_SHORT_PROMPT,
 )
 from chatbot.agent.character_graph.state import State
-from chatbot.agent.tools import create_diary_drive_tool, diary_search_tool
+from chatbot.agent.tools import create_diary_create_tool, create_diary_drive_tool, create_diary_update_tool, diary_search_tool
 from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import create_logger
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
@@ -261,6 +261,8 @@ async def diary_agent_node(state: State, config: RunnableConfig) -> Command[Lite
     drive_handler = _create_drive_handler(userid, user_repository)
     if drive_handler:
         diary_tools.append(create_diary_drive_tool(drive_handler))
+        diary_tools.append(create_diary_create_tool(drive_handler))
+        diary_tools.append(create_diary_update_tool(drive_handler))
 
     agent = create_agent(
         llm,
