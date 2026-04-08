@@ -1,9 +1,19 @@
 """diary_utils モジュールのテスト。"""
 
+import datetime
 from unittest.mock import MagicMock, patch
 
-from chatbot.utils.diary_utils import save_diary_to_drive
+from chatbot.utils.diary_utils import generate_diary_filename, save_diary_to_drive
 from chatbot.utils.google_drive import GoogleDriveHandler
+
+
+class TestGenerateDiaryFilename:
+    """generate_diary_filename 関数のテスト。"""
+
+    def test_fixed_date(self):
+        """固定日付でフォーマットと曜日が正しいことを確認。"""
+        date = datetime.date(2025, 1, 6)  # 月曜日
+        assert generate_diary_filename(date) == "2025年01月06日(月)"
 
 
 class TestSaveDiaryToDrive:

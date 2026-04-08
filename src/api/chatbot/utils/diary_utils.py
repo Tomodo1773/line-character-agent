@@ -13,23 +13,26 @@ from chatbot.utils.google_drive import GoogleDriveHandler
 logger = create_logger(__name__)
 
 
-def generate_diary_filename() -> str:
+def generate_diary_filename(target_date: datetime.date | None = None) -> str:
     """
-    前日の日付に基づいたMarkdownファイル名（拡張子なし）を生成する
+    日付に基づいたMarkdownファイル名（拡張子なし）を生成する
     フォーマット: YYYY年MM月DD日(曜日)
 
+    Args:
+        target_date: 対象日付。省略時は前日（JST）。
+
     Returns:
-        前日の日付に基づいたファイル名（拡張子なし）
+        日付に基づいたファイル名（拡張子なし）
     """
-    jst = timezone("Asia/Tokyo")
-    now = datetime.datetime.now(jst)
-    yesterday = now - datetime.timedelta(days=1)
+    if target_date is None:
+        jst = timezone("Asia/Tokyo")
+        now = datetime.datetime.now(jst)
+        target_date = (now - datetime.timedelta(days=1)).date()
 
     weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
-    weekday = weekday_jp[yesterday.weekday()]
+    weekday = weekday_jp[target_date.weekday()]
 
-    filename = f"{yesterday.year}年{yesterday.month:02d}月{yesterday.day:02d}日({weekday})"
-    return filename
+    return f"{target_date.year}年{target_date.month:02d}月{target_date.day:02d}日({weekday})"
 
 
 def check_filename_duplicate(drive_handler: GoogleDriveHandler, folder_id: str, filename: str) -> str:

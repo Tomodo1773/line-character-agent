@@ -2,6 +2,10 @@ version = 1
 revision = 3
 requires-python = "==3.11.*"
 
+[options]
+exclude-newer = "2026-04-01T01:57:53.87526902Z"
+exclude-newer-span = "P7D"
+
 [[package]]
 name = "aenum"
 version = "3.1.16"

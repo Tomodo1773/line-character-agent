@@ -1,9 +1,13 @@
+import datetime
 import logging
 
 from azure.cosmos import CosmosClient, PartitionKey
 from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
+
+from chatbot.utils.diary_utils import generate_diary_filename
+from chatbot.utils.google_drive import GoogleDriveHandler
 
 logger = logging.getLogger(__name__)
 
@@ -209,3 +213,39 @@ def diary_search_tool(
 
     except Exception as e:
         return f"日記検索中にエラーが発生しました: {str(e)}"
+
+
+class DiaryDriveInput(BaseModel):
+    date: str = Field(description="取得したい日記の日付 (YYYY-MM-DD形式)")
+
+
+def create_diary_drive_tool(drive_handler: GoogleDriveHandler):
+    """GoogleDriveHandler をクロージャでキャプチャした日記取得ツールを生成する。"""
+
+    @tool("diary-drive-tool", args_schema=DiaryDriveInput)
+    def diary_drive_tool(date: str) -> str:
+        """指定した日付の日記をGoogle Driveから取得する。日付はYYYY-MM-DD形式で指定する。"""
+        try:
+            target_date = datetime.date.fromisoformat(date)
+            filename = generate_diary_filename(target_date)
+            year = str(target_date.year)
+
+            year_folder_id = drive_handler.find_folder(year)
+            if not year_folder_id:
+                return f"{filename}の日記が見つかりませんでした。"
+
+            file_id = drive_handler.find_file_id(f"{filename}.md", year_folder_id)
+            if not file_id:
+                return f"{filename}の日記が見つかりませんでした。"
+
+            content = drive_handler.get_file_content(file_id)
+            if not content:
+                return f"{filename}の日記ファイルは存在しますが、内容が空でした。"
+
+            return f"【{filename}の日記】\n{content}"
+        except ValueError:
+            return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"
+        except Exception as e:
+            return f"Google Driveからの日記取得中にエラーが発生しました: {str(e)}"
+
+    return diary_drive_tool

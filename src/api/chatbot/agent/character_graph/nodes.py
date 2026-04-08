@@ -19,9 +19,11 @@ from chatbot.agent.character_graph.prompts import (
     SISTER_EDINET_SHORT_PROMPT,
 )
 from chatbot.agent.character_graph.state import State
-from chatbot.agent.tools import diary_search_tool
+from chatbot.agent.tools import create_diary_drive_tool, diary_search_tool
 from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import create_logger
+from chatbot.utils.google_auth import GoogleDriveOAuthManager
+from chatbot.utils.google_drive import GoogleDriveHandler
 
 logger = create_logger(__name__)
 
@@ -72,28 +74,32 @@ async def get_mcp_tools():
         return []
 
 
+def _create_drive_handler(userid: str, user_repository):
+    """ユーザのOAuth認証情報からGoogleDriveHandlerを生成する。取得できない場合はNoneを返す。"""
+    auth_manager = GoogleDriveOAuthManager(user_repository)
+    credentials = auth_manager.get_user_credentials(userid)
+    if not credentials:
+        logger.warning("Google Drive credentials not found for user: %s", userid)
+        return None
+
+    folder_id = user_repository.fetch_drive_folder_id(userid)
+    if not folder_id:
+        logger.warning("Google Drive folder ID not found for user: %s", userid)
+        return None
+
+    return GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
+
+
 def _get_cached_drive_content(userid: str, user_repository, cache_key: str, fetch_fn) -> str:
     """Google Drive からコンテンツを取得しキャッシュする汎用関数。"""
     global _cached
     if userid not in _cached[cache_key]:
         logger.info(f"Fetching {cache_key} from Google Drive as it is not cached: {userid}")
-        from chatbot.utils.google_auth import GoogleDriveOAuthManager
-        from chatbot.utils.google_drive import GoogleDriveHandler
-
-        auth_manager = GoogleDriveOAuthManager(user_repository)
-        credentials = auth_manager.get_user_credentials(userid)
-        if not credentials:
-            logger.warning("Google Drive credentials not found for user: %s", userid)
+        drive_handler = _create_drive_handler(userid, user_repository)
+        if not drive_handler:
             _cached[cache_key][userid] = ""
             return ""
 
-        folder_id = user_repository.fetch_drive_folder_id(userid)
-        if not folder_id:
-            logger.warning("Google Drive folder ID not found for user: %s", userid)
-            _cached[cache_key][userid] = ""
-            return ""
-
-        drive_handler = GoogleDriveHandler(credentials=credentials, folder_id=folder_id)
         result = fetch_fn(drive_handler)
         if result and "content" in result:
             _cached[cache_key][userid] = result["content"]
@@ -230,11 +236,12 @@ async def spotify_agent_node(state: State) -> Command[Literal["__end__"]]:
     )
 
 
-async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
+async def diary_agent_node(state: State, config: RunnableConfig) -> Command[Literal["__end__"]]:
     """
     日記検索関連のリクエストに対してdiary search toolを使って応答を生成するノード。
     Args:
         state (State): LangGraphで各ノードに受け渡しされる状態（情報）
+        config (RunnableConfig): LangGraphのconfig。user_repositoryを含む。
     Returns:
         Command: Endへの遷移＆AIの応答メッセージ
     """
@@ -246,8 +253,15 @@ async def diary_agent_node(state: State) -> Command[Literal["__end__"]]:
     )
 
     llm = ChatOpenAI(model="gpt-5.2", temperature=0.5, reasoning_effort="medium")
-    # 日記検索ツールを使用
+
     diary_tools = [diary_search_tool]
+
+    user_repository = config["configurable"]["user_repository"]
+    userid = state["userid"]
+    drive_handler = _create_drive_handler(userid, user_repository)
+    if drive_handler:
+        diary_tools.append(create_diary_drive_tool(drive_handler))
+
     agent = create_agent(
         llm,
         tools=diary_tools,
