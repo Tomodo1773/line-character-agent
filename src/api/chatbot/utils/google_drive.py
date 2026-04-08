@@ -99,27 +99,6 @@ class GoogleDriveHandler:
             logger.error(f"An error occurred while saving the file to Google Drive: {error}")
             return ""
 
-    def check_file_exists(self, filename: str, folder_id: Optional[str] = None) -> bool:
-        """
-        指定されたファイル名のファイルが指定フォルダ内に存在するかチェックする
-
-        Args:
-            filename: チェックするファイル名
-            folder_id: フォルダID（指定がない場合は環境変数から取得）
-
-        Returns:
-            ファイルが存在する場合はTrue、存在しない場合はFalse
-        """
-        try:
-            target_folder_id = self._resolve_folder_id(folder_id)
-            query = f"name = '{filename}' and '{target_folder_id}' in parents and trashed = false"
-            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
-
-            return len(results.get("files", [])) > 0
-        except HttpError as error:
-            logger.error(f"An error occurred while checking file existence: {error}")
-            return False
-
     def get_file_content(self, file_id: str) -> str:
         """
         指定されたファイルの内容を取得する
@@ -231,21 +210,12 @@ class GoogleDriveHandler:
         Returns:
             フォルダID
         """
+        existing = self.find_folder(folder_name, parent_folder_id)
+        if existing:
+            return existing
+
         try:
             target_parent_id = self._resolve_folder_id(parent_folder_id)
-            query = (
-                f"name = '{folder_name}' and '{target_parent_id}' in parents "
-                f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-            )
-            results = self.service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
-            files = results.get("files", [])
-
-            if files:
-                folder_id = files[0]["id"]
-                logger.info(f"Found existing folder '{folder_name}' with ID: {folder_id}")
-                return folder_id
-
-            # フォルダが存在しない場合は作成
             folder_metadata = {
                 "name": folder_name,
                 "mimeType": "application/vnd.google-apps.folder",
@@ -256,7 +226,7 @@ class GoogleDriveHandler:
             logger.info(f"Created new folder '{folder_name}' with ID: {folder_id}")
             return folder_id
         except HttpError as error:
-            logger.error(f"An error occurred while finding or creating folder '{folder_name}': {error}")
+            logger.error(f"An error occurred while creating folder '{folder_name}': {error}")
             raise
 
     def _create_default_digest_structure(self) -> dict:
