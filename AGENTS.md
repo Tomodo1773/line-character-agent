@@ -44,6 +44,12 @@
 
 常に `uv run` を前置する。例: `uv run pytest` / `uv run python scripts/foo.py`。避ける: `python -m pytest`。理由: ロックに基づく一時環境で依存差異を吸収し再現性を確保するため。
 
+## ログ
+
+- `print()` をログ目的で使わない。必ず `logging` モジュール（`logger.info` / `logger.error` 等）を使う。
+- ツールや関数が実行されたことが分かるよう、処理の入口で `logger.info` を出す。
+- ロガー初期化は `create_logger(__name__)`（`utils/config.py`）を使う。`logging.getLogger` を直接使わない。
+
 ## コーディング規約と命名
 
 - Python 3.11、インデント4スペース、行長127（ruff 設定)。

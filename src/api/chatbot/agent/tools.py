@@ -1,15 +1,15 @@
 import datetime
-import logging
 
 from azure.cosmos import CosmosClient, PartitionKey
 from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
 
+from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_filename
 from chatbot.utils.google_drive import GoogleDriveHandler
 
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__)
 
 _embeddings: OpenAIEmbeddings | None = None
 
@@ -120,6 +120,7 @@ def _build_date_filter(start_date: str = None, end_date: str = None) -> str:
 
 def hybrid_search(query_text: str, top_k: int = 5, start_date: str = None, end_date: str = None):
     """ハイブリッド検索実装（ベクトル検索 + BM25フルテキスト検索）"""
+    logger.info("ハイブリッド検索を実行: query_text=%s, top_k=%d", query_text, top_k)
     try:
         query_vector = _get_embeddings().embed_query(query_text)
 
@@ -149,13 +150,14 @@ def hybrid_search(query_text: str, top_k: int = 5, start_date: str = None, end_d
         return results
 
     except Exception as e:
-        print(f"ハイブリッド検索エラー: {str(e)}")
+        logger.error("ハイブリッド検索エラー: %s", e)
         # フォールバック: ベクトル検索のみ
         return vector_search_fallback(query_text, top_k, start_date, end_date)
 
 
 def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = None, end_date: str = None):
     """フォールバック用のベクトル検索実装"""
+    logger.info("ベクトル検索フォールバックを実行: query_text=%s, top_k=%d", query_text, top_k)
     try:
         query_vector = _get_embeddings().embed_query(query_text)
 
@@ -177,7 +179,7 @@ def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = No
         return results
 
     except Exception as e:
-        print(f"ベクトル検索エラー: {str(e)}")
+        logger.error("ベクトル検索エラー: %s", e)
         return []
 
 
@@ -190,6 +192,9 @@ def diary_search_tool(
     order: str = "asc",
 ) -> str:
     """キーワードや話題で日記を検索する。例: 「ラーメン食べた日」「最近の運動」。query_textに自然文を指定し、必要に応じて日付範囲で絞り込む。"""
+    logger.info(
+        "diary-search-tool実行: query_text=%s, top_k=%d, start_date=%s, end_date=%s", query_text, top_k, start_date, end_date
+    )
     try:
         # ハイブリッド検索を実行
         results = hybrid_search(query_text=query_text, top_k=top_k, start_date=start_date, end_date=end_date)
@@ -225,6 +230,7 @@ def create_diary_drive_tool(drive_handler: GoogleDriveHandler):
     @tool("diary-drive-tool", args_schema=DiaryDriveInput)
     def diary_drive_tool(date: str) -> str:
         """特定の日付の日記をGoogle Driveから取得する。「昨日の日記」「2025年3月1日の日記」のように日付が明確なときに使う。日付はYYYY-MM-DD形式で指定する。"""
+        logger.info("diary-drive-tool実行: date=%s", date)
         try:
             target_date = datetime.date.fromisoformat(date)
             filename = generate_diary_filename(target_date)
@@ -262,6 +268,7 @@ def create_diary_create_tool(drive_handler: GoogleDriveHandler):
     @tool("diary-create-tool", args_schema=DiaryCreateInput)
     def diary_create_tool(date: str, content: str) -> str:
         """新しい日記をGoogle Driveに作成する。ユーザとの会話から日記の内容をMarkdown形式で生成し、日付と内容を指定して保存する。日付はYYYY-MM-DD形式で指定する。"""
+        logger.info("diary-create-tool実行: date=%s", date)
         try:
             target_date = datetime.date.fromisoformat(date)
             filename = generate_diary_filename(target_date)
@@ -297,6 +304,7 @@ def create_diary_update_tool(drive_handler: GoogleDriveHandler):
     @tool("diary-update-tool", args_schema=DiaryUpdateInput)
     def diary_update_tool(date: str, content: str) -> str:
         """既存の日記を更新する。まずdiary-drive-toolで既存内容を取得し、修正・追記した全文をcontentに渡して上書き保存する。日付はYYYY-MM-DD形式で指定する。"""
+        logger.info("diary-update-tool実行: date=%s", date)
         try:
             target_date = datetime.date.fromisoformat(date)
             filename = generate_diary_filename(target_date)
