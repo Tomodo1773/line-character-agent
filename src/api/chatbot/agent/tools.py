@@ -1,9 +1,10 @@
 import datetime
 import os
-from typing import Annotated, Any
+from typing import Any
 
 from azure.cosmos import CosmosClient, PartitionKey
-from langchain_core.tools import InjectedToolArg, tool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
@@ -14,6 +15,15 @@ from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 
 logger = create_logger(__name__)
+
+
+def _get_injected_args(config: RunnableConfig) -> tuple[str, Any]:
+    """RunnableConfig から userid と user_repository を取り出す。"""
+    configurable = config.get("configurable", {})
+    userid = configurable["userid"]
+    user_repository = configurable["user_repository"]
+    return userid, user_repository
+
 
 # ---------------------------------------------------------------------------
 # Embeddings (singleton)
@@ -120,21 +130,17 @@ def _get_user_digest(userid: str, user_repository) -> str:
 # Profile / Digest tools
 # ---------------------------------------------------------------------------
 @tool
-def read_profile(
-    userid: Annotated[str, InjectedToolArg],
-    user_repository: Annotated[Any, InjectedToolArg],
-) -> str:
+def read_profile(config: RunnableConfig) -> str:
     """ユーザのプロフィール情報をGoogle Driveから取得する。ユーザの基本情報や好みを知りたいときに使う。"""
+    userid, user_repository = _get_injected_args(config)
     logger.info("read_profile実行: userid=%s", userid)
     return _get_user_profile(userid, user_repository) or "プロフィール情報が見つかりませんでした。"
 
 
 @tool
-def read_digest(
-    userid: Annotated[str, InjectedToolArg],
-    user_repository: Annotated[Any, InjectedToolArg],
-) -> str:
+def read_digest(config: RunnableConfig) -> str:
     """ユーザの直近の出来事ダイジェストをGoogle Driveから取得する。最近の話題や文脈を知りたいときに使う。"""
+    userid, user_repository = _get_injected_args(config)
     logger.info("read_digest実行: userid=%s", userid)
     return _get_user_digest(userid, user_repository) or "ダイジェスト情報が見つかりませんでした。"
 
@@ -213,8 +219,8 @@ def _build_date_filter(start_date: str = None, end_date: str = None) -> str:
 def hybrid_search(query_text: str, top_k: int = 5, start_date: str = None, end_date: str = None):
     """ハイブリッド検索実装（ベクトル検索 + BM25フルテキスト検索）"""
     logger.info("ハイブリッド検索を実行: query_text=%s, top_k=%d", query_text, top_k)
+    query_vector = _get_embeddings().embed_query(query_text)
     try:
-        query_vector = _get_embeddings().embed_query(query_text)
         container = get_cosmos_container()
         keywords = [f'"{word.strip()}"' for word in query_text.split() if word.strip()]
         keywords_str = ", ".join(keywords)
@@ -234,14 +240,13 @@ def hybrid_search(query_text: str, top_k: int = 5, start_date: str = None, end_d
         return results
     except Exception as e:
         logger.error("ハイブリッド検索エラー: %s", e)
-        return vector_search_fallback(query_text, top_k, start_date, end_date)
+        return _vector_search_with_embedding(query_vector, top_k, start_date, end_date)
 
 
-def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = None, end_date: str = None):
-    """フォールバック用のベクトル検索実装"""
-    logger.info("ベクトル検索フォールバックを実行: query_text=%s, top_k=%d", query_text, top_k)
+def _vector_search_with_embedding(query_vector: list, top_k: int = 5, start_date: str = None, end_date: str = None):
+    """既に計算済みのembeddingを使ったベクトル検索フォールバック"""
+    logger.info("ベクトル検索フォールバックを実行: top_k=%d", top_k)
     try:
-        query_vector = _get_embeddings().embed_query(query_text)
         container = get_cosmos_container()
         date_filter = _build_date_filter(start_date, end_date)
 
@@ -261,6 +266,14 @@ def vector_search_fallback(query_text: str, top_k: int = 5, start_date: str = No
 # ---------------------------------------------------------------------------
 # Diary tools
 # ---------------------------------------------------------------------------
+def _parse_diary_date(date: str) -> tuple[datetime.date, str, str]:
+    """日付文字列をパースし (target_date, filename, year) を返す。ValueError は呼び出し元で処理。"""
+    target_date = datetime.date.fromisoformat(date)
+    filename = generate_diary_filename(target_date)
+    year = str(target_date.year)
+    return target_date, filename, year
+
+
 class DiarySearchInput(BaseModel):
     query_text: str = Field(description="検索したい自然文")
     top_k: int | None = Field(default=5, description="返す件数 (1-20)", ge=1, le=20)
@@ -308,18 +321,16 @@ class DiaryDriveInput(BaseModel):
 @tool("diary-drive-tool", args_schema=DiaryDriveInput)
 def diary_drive_tool(
     date: str,
-    userid: Annotated[str, InjectedToolArg],
-    user_repository: Annotated[Any, InjectedToolArg],
+    config: RunnableConfig,
 ) -> str:
     """特定の日付の日記をGoogle Driveから取得する。「昨日の日記」「2025年3月1日の日記」のように日付が明確なときに使う。日付はYYYY-MM-DD形式で指定する。"""
+    userid, user_repository = _get_injected_args(config)
     logger.info("diary-drive-tool実行: date=%s", date)
     drive_handler = _create_drive_handler(userid, user_repository)
     if not drive_handler:
         return "Google Drive に接続できませんでした。"
     try:
-        target_date = datetime.date.fromisoformat(date)
-        filename = generate_diary_filename(target_date)
-        year = str(target_date.year)
+        _, filename, year = _parse_diary_date(date)
 
         year_folder_id = drive_handler.find_folder(year)
         if not year_folder_id:
@@ -349,18 +360,16 @@ class DiaryCreateInput(BaseModel):
 def diary_create_tool(
     date: str,
     content: str,
-    userid: Annotated[str, InjectedToolArg],
-    user_repository: Annotated[Any, InjectedToolArg],
+    config: RunnableConfig,
 ) -> str:
     """新しい日記をGoogle Driveに作成する。ユーザとの会話から日記の内容をMarkdown形式で生成し、日付と内容を指定して保存する。日付はYYYY-MM-DD形式で指定する。"""
+    userid, user_repository = _get_injected_args(config)
     logger.info("diary-create-tool実行: date=%s", date)
     drive_handler = _create_drive_handler(userid, user_repository)
     if not drive_handler:
         return "Google Drive に接続できませんでした。"
     try:
-        target_date = datetime.date.fromisoformat(date)
-        filename = generate_diary_filename(target_date)
-        year = str(target_date.year)
+        _, filename, year = _parse_diary_date(date)
 
         year_folder_id = drive_handler.find_or_create_folder(year)
 
@@ -387,18 +396,16 @@ class DiaryUpdateInput(BaseModel):
 def diary_update_tool(
     date: str,
     content: str,
-    userid: Annotated[str, InjectedToolArg],
-    user_repository: Annotated[Any, InjectedToolArg],
+    config: RunnableConfig,
 ) -> str:
     """既存の日記を更新する。まずdiary-drive-toolで既存内容を取得し、修正・追記した全文をcontentに渡して上書き保存する。日付はYYYY-MM-DD形式で指定する。"""
+    userid, user_repository = _get_injected_args(config)
     logger.info("diary-update-tool実行: date=%s", date)
     drive_handler = _create_drive_handler(userid, user_repository)
     if not drive_handler:
         return "Google Drive に接続できませんでした。"
     try:
-        target_date = datetime.date.fromisoformat(date)
-        filename = generate_diary_filename(target_date)
-        year = str(target_date.year)
+        _, filename, year = _parse_diary_date(date)
 
         year_folder_id = drive_handler.find_folder(year)
         if not year_folder_id:
