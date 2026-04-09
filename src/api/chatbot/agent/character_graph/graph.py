@@ -65,23 +65,20 @@ class ChatbotAgent:
         }
 
     async def ainvoke(self, messages: list, userid: str, session_id: str, user_repository=None):
-        return await self.agent.ainvoke(
+        config = self._config(session_id, userid, user_repository)
+        async for chunk in self.agent.astream(
             {"messages": messages},
-            self._config(session_id, userid, user_repository),
-        )
-
-    async def astream(self, messages: list, userid: str, session_id: str, user_repository=None):
-        async for msg, metadata in self.agent.astream(
-            {"messages": messages},
-            self._config(session_id, userid, user_repository),
-            stream_mode="messages",
-        ):
-            yield msg, metadata
-
-    async def astream_updates(self, messages: list, userid: str, session_id: str, user_repository=None):
-        async for msg in self.agent.astream(
-            {"messages": messages},
-            self._config(session_id, userid, user_repository),
+            config,
             stream_mode="updates",
         ):
-            yield msg
+            for node_name, state_update in chunk.items():
+                if node_name == "__start__":
+                    continue
+                if node_name == "tools":
+                    tool_messages = [m for m in state_update.get("messages", []) if hasattr(m, "name")]
+                    tool_names = [m.name for m in tool_messages]
+                    logger.info(f"Agent node [{node_name}]: tools={tool_names}")
+                else:
+                    logger.info(f"Agent node [{node_name}]")
+        state = await self.agent.aget_state(config)
+        return state.values
