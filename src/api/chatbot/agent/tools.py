@@ -1,13 +1,13 @@
 import datetime
 import os
-from typing import Any
+from typing import Annotated, Any
 
 from azure.cosmos import CosmosClient, PartitionKey
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import OpenAIEmbeddings
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_filename
@@ -274,21 +274,13 @@ def _parse_diary_date(date: str) -> tuple[datetime.date, str, str]:
     return target_date, filename, year
 
 
-class DiarySearchInput(BaseModel):
-    query_text: str = Field(description="検索したい自然文")
-    top_k: int | None = Field(default=5, description="返す件数 (1-20)", ge=1, le=20)
-    start_date: str | None = Field(default=None, description="絞り込み開始日 (YYYY-MM-DD形式)")
-    end_date: str | None = Field(default=None, description="絞り込み終了日 (YYYY-MM-DD形式)")
-    order: str | None = Field(default="asc", description="日付の並べ替え方向")
-
-
-@tool("diary-search-tool", args_schema=DiarySearchInput)
+@tool("diary-search-tool")
 def diary_search_tool(
-    query_text: str,
-    top_k: int = 5,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    order: str = "asc",
+    query_text: Annotated[str, Field(description="検索したい自然文")],
+    top_k: Annotated[int, Field(description="返す件数 (1-20)", ge=1, le=20)] = 5,
+    start_date: Annotated[str | None, Field(description="絞り込み開始日 (YYYY-MM-DD形式)")] = None,
+    end_date: Annotated[str | None, Field(description="絞り込み終了日 (YYYY-MM-DD形式)")] = None,
+    order: Annotated[str, Field(description="日付の並べ替え方向")] = "asc",
 ) -> str:
     """キーワードや話題で日記を検索する。例: 「ラーメン食べた日」「最近の運動」。query_textに自然文を指定し、必要に応じて日付範囲で絞り込む。"""
     logger.info(
@@ -314,13 +306,9 @@ def diary_search_tool(
         return f"日記検索中にエラーが発生しました: {str(e)}"
 
 
-class DiaryDriveInput(BaseModel):
-    date: str = Field(description="取得したい日記の日付 (YYYY-MM-DD形式)")
-
-
-@tool("diary-drive-tool", args_schema=DiaryDriveInput)
+@tool("diary-drive-tool")
 def diary_drive_tool(
-    date: str,
+    date: Annotated[str, Field(description="取得したい日記の日付 (YYYY-MM-DD形式)")],
     config: RunnableConfig,
 ) -> str:
     """特定の日付の日記をGoogle Driveから取得する。「昨日の日記」「2025年3月1日の日記」のように日付が明確なときに使う。日付はYYYY-MM-DD形式で指定する。"""
@@ -351,15 +339,10 @@ def diary_drive_tool(
         return f"Google Driveからの日記取得中にエラーが発生しました: {str(e)}"
 
 
-class DiaryCreateInput(BaseModel):
-    date: str = Field(description="日記の対象日付 (YYYY-MM-DD形式)")
-    content: str = Field(description="日記の内容 (Markdown形式)")
-
-
-@tool("diary-create-tool", args_schema=DiaryCreateInput)
+@tool("diary-create-tool")
 def diary_create_tool(
-    date: str,
-    content: str,
+    date: Annotated[str, Field(description="日記の対象日付 (YYYY-MM-DD形式)")],
+    content: Annotated[str, Field(description="日記の内容 (Markdown形式)")],
     config: RunnableConfig,
 ) -> str:
     """新しい日記をGoogle Driveに作成する。ユーザとの会話から日記の内容をMarkdown形式で生成し、日付と内容を指定して保存する。日付はYYYY-MM-DD形式で指定する。"""
@@ -387,15 +370,10 @@ def diary_create_tool(
         return f"日記の作成中にエラーが発生しました: {str(e)}"
 
 
-class DiaryUpdateInput(BaseModel):
-    date: str = Field(description="更新したい日記の対象日付 (YYYY-MM-DD形式)")
-    content: str = Field(description="更新後の日記の全文 (Markdown形式)")
-
-
-@tool("diary-update-tool", args_schema=DiaryUpdateInput)
+@tool("diary-update-tool")
 def diary_update_tool(
-    date: str,
-    content: str,
+    date: Annotated[str, Field(description="更新したい日記の対象日付 (YYYY-MM-DD形式)")],
+    content: Annotated[str, Field(description="更新後の日記の全文 (Markdown形式)")],
     config: RunnableConfig,
 ) -> str:
     """既存の日記を更新する。まずdiary-drive-toolで既存内容を取得し、修正・追記した全文をcontentに渡して上書き保存する。日付はYYYY-MM-DD形式で指定する。"""
