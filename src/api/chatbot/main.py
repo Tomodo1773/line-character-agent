@@ -224,12 +224,12 @@ async def callback(
     logger.info("Message received.")
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
-        logger.info("Added handler to background tasks.")  # Logging the addition of handler to background tasks
+        logger.info("Added handler to background tasks.")
     except InvalidSignatureError:
-        logger.error("Invalid signature detected.")  # Logging the detection of an invalid signature
+        logger.error("Invalid signature detected.")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    logger.info("Request processing completed successfully.")  # Logging using the logger
+    logger.info("Request processing completed successfully.")
     return "ok"
 
 
@@ -305,12 +305,12 @@ async def handle_text_async(event):
 
         logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
-        logger.info("Initializing ChatbotAgent with checkpointer")
-        agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
-
         # ローディングアニメーションを表示
         logger.info("Showing loading animation")
         line_messenger.show_loading_animation()
+
+        logger.info("Initializing ChatbotAgent with checkpointer")
+        agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
 
         messages = [{"type": "human", "content": event.message.text}]
         logger.info(f"Invoking agent for session_id: {session.session_id}")
