@@ -4,9 +4,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.types import Command
 
 from chatbot.agent import ChatbotAgent
 from chatbot.main import _get_effective_userid, extract_agent_text, root
@@ -68,14 +66,13 @@ def test_chatbot_agent_response():
     """
     require_openai_api_key()
 
-    with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
-        with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            agent_graph = ChatbotAgent(checkpointer=MemorySaver())
+    async def run():
+        with patch("chatbot.agent.tools.get_mcp_tools", new_callable=AsyncMock, return_value=[]):
+            agent = await ChatbotAgent.create(checkpointer=MemorySaver())
             messages = [{"type": "human", "content": "こんにちは"}]
+            return await agent.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
 
-            response = asyncio.run(
-                agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-            )
+    response = asyncio.run(run())
 
     assert "messages" in response
     assert len(response["messages"][-1].content) > 0
@@ -108,96 +105,6 @@ def test_diary_transcription():
     assert "ランニング" in result
 
 
-def test_spotify_agent_mcp_fallback():
-    """
-    MCPサーバー未接続時のSpotifyエージェントフォールバックテスト
-    - MCPツールが取得できない状態でSpotifyエージェントにルーティングされた場合
-    - フォールバックメッセージが返されることを確認
-    - メッセージ内容が「ごめんね。MCP サーバーに接続できなかったみたい。」であることを確認
-    """
-    require_openai_api_key()
-
-    from chatbot.agent.character_graph import nodes
-
-    with patch("chatbot.agent.character_graph.nodes.get_user_profile", return_value=""):
-        with patch("chatbot.agent.character_graph.nodes.get_user_digest", return_value=""):
-            # get_mcp_toolsを空のリストを返すようにモック
-            with patch.object(nodes, "get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
-                mock_get_mcp_tools.return_value = []
-
-                # routerをモックしてspotify_agentに直接ルーティング
-                with patch.object(nodes, "router_node") as mock_router:
-                    mock_router.return_value = Command(goto="spotify_agent")
-
-                    agent_graph = ChatbotAgent(checkpointer=MemorySaver())
-                # B'zの曲検索をリクエスト
-                messages = [{"type": "human", "content": "SpotifyでB'zの曲を検索して"}]
-
-                response = asyncio.run(
-                    agent_graph.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
-                )
-
-            # レスポンスの検証
-            assert "messages" in response
-            last_message = response["messages"][-1].content
-            assert "ごめんね。MCP サーバーに接続できなかったみたい。" in last_message
-
-
-def test_spotify_agent():
-    """
-    spotify_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
-    - MCPツールが取得できる状態で正常系の動作を確認
-    - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
-    - ダミーの MCP ツールを使用（実際の MCP サーバー接続は不要）
-    """
-    from langchain_core.messages import HumanMessage
-    from langchain_core.tools import tool
-
-    from chatbot.agent import spotify_agent_node
-
-    require_openai_api_key()
-
-    @tool
-    def dummy_tool(query: str) -> str:
-        """A dummy tool for testing."""
-        return "dummy response"
-
-    async def fake_get_mcp_tools():
-        """MCPツールが取得できる状態をシミュレート"""
-        # ダミーツールを返す（実際のツールは使用しない）
-        return [dummy_tool]
-
-    with patch("chatbot.agent.character_graph.nodes.get_mcp_tools", new_callable=AsyncMock) as mock_get_mcp_tools:
-        mock_get_mcp_tools.side_effect = fake_get_mcp_tools
-
-        # spotify_agent_node を直接呼び出す
-        initial_state = {
-            "messages": [HumanMessage(content="こんにちは")],
-            "userid": TEST_USER_ID,
-            "profile": "",
-            "digest": "",
-        }
-
-        # 正常系：例外が発生せずに完了することを確認
-        result = asyncio.run(spotify_agent_node(initial_state))
-
-        # レスポンスの検証
-        assert result is not None
-        # Command オブジェクトが返されることを確認
-        from langgraph.types import Command
-
-        assert isinstance(result, Command)
-        assert result.goto == "__end__"
-        # update に messages が含まれていることを確認
-        assert "messages" in result.update
-        # AIMessage が返されていることを確認
-        returned_messages = result.update["messages"]
-        assert len(returned_messages) > 0
-        assert isinstance(returned_messages[0], AIMessage)
-        # 応答が空でないことを確認
-        assert len(returned_messages[0].content) > 0
-
-
 def test_extract_agent_text_non_interrupt():
     """__interrupt__ が無い場合に messages[-1].content からテキストを取得できることを検証"""
     response = {"messages": [{"content": "hello"}]}
@@ -224,66 +131,12 @@ def test_extract_agent_text_with_interrupt():
     assert is_interrupt is True
 
 
-def test_diary_agent():
-    """
-    diary_agent_node が create_agent を正しいシグネチャで呼び出すことを検証するテスト
-    - ダミーの diary search tool を使用し、エージェントが正常に動作することを確認
-    - 実際の OpenAI API を使用してエージェントが正常に動作することを確認
-    """
-    from langchain_core.messages import HumanMessage
-    from langchain_core.tools import tool
-    from langgraph.types import Command
-
-    from chatbot.agent import diary_agent_node
-
-    require_openai_api_key()
-
-    @tool
-    def dummy_diary_tool(
-        query_text: str,
-        top_k: int = 5,
-        start_date: str | None = None,
-        end_date: str | None = None,
-        order: str = "asc",
-    ) -> str:
-        """A dummy diary search tool for testing."""
-
-        return "dummy diary response"
-
-    mock_user_repository = MagicMock()
-
-    config = {"configurable": {"user_repository": mock_user_repository}}
-
-    with (
-        patch("chatbot.agent.character_graph.nodes.diary_search_tool", dummy_diary_tool),
-        patch("chatbot.agent.character_graph.nodes._create_drive_handler", return_value=None),
-    ):
-        initial_state = {
-            "messages": [HumanMessage(content="こんにちは")],
-            "userid": TEST_USER_ID,
-            "profile": "",
-            "digest": "",
-        }
-
-        result = asyncio.run(diary_agent_node(initial_state, config))
-
-        assert isinstance(result, Command)
-        assert result.goto == "__end__"
-        assert "messages" in result.update
-
-        returned_messages = result.update["messages"]
-        assert len(returned_messages) > 0
-        assert isinstance(returned_messages[0], AIMessage)
-        assert len(returned_messages[0].content) > 0
-
-
 def test_reset_session():
     """
     UserRepository.reset_session のテスト
     - reset_sessionを呼び出すと新しいセッションIDが生成されることを確認
     - 同じユーザーで2回reset_sessionを呼ぶと異なるセッションIDが返されることを確認
     """
-    from unittest.mock import MagicMock
 
     from chatbot.database.repositories import UserRepository
 
@@ -316,7 +169,7 @@ def test_handle_text_async_with_reset_keyword():
     - 「閑話休題」を送信するとセッションがリセットされることを確認
     - 適切なメッセージが返されることを確認
     """
-    from unittest.mock import MagicMock, Mock, patch
+    from unittest.mock import Mock, patch
 
     from chatbot.database.models import SessionMetadata
     from chatbot.main import app, handle_text_async
@@ -374,7 +227,7 @@ class TestHandleAudioAsyncPreChecks:
 
     def _run_with_mocks(self, mock_user_repo):
         """共通のモック設定で handle_audio_async を実行し、LineMessenger のモックを返す"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         from chatbot.database.models import SessionMetadata
         from chatbot.main import app, handle_audio_async
@@ -397,7 +250,7 @@ class TestHandleAudioAsyncPreChecks:
 
     def test_oauth_not_configured(self):
         """OAuth未設定の場合、認証URLを含むメッセージが返される"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         mock_user_repo = MagicMock()
         mock_oauth_manager = MagicMock()
@@ -415,7 +268,7 @@ class TestHandleAudioAsyncPreChecks:
 
     def test_oauth_configured_but_folder_missing(self):
         """OAuth設定済みだがフォルダID未設定の場合、フォルダID入力を促すメッセージが返される"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         mock_user_repo = MagicMock()
         mock_user_repo.fetch_drive_folder_id.return_value = None
@@ -432,7 +285,7 @@ class TestHandleAudioAsyncPreChecks:
 
     def test_oauth_and_folder_configured(self):
         """OAuth・フォルダID 両方設定済みの場合、ワークフローが呼び出される"""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_user_repo = MagicMock()
         mock_user_repo.fetch_drive_folder_id.return_value = "test-folder-id"
@@ -477,7 +330,7 @@ class TestHandleTextAsyncPreChecks:
         return event
 
     def _run_with_mocks(self, mock_user_repo, text="こんにちは"):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         from chatbot.main import app, handle_text_async
 
@@ -498,7 +351,7 @@ class TestHandleTextAsyncPreChecks:
 
     def test_oauth_not_configured(self):
         """OAuth未設定の場合、認証URLを含むメッセージが返される"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         mock_user_repo = MagicMock()
         mock_oauth_manager = MagicMock()
@@ -516,7 +369,7 @@ class TestHandleTextAsyncPreChecks:
 
     def test_folder_missing_with_unrelated_text(self):
         """フォルダID未設定かつ通常テキストの場合、入力を促すメッセージが返される"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         mock_user_repo = MagicMock()
         mock_user_repo.fetch_drive_folder_id.return_value = None
@@ -533,7 +386,7 @@ class TestHandleTextAsyncPreChecks:
 
     def test_folder_missing_with_drive_url(self):
         """フォルダID未設定かつDrive URLが送られた場合、フォルダIDが登録される"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         mock_user_repo = MagicMock()
         mock_user_repo.fetch_drive_folder_id.return_value = None

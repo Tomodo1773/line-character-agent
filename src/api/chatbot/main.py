@@ -306,7 +306,7 @@ async def handle_text_async(event):
         logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
         logger.info("Initializing ChatbotAgent with checkpointer")
-        agent = ChatbotAgent(checkpointer=app.state.checkpointer)
+        agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
 
         # ローディングアニメーションを表示
         logger.info("Showing loading animation")
@@ -459,7 +459,7 @@ async def create_chat_completion(
     # request.messagesをdict形式に変換
     messages = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
 
-    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
+    agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
 
     async def generate_stream():
         stream_id = f"chatcmpl-{str(uuid.uuid4())}"

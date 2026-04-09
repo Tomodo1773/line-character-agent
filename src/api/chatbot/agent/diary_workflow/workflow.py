@@ -110,7 +110,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             return Command(goto="__end__", update={"messages": [message]})
 
         user_repository = config["configurable"]["user_repository"]
-        agent = ChatbotAgent(checkpointer=agent_checkpointer)
+        agent = await ChatbotAgent.create(checkpointer=agent_checkpointer)
         reaction_prompt = """以下の日記に対して一言だけ感想を言って。
 内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
 {diary_text}
