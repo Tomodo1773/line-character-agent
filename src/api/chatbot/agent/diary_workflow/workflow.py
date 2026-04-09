@@ -13,7 +13,6 @@ from langsmith import traceable
 from typing_extensions import NotRequired, TypedDict
 
 from chatbot.agent.character_graph import ChatbotAgent
-from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.config import create_logger
 from chatbot.utils.diary_utils import generate_diary_digest, save_digest_to_drive, save_diary_to_drive
 from chatbot.utils.transcript import DiaryTranscription
@@ -110,7 +109,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             return Command(goto="__end__", update={"messages": [message]})
 
         user_repository = config["configurable"]["user_repository"]
-        agent = ChatbotAgent(checkpointer=agent_checkpointer)
+        agent = await ChatbotAgent.create(checkpointer=agent_checkpointer)
         reaction_prompt = """以下の日記に対して一言だけ感想を言って。
 内容全部に対してコメントしなくていいから、一番印象に残った部分についてコメントして。
 {diary_text}
@@ -121,7 +120,7 @@ def get_diary_workflow(agent_checkpointer: BaseCheckpointSaver | None = None) ->
             session_id=state["session_id"],
             user_repository=user_repository,
         )
-        reaction, _ = extract_agent_text(response)
+        reaction = response["messages"][-1].text
         return Command(
             goto="__end__",
             update={"character_comment": reaction, "messages": [AIMessage(content=reaction)]},

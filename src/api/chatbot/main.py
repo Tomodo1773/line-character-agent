@@ -33,7 +33,6 @@ from chatbot.models import (
     ChatCompletionStreamResponseChoice,
     ChatCompletionStreamResponseChoiceDelta,
 )
-from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
@@ -224,12 +223,12 @@ async def callback(
     logger.info("Message received.")
     try:
         background_tasks.add_task(handler.handle, body.decode("utf-8"), x_line_signature)
-        logger.info("Added handler to background tasks.")  # Logging the addition of handler to background tasks
+        logger.info("Added handler to background tasks.")
     except InvalidSignatureError:
-        logger.error("Invalid signature detected.")  # Logging the detection of an invalid signature
+        logger.error("Invalid signature detected.")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    logger.info("Request processing completed successfully.")  # Logging using the logger
+    logger.info("Request processing completed successfully.")
     return "ok"
 
 
@@ -305,12 +304,12 @@ async def handle_text_async(event):
 
         logger.info(f"Ensuring session for user {userid}")
         session = user_repository.ensure_session(userid)
-        logger.info("Initializing ChatbotAgent with checkpointer")
-        agent = ChatbotAgent(checkpointer=app.state.checkpointer)
-
         # ローディングアニメーションを表示
         logger.info("Showing loading animation")
         line_messenger.show_loading_animation()
+
+        logger.info("Initializing ChatbotAgent with checkpointer")
+        agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
 
         messages = [{"type": "human", "content": event.message.text}]
         logger.info(f"Invoking agent for session_id: {session.session_id}")
@@ -319,7 +318,7 @@ async def handle_text_async(event):
         )
 
         logger.info("Extracting agent response text")
-        reply_text, _ = extract_agent_text(response)
+        reply_text = response["messages"][-1].text
         logger.info(f"Generated text response: {reply_text[:20]}…")
 
         logger.info("Sending reply message")
@@ -404,7 +403,7 @@ async def handle_audio_async(event):
                 reply_texts.append(str(content))
 
         if not reply_texts:
-            fallback, _ = extract_agent_text(result)
+            fallback = result["messages"][-1].text
             reply_texts.append(fallback)
 
         logger.info("Sending reply messages")
@@ -459,7 +458,7 @@ async def create_chat_completion(
     # request.messagesをdict形式に変換
     messages = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
 
-    agent = ChatbotAgent(checkpointer=app.state.checkpointer)
+    agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
 
     async def generate_stream():
         stream_id = f"chatcmpl-{str(uuid.uuid4())}"
@@ -483,7 +482,7 @@ async def create_chat_completion(
                 messages=messages, userid=userid, session_id=session.session_id, user_repository=user_repository
             )
 
-            reply_text, _ = extract_agent_text(response)
+            reply_text = response["messages"][-1].text
             chunk_response = ChatCompletionStreamResponse(
                 id=stream_id,
                 created=created,
