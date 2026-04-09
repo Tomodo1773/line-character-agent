@@ -39,12 +39,4 @@ def extract_agent_text(response: dict[str, Any]) -> Tuple[str, bool]:
         raise ValueError("Agent response has no messages or __interrupt__.")
 
     last = messages[-1]
-    if isinstance(last, dict):
-        content = last.get("content", "")
-    else:
-        content = getattr(last, "content", "")
-
-    if not isinstance(content, str):
-        content = str(content)
-
-    return content, False
+    return last.text, False
