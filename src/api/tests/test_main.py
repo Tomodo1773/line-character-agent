@@ -7,7 +7,7 @@ import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
 from chatbot.agent import ChatbotAgent
-from chatbot.main import _get_effective_userid, extract_agent_text, root
+from chatbot.main import _get_effective_userid, root
 
 TEST_USER_ID = "test-user"
 
@@ -103,32 +103,6 @@ def test_diary_transcription():
     assert isinstance(result, str)
     assert len(result) > 0
     assert "ランニング" in result
-
-
-def test_extract_agent_text_non_interrupt():
-    """__interrupt__ が無い場合に messages[-1].content からテキストを取得できることを検証"""
-    response = {"messages": [{"content": "hello"}]}
-
-    text, is_interrupt = extract_agent_text(response)
-
-    assert text == "hello"
-    assert is_interrupt is False
-
-
-def test_extract_agent_text_with_interrupt():
-    """__interrupt__ がある場合に interrupt メッセージが優先されることを検証"""
-
-    class DummyInterrupt:
-        def __init__(self, value):
-            self.value = value
-
-    interrupts = [DummyInterrupt({"message": "need input"})]
-    response = {"__interrupt__": interrupts, "messages": [{"content": "ignored"}]}
-
-    text, is_interrupt = extract_agent_text(response)
-
-    assert text == "need input"
-    assert is_interrupt is True
 
 
 def test_reset_session():

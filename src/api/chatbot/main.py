@@ -33,7 +33,6 @@ from chatbot.models import (
     ChatCompletionStreamResponseChoice,
     ChatCompletionStreamResponseChoiceDelta,
 )
-from chatbot.utils.agent_response import extract_agent_text
 from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
@@ -319,7 +318,7 @@ async def handle_text_async(event):
         )
 
         logger.info("Extracting agent response text")
-        reply_text, _ = extract_agent_text(response)
+        reply_text = response["messages"][-1].text
         logger.info(f"Generated text response: {reply_text[:20]}…")
 
         logger.info("Sending reply message")
@@ -404,7 +403,7 @@ async def handle_audio_async(event):
                 reply_texts.append(str(content))
 
         if not reply_texts:
-            fallback, _ = extract_agent_text(result)
+            fallback = result["messages"][-1].text
             reply_texts.append(fallback)
 
         logger.info("Sending reply messages")
@@ -483,7 +482,7 @@ async def create_chat_completion(
                 messages=messages, userid=userid, session_id=session.session_id, user_repository=user_repository
             )
 
-            reply_text, _ = extract_agent_text(response)
+            reply_text = response["messages"][-1].text
             chunk_response = ChatCompletionStreamResponse(
                 id=stream_id,
                 created=created,
