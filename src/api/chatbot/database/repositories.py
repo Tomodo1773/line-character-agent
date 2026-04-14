@@ -145,28 +145,10 @@ class UserRepository(BaseRepository):
         return decrypted
 
     def save_code_verifier(self, userid: str, code_verifier: str) -> None:
-        """
-        PKCE の code_verifier をユーザーレコードに保存する。
-
-        OAuth URL 生成時に呼び出し、コールバック時に fetch_code_verifier で取り出す。
-        次回の URL 発行で上書きされる前提で、明示的な削除は行わない。
-        """
+        """PKCE の code_verifier をユーザーレコードに保存する（次回の URL 発行で上書きされる前提）。"""
         if not code_verifier:
             raise ValueError("code_verifier must be a non-empty string")
         self._upsert_user(userid, {"oauth_code_verifier": code_verifier})
-
-    def fetch_code_verifier(self, userid: str) -> str:
-        query = (
-            "SELECT TOP 1 c.oauth_code_verifier "
-            "FROM c WHERE c.userid = @userid "
-            "AND IS_DEFINED(c.oauth_code_verifier) "
-            "ORDER BY c.date DESC"
-        )
-        parameters = [{"name": "@userid", "value": userid}]
-        result = self.fetch(query, parameters)
-        if not result:
-            return ""
-        return str(result[0].get("oauth_code_verifier", ""))
 
     def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
         if not folder_id:

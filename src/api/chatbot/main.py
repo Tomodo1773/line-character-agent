@@ -198,7 +198,7 @@ async def google_drive_oauth_callback(
     line_user_id = os.getenv("LOCAL_LINE_USER_ID") or userid
     line_messenger = LineMessenger(user_id=line_user_id)
 
-    code_verifier = user_repository.fetch_code_verifier(userid)
+    code_verifier = user_data.get("oauth_code_verifier", "")
     if not code_verifier:
         logger.warning("No PKCE code_verifier stored for user; prompting user to restart OAuth.")
         line_messenger.push_message(
@@ -246,7 +246,6 @@ def _check_oauth(user_repository: UserRepository, userid: str, line_messenger: L
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
         auth_url, code_verifier = oauth_manager.generate_authorization_url(userid)
-        # PKCE の code_verifier をコールバック時に参照できるよう保存する
         user_repository.save_code_verifier(userid, code_verifier)
         line_messenger.reply_message(
             [
