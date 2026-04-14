@@ -332,6 +332,21 @@ line-character-agent/
 - **PostgreSQL**: LangGraph の PostgreSQL checkpointer が会話スレッド（メッセージ履歴、ステート）を自動管理します。テーブルはライブラリ側で自動作成され、環境変数 `POSTGRES_CHECKPOINT_URL` で接続文字列を指定します。
 - **Cosmos DB**: 日記エントリのベクトル検索とユーザー情報管理に利用します。データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
 
+#### Supabase Postgres 利用時の RLS 有効化
+
+Supabase は PostgREST 経由で `anon` / `authenticated` ロールにテーブルを公開する。LangGraph の checkpointer テーブルは RLS が無効のままだとプロジェクト URL と anon キーを知っている人から SELECT 可能になるため、初回 `setup()` 後（テーブル作成後）に Supabase の SQL Editor で以下を一度だけ実行する。
+
+```sql
+ALTER TABLE checkpoints           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkpoint_blobs      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkpoint_writes     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkpoint_migrations ENABLE ROW LEVEL SECURITY;
+```
+
+ポリシーは作成しない。これで `anon` / `authenticated` ロールからは全行アクセス不能になる。アプリは `POSTGRES_CHECKPOINT_URL` で `postgres` ロール（`BYPASSRLS` 属性付き）として直接接続するため引き続き動作する。
+
+注意: アプリの接続文字列が `postgres` 以外のロール（`authenticated` など）を使っている場合は RLS によりアプリも落ちる。必ず `postgres://postgres:...` で接続していることを確認してから適用すること。
+
 ## データベーススキーマ
 
 ### Cosmos DB - 日記エントリ（diary/entries）
