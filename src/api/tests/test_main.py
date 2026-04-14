@@ -229,7 +229,7 @@ class TestHandleAudioAsyncPreChecks:
         mock_user_repo = MagicMock()
         mock_oauth_manager = MagicMock()
         mock_oauth_manager.get_user_credentials.return_value = None
-        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", TEST_USER_ID)
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "test-code-verifier")
 
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
             mock_messenger = self._run_with_mocks(mock_user_repo)
@@ -239,6 +239,7 @@ class TestHandleAudioAsyncPreChecks:
         assert len(messages) == 2
         assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
         assert messages[1].text == "https://example.com/auth"
+        mock_user_repo.save_code_verifier.assert_called_once_with(TEST_USER_ID, "test-code-verifier")
 
     def test_oauth_configured_but_folder_missing(self):
         """OAuth設定済みだがフォルダID未設定の場合、フォルダID入力を促すメッセージが返される"""
@@ -330,7 +331,7 @@ class TestHandleTextAsyncPreChecks:
         mock_user_repo = MagicMock()
         mock_oauth_manager = MagicMock()
         mock_oauth_manager.get_user_credentials.return_value = None
-        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", TEST_USER_ID)
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "test-code-verifier")
 
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
             mock_messenger = self._run_with_mocks(mock_user_repo)
@@ -340,6 +341,7 @@ class TestHandleTextAsyncPreChecks:
         assert len(messages) == 2
         assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
         assert messages[1].text == "https://example.com/auth"
+        mock_user_repo.save_code_verifier.assert_called_once_with(TEST_USER_ID, "test-code-verifier")
 
     def test_folder_missing_with_unrelated_text(self):
         """フォルダID未設定かつ通常テキストの場合、入力を促すメッセージが返される"""
@@ -376,3 +378,79 @@ class TestHandleTextAsyncPreChecks:
         mock_user_repo.save_drive_folder_id.assert_called_once_with(TEST_USER_ID, "abc123_test-folder-id")
         reply_text = mock_messenger.reply_message.call_args[0][0][0].text
         assert "フォルダIDを設定したよ" in reply_text
+
+
+class TestOAuthCallbackVerifierSymmetry:
+    """`_check_oauth` が保存した code_verifier を `google_drive_oauth_callback` が
+    同じ値で `exchange_code_for_credentials` に渡すこと（PKCE の対称性）を保証する。
+
+    google-auth-oauthlib の autogenerate_code_verifier デフォルト変更のような、
+    authorize / token 間で verifier が食い違う回帰を検出する目的のテスト。"""
+
+    def test_verifier_saved_in_check_oauth_is_used_in_callback(self):
+        from unittest.mock import patch
+
+        from chatbot.main import _check_oauth, google_drive_oauth_callback
+
+        # fetch_user が返すユーザーレコード。save_code_verifier の side_effect で更新される
+        stored_user: dict = {"id": TEST_USER_ID, "userid": TEST_USER_ID}
+
+        mock_user_repo = MagicMock()
+        mock_user_repo.fetch_user.return_value = stored_user
+
+        def fake_save_code_verifier(userid, verifier):
+            stored_user["oauth_code_verifier"] = verifier
+
+        mock_user_repo.save_code_verifier.side_effect = fake_save_code_verifier
+
+        generated_verifier = "pkce-verifier-abc123"
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = None
+        mock_oauth_manager.generate_authorization_url.return_value = (
+            "https://example.com/auth",
+            generated_verifier,
+        )
+        mock_oauth_manager.exchange_code_for_credentials.return_value = MagicMock()
+
+        # 1. `_check_oauth` で認可URL生成 → verifier 保存
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            _check_oauth(mock_user_repo, TEST_USER_ID, MagicMock())
+
+        assert stored_user["oauth_code_verifier"] == generated_verifier
+
+        # 2. コールバックで保存済み verifier が exchange にそのまま渡ることを検証
+        with patch("chatbot.main.LineMessenger"):
+            asyncio.run(
+                google_drive_oauth_callback(
+                    code="auth-code-xyz",
+                    state=TEST_USER_ID,
+                    user_repository=mock_user_repo,
+                    oauth_manager=mock_oauth_manager,
+                )
+            )
+
+        mock_oauth_manager.exchange_code_for_credentials.assert_called_once_with("auth-code-xyz", generated_verifier)
+
+    def test_callback_without_saved_verifier_fails_gracefully(self):
+        """verifier 未保存でコールバックが来た場合、exchange は呼ばれず失敗レスポンスが返る"""
+        from unittest.mock import patch
+
+        from chatbot.main import google_drive_oauth_callback
+
+        mock_user_repo = MagicMock()
+        mock_user_repo.fetch_user.return_value = {"id": TEST_USER_ID, "userid": TEST_USER_ID}
+
+        mock_oauth_manager = MagicMock()
+
+        with patch("chatbot.main.LineMessenger"):
+            result = asyncio.run(
+                google_drive_oauth_callback(
+                    code="auth-code-xyz",
+                    state=TEST_USER_ID,
+                    user_repository=mock_user_repo,
+                    oauth_manager=mock_oauth_manager,
+                )
+            )
+
+        mock_oauth_manager.exchange_code_for_credentials.assert_not_called()
+        assert result == {"message": "Authorization failed."}

@@ -41,17 +41,19 @@ class GoogleDriveOAuthManager:
         """
         指定したユーザーIDを OAuth の state として利用して認可 URL を生成する。
 
-        これにより、コールバック側では state から直接 userid を復元できる。
+        戻り値は (認可URL, code_verifier) のタプル。PKCE 用の code_verifier は
+        コールバックで fetch_token に渡す必要があるため、呼び出し側で永続化すること。
         """
         flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
-        auth_url, flow_state = flow.authorization_url(
+        auth_url, _ = flow.authorization_url(
             access_type="offline", include_granted_scopes="true", prompt="consent", state=userid
         )
         logger.info("Generated Google OAuth authorization URL")
-        return auth_url, flow_state
+        return auth_url, flow.code_verifier
 
-    def exchange_code_for_credentials(self, code: str) -> Credentials:
+    def exchange_code_for_credentials(self, code: str, code_verifier: str) -> Credentials:
         flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
+        flow.code_verifier = code_verifier
         flow.fetch_token(code=code)
         logger.info("Exchanged authorization code for credentials")
         return flow.credentials

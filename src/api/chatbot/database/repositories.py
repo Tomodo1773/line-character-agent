@@ -144,6 +144,12 @@ class UserRepository(BaseRepository):
         decrypted = decrypt_dict(record.get("google_tokens_enc", ""))
         return decrypted
 
+    def save_code_verifier(self, userid: str, code_verifier: str) -> None:
+        """PKCE の code_verifier をユーザーレコードに保存する（次回の URL 発行で上書きされる前提）。"""
+        if not code_verifier:
+            raise ValueError("code_verifier must be a non-empty string")
+        self._upsert_user(userid, {"oauth_code_verifier": code_verifier})
+
     def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
         if not folder_id:
             raise ValueError("folder_id must be a non-empty string")
