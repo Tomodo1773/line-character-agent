@@ -198,8 +198,16 @@ async def google_drive_oauth_callback(
     line_user_id = os.getenv("LOCAL_LINE_USER_ID") or userid
     line_messenger = LineMessenger(user_id=line_user_id)
 
+    code_verifier = user_repository.fetch_code_verifier(userid)
+    if not code_verifier:
+        logger.warning("No PKCE code_verifier stored for user; prompting user to restart OAuth.")
+        line_messenger.push_message(
+            [TextMessage(text="認可フローの情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。")]
+        )
+        return {"message": "Authorization failed."}
+
     try:
-        credentials = oauth_manager.exchange_code_for_credentials(code)
+        credentials = oauth_manager.exchange_code_for_credentials(code, code_verifier)
         oauth_manager.save_user_credentials(userid, credentials)
 
         line_messenger.push_message([TextMessage(text="Google Driveの認証が完了したよ。メッセージを送ってね。")])
@@ -237,7 +245,9 @@ def _check_oauth(user_repository: UserRepository, userid: str, line_messenger: L
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
-        auth_url, _ = oauth_manager.generate_authorization_url(userid)
+        auth_url, code_verifier = oauth_manager.generate_authorization_url(userid)
+        # PKCE の code_verifier をコールバック時に参照できるよう保存する
+        user_repository.save_code_verifier(userid, code_verifier)
         line_messenger.reply_message(
             [
                 TextMessage(text="Google Drive へのアクセス許可がまだ設定されていないみたい。\n以下のURLから認可してね。"),

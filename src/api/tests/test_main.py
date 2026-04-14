@@ -229,7 +229,7 @@ class TestHandleAudioAsyncPreChecks:
         mock_user_repo = MagicMock()
         mock_oauth_manager = MagicMock()
         mock_oauth_manager.get_user_credentials.return_value = None
-        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", TEST_USER_ID)
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "test-code-verifier")
 
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
             mock_messenger = self._run_with_mocks(mock_user_repo)
@@ -239,6 +239,7 @@ class TestHandleAudioAsyncPreChecks:
         assert len(messages) == 2
         assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
         assert messages[1].text == "https://example.com/auth"
+        mock_user_repo.save_code_verifier.assert_called_once_with(TEST_USER_ID, "test-code-verifier")
 
     def test_oauth_configured_but_folder_missing(self):
         """OAuth設定済みだがフォルダID未設定の場合、フォルダID入力を促すメッセージが返される"""
@@ -330,7 +331,7 @@ class TestHandleTextAsyncPreChecks:
         mock_user_repo = MagicMock()
         mock_oauth_manager = MagicMock()
         mock_oauth_manager.get_user_credentials.return_value = None
-        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", TEST_USER_ID)
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "test-code-verifier")
 
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
             mock_messenger = self._run_with_mocks(mock_user_repo)
@@ -340,6 +341,7 @@ class TestHandleTextAsyncPreChecks:
         assert len(messages) == 2
         assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
         assert messages[1].text == "https://example.com/auth"
+        mock_user_repo.save_code_verifier.assert_called_once_with(TEST_USER_ID, "test-code-verifier")
 
     def test_folder_missing_with_unrelated_text(self):
         """フォルダID未設定かつ通常テキストの場合、入力を促すメッセージが返される"""
