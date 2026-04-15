@@ -124,7 +124,6 @@ module AppService './app/api.bicep' = {
       GOOGLE_TOKEN_ENC_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-TOKEN-ENC-KEY)'
       POSTGRES_CHECKPOINT_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/POSTGRES-CHECKPOINT-URL)'
       COSMOS_DB_CONNECTION_VERIFY: 'true'
-      APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
       UV_FROZEN: 'true'
       UV_NO_DEV: 'true'
     }
