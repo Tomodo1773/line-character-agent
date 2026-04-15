@@ -10,7 +10,6 @@ from chatbot.agent.tools import (
     diary_drive_tool,
     diary_search_tool,
     diary_update_tool,
-    get_mcp_tools,
     read_digest,
     read_profile,
 )
@@ -30,8 +29,6 @@ class ChatbotAgent:
         """Deep Agent を構築して ChatbotAgent を返す async factory。"""
         logger.info("ChatbotAgent.create: initializing Deep Agent")
 
-        mcp_tools = await get_mcp_tools()
-
         all_tools = [
             read_profile,
             read_digest,
@@ -40,7 +37,6 @@ class ChatbotAgent:
             diary_create_tool,
             diary_update_tool,
             {"type": "web_search_preview"},
-            *mcp_tools,
         ]
 
         system_prompt = DEEP_AGENT_PROMPT.format(current_datetime=get_japan_datetime())
