@@ -67,10 +67,9 @@ def test_chatbot_agent_response():
     require_openai_api_key()
 
     async def run():
-        with patch("chatbot.agent.tools.get_mcp_tools", new_callable=AsyncMock, return_value=[]):
-            agent = await ChatbotAgent.create(checkpointer=MemorySaver())
-            messages = [{"type": "human", "content": "こんにちは"}]
-            return await agent.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
+        agent = await ChatbotAgent.create(checkpointer=MemorySaver())
+        messages = [{"type": "human", "content": "こんにちは"}]
+        return await agent.ainvoke(messages=messages, userid=TEST_USER_ID, session_id=generate_test_session_id())
 
     response = asyncio.run(run())
 
@@ -274,7 +273,7 @@ class TestHandleAudioAsyncPreChecks:
 
     def test_oauth_and_folder_configured(self):
         """OAuth・フォルダID 両方設定済みの場合、ワークフローが呼び出される"""
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import patch
 
         mock_user_repo = MagicMock()
         mock_user_repo.fetch_drive_folder_id.return_value = "test-folder-id"

@@ -1,11 +1,9 @@
 import datetime
-import os
 from typing import Annotated, Any
 
 from azure.cosmos import CosmosClient, PartitionKey
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import OpenAIEmbeddings
 from pydantic import Field
 
@@ -37,38 +35,6 @@ def _get_embeddings() -> OpenAIEmbeddings:
     if _embeddings is None:
         _embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     return _embeddings
-
-
-# ---------------------------------------------------------------------------
-# MCP client (Spotify)
-# ---------------------------------------------------------------------------
-_mcp_client = None
-
-
-async def get_mcp_client():
-    """MCPクライアントのシングルトンインスタンスを取得"""
-    global _mcp_client
-    if _mcp_client is None:
-        connections = {
-            "spotify": {
-                "url": os.getenv("MCP_FUNCTION_URL", "http://localhost:7072/runtime/webhooks/mcp"),
-                "transport": "streamable_http",
-            }
-        }
-        _mcp_client = MultiServerMCPClient(connections)
-    return _mcp_client
-
-
-async def get_mcp_tools():
-    """MCPツールを取得"""
-    try:
-        client = await get_mcp_client()
-        tools = await client.get_tools()
-        logger.info("Retrieved %d MCP tools", len(tools))
-        return tools
-    except Exception as e:
-        logger.warning("Failed to retrieve MCP tools: %s", e)
-        return []
 
 
 # ---------------------------------------------------------------------------
