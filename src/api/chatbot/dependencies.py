@@ -8,7 +8,7 @@ from azure.cosmos import ContainerProxy
 from fastapi import Depends, Request
 
 from chatbot.database.core import CosmosCore
-from chatbot.database.repositories import UserRepository
+from chatbot.database.repositories import OAuthStateRepository, UserRepository
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 
 
@@ -49,3 +49,30 @@ def create_user_repository(container: ContainerProxy) -> UserRepository:
         UserRepository: 新規作成された UserRepository インスタンス
     """
     return UserRepository(CosmosCore(container))
+
+
+def get_oauth_state_repository(request: Request) -> OAuthStateRepository:
+    """app.state.oauth_states_container から OAuthStateRepository を生成。
+
+    Args:
+        request: FastAPI の Request オブジェクト
+
+    Returns:
+        OAuthStateRepository: 新規作成された OAuthStateRepository インスタンス
+    """
+    container = request.app.state.oauth_states_container
+    return OAuthStateRepository(CosmosCore(container))
+
+
+def create_oauth_state_repository(container: ContainerProxy) -> OAuthStateRepository:
+    """OAuthStateRepository を生成するヘルパー関数。
+
+    webhook ハンドラなど FastAPI DI が使えないコンテキストで使用。
+
+    Args:
+        container: 初期化済みの Cosmos DB oauth_states コンテナ。
+
+    Returns:
+        OAuthStateRepository: 新規作成された OAuthStateRepository インスタンス
+    """
+    return OAuthStateRepository(CosmosCore(container))

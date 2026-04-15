@@ -6,8 +6,14 @@ import pytest
 from fastapi import FastAPI
 
 from chatbot.database.core import CosmosCore
-from chatbot.database.repositories import UserRepository
-from chatbot.dependencies import create_user_repository, get_oauth_manager, get_user_repository
+from chatbot.database.repositories import OAuthStateRepository, UserRepository
+from chatbot.dependencies import (
+    create_oauth_state_repository,
+    create_user_repository,
+    get_oauth_manager,
+    get_oauth_state_repository,
+    get_user_repository,
+)
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 
 
@@ -66,6 +72,43 @@ class TestCreateUserRepository:
 
         # Assert
         assert isinstance(result, UserRepository)
+        assert isinstance(result._core, CosmosCore)
+
+
+class TestGetOAuthStateRepository:
+    """get_oauth_state_repository 関数のテスト。"""
+
+    def test_get_oauth_state_repository_creates_repository_from_container(self):
+        """app.state.oauth_states_container から OAuthStateRepository が生成されることを確認。"""
+        # Arrange
+        mock_container = MagicMock()
+        mock_app = FastAPI()
+        mock_app.state.oauth_states_container = mock_container
+
+        mock_request = MagicMock()
+        mock_request.app = mock_app
+
+        # Act
+        result = get_oauth_state_repository(mock_request)
+
+        # Assert
+        assert isinstance(result, OAuthStateRepository)
+        assert isinstance(result._core, CosmosCore)
+
+
+class TestCreateOAuthStateRepository:
+    """create_oauth_state_repository 関数のテスト。"""
+
+    def test_create_oauth_state_repository_with_container(self):
+        """コンテナを渡すと OAuthStateRepository が生成されることを確認。"""
+        # Arrange
+        mock_container = MagicMock()
+
+        # Act
+        result = create_oauth_state_repository(container=mock_container)
+
+        # Assert
+        assert isinstance(result, OAuthStateRepository)
         assert isinstance(result._core, CosmosCore)
 
 

@@ -163,22 +163,24 @@ def test_handle_text_async_with_reset_keyword():
 
     # app.state をモック
     app.state.users_container = MagicMock()
+    app.state.oauth_states_container = MagicMock()
 
-    # DI パターン用のモック設定: create_user_repository をモック
+    # DI パターン用のモック設定: create_user_repository / create_oauth_state_repository をモック
     # LOCAL_USER_ID を含まない環境で実行
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("LOCAL_USER_ID", None)
         with patch("chatbot.main.create_user_repository", return_value=mock_user_repo):
-            # LineMessengerのモック作成
-            with patch("chatbot.main.LineMessenger") as mock_messenger_class:
-                mock_messenger = MagicMock()
-                mock_messenger_class.return_value = mock_messenger
+            with patch("chatbot.main.create_oauth_state_repository", return_value=MagicMock()):
+                # LineMessengerのモック作成
+                with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                    mock_messenger = MagicMock()
+                    mock_messenger_class.return_value = mock_messenger
 
-                # handle_text_asyncを実行
-                asyncio.run(handle_text_async(event))
+                    # handle_text_asyncを実行
+                    asyncio.run(handle_text_async(event))
 
-                # reset_sessionが呼ばれたことを確認
-                mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
+                    # reset_sessionが呼ばれたことを確認
+                    mock_user_repo.reset_session.assert_called_once_with(TEST_USER_ID)
 
                 # 適切なメッセージが返信されたことを確認
                 mock_messenger.reply_message.assert_called_once()
@@ -199,7 +201,7 @@ class TestHandleAudioAsyncPreChecks:
         event.reply_token = "test-reply-token"
         return event
 
-    def _run_with_mocks(self, mock_user_repo):
+    def _run_with_mocks(self, mock_user_repo, mock_oauth_state_repo=None):
         """共通のモック設定で handle_audio_async を実行し、LineMessenger のモックを返す"""
         from unittest.mock import patch
 
@@ -209,37 +211,49 @@ class TestHandleAudioAsyncPreChecks:
         event = self._create_audio_event()
         mock_user_repo.ensure_session.return_value = SessionMetadata(session_id="test-session", last_accessed=MagicMock())
         app.state.users_container = MagicMock()
+        app.state.oauth_states_container = MagicMock()
         app.state.checkpointer = MagicMock()
+
+        oauth_state_repo = mock_oauth_state_repo if mock_oauth_state_repo is not None else MagicMock()
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LOCAL_USER_ID", None)
             with patch("chatbot.main.create_user_repository", return_value=mock_user_repo):
-                with patch("chatbot.main.LineMessenger") as mock_messenger_class:
-                    mock_messenger = MagicMock()
-                    mock_messenger_class.return_value = mock_messenger
+                with patch("chatbot.main.create_oauth_state_repository", return_value=oauth_state_repo):
+                    with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                        mock_messenger = MagicMock()
+                        mock_messenger_class.return_value = mock_messenger
 
-                    asyncio.run(handle_audio_async(event))
+                        asyncio.run(handle_audio_async(event))
 
-                    return mock_messenger
+                        return mock_messenger
 
     def test_oauth_not_configured(self):
-        """OAuth未設定の場合、認証URLを含むメッセージが返される"""
+        """OAuth未設定の場合、認証URLを含むメッセージが返され、oauth_states に保存される"""
         from unittest.mock import patch
 
         mock_user_repo = MagicMock()
+        mock_oauth_state_repo = MagicMock()
         mock_oauth_manager = MagicMock()
         mock_oauth_manager.get_user_credentials.return_value = None
         mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "test-code-verifier")
 
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
-            mock_messenger = self._run_with_mocks(mock_user_repo)
+            mock_messenger = self._run_with_mocks(mock_user_repo, mock_oauth_state_repo)
 
         mock_messenger.reply_message.assert_called_once()
         messages = mock_messenger.reply_message.call_args[0][0]
         assert len(messages) == 2
         assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
         assert messages[1].text == "https://example.com/auth"
-        mock_user_repo.save_code_verifier.assert_called_once_with(TEST_USER_ID, "test-code-verifier")
+        # state は乱数なので値そのものはアサートしないが、userid と code_verifier が正しく渡ることを検証
+        mock_oauth_state_repo.save_state.assert_called_once()
+        saved_state, saved_userid, saved_verifier = mock_oauth_state_repo.save_state.call_args[0]
+        assert isinstance(saved_state, str) and len(saved_state) >= 32
+        assert saved_userid == TEST_USER_ID
+        assert saved_verifier == "test-code-verifier"
+        # 認可 URL の生成時に state が渡っていることを確認
+        mock_oauth_manager.generate_authorization_url.assert_called_once_with(saved_state)
 
     def test_oauth_configured_but_folder_missing(self):
         """OAuth設定済みだがフォルダID未設定の場合、フォルダID入力を促すメッセージが返される"""
@@ -304,44 +318,54 @@ class TestHandleTextAsyncPreChecks:
         event.reply_token = "test-reply-token"
         return event
 
-    def _run_with_mocks(self, mock_user_repo, text="こんにちは"):
+    def _run_with_mocks(self, mock_user_repo, text="こんにちは", mock_oauth_state_repo=None):
         from unittest.mock import patch
 
         from chatbot.main import app, handle_text_async
 
         event = self._create_text_event(text)
         app.state.users_container = MagicMock()
+        app.state.oauth_states_container = MagicMock()
         app.state.checkpointer = MagicMock()
+
+        oauth_state_repo = mock_oauth_state_repo if mock_oauth_state_repo is not None else MagicMock()
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LOCAL_USER_ID", None)
             with patch("chatbot.main.create_user_repository", return_value=mock_user_repo):
-                with patch("chatbot.main.LineMessenger") as mock_messenger_class:
-                    mock_messenger = MagicMock()
-                    mock_messenger_class.return_value = mock_messenger
+                with patch("chatbot.main.create_oauth_state_repository", return_value=oauth_state_repo):
+                    with patch("chatbot.main.LineMessenger") as mock_messenger_class:
+                        mock_messenger = MagicMock()
+                        mock_messenger_class.return_value = mock_messenger
 
-                    asyncio.run(handle_text_async(event))
+                        asyncio.run(handle_text_async(event))
 
-                    return mock_messenger
+                        return mock_messenger
 
     def test_oauth_not_configured(self):
-        """OAuth未設定の場合、認証URLを含むメッセージが返される"""
+        """OAuth未設定の場合、認証URLを含むメッセージが返され、oauth_states に保存される"""
         from unittest.mock import patch
 
         mock_user_repo = MagicMock()
+        mock_oauth_state_repo = MagicMock()
         mock_oauth_manager = MagicMock()
         mock_oauth_manager.get_user_credentials.return_value = None
         mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "test-code-verifier")
 
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
-            mock_messenger = self._run_with_mocks(mock_user_repo)
+            mock_messenger = self._run_with_mocks(mock_user_repo, mock_oauth_state_repo=mock_oauth_state_repo)
 
         mock_messenger.reply_message.assert_called_once()
         messages = mock_messenger.reply_message.call_args[0][0]
         assert len(messages) == 2
         assert "Google Drive へのアクセス許可がまだ設定されていない" in messages[0].text
         assert messages[1].text == "https://example.com/auth"
-        mock_user_repo.save_code_verifier.assert_called_once_with(TEST_USER_ID, "test-code-verifier")
+        # state は乱数なので値そのものはアサートしないが、userid と code_verifier が正しく渡ることを検証
+        mock_oauth_state_repo.save_state.assert_called_once()
+        saved_state, saved_userid, saved_verifier = mock_oauth_state_repo.save_state.call_args[0]
+        assert isinstance(saved_state, str) and len(saved_state) >= 32
+        assert saved_userid == TEST_USER_ID
+        assert saved_verifier == "test-code-verifier"
 
     def test_folder_missing_with_unrelated_text(self):
         """フォルダID未設定かつ通常テキストの場合、入力を促すメッセージが返される"""
@@ -381,27 +405,31 @@ class TestHandleTextAsyncPreChecks:
 
 
 class TestOAuthCallbackVerifierSymmetry:
-    """`_check_oauth` が保存した code_verifier を `google_drive_oauth_callback` が
+    """`_check_oauth` が保存した (state, code_verifier) を `google_drive_oauth_callback` が
     同じ値で `exchange_code_for_credentials` に渡すこと（PKCE の対称性）を保証する。
 
     google-auth-oauthlib の autogenerate_code_verifier デフォルト変更のような、
     authorize / token 間で verifier が食い違う回帰を検出する目的のテスト。"""
 
-    def test_verifier_saved_in_check_oauth_is_used_in_callback(self):
+    def test_state_and_verifier_saved_in_check_oauth_are_used_in_callback(self):
         from unittest.mock import patch
 
         from chatbot.main import _check_oauth, google_drive_oauth_callback
 
-        # fetch_user が返すユーザーレコード。save_code_verifier の side_effect で更新される
-        stored_user: dict = {"id": TEST_USER_ID, "userid": TEST_USER_ID}
-
         mock_user_repo = MagicMock()
-        mock_user_repo.fetch_user.return_value = stored_user
 
-        def fake_save_code_verifier(userid, verifier):
-            stored_user["oauth_code_verifier"] = verifier
+        # oauth_states コンテナの擬似実装: save_state で保存 → consume_state で取り出し即削除
+        stored_states: dict[str, dict[str, str]] = {}
+        mock_oauth_state_repo = MagicMock()
 
-        mock_user_repo.save_code_verifier.side_effect = fake_save_code_verifier
+        def fake_save_state(state, userid, code_verifier):
+            stored_states[state] = {"userid": userid, "code_verifier": code_verifier}
+
+        def fake_consume_state(state):
+            return stored_states.pop(state, None)
+
+        mock_oauth_state_repo.save_state.side_effect = fake_save_state
+        mock_oauth_state_repo.consume_state.side_effect = fake_consume_state
 
         generated_verifier = "pkce-verifier-abc123"
         mock_oauth_manager = MagicMock()
@@ -412,33 +440,39 @@ class TestOAuthCallbackVerifierSymmetry:
         )
         mock_oauth_manager.exchange_code_for_credentials.return_value = MagicMock()
 
-        # 1. `_check_oauth` で認可URL生成 → verifier 保存
+        # 1. `_check_oauth` で認可URL生成 → state と verifier を保存
         with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
-            _check_oauth(mock_user_repo, TEST_USER_ID, MagicMock())
+            _check_oauth(mock_user_repo, mock_oauth_state_repo, TEST_USER_ID, MagicMock())
 
-        assert stored_user["oauth_code_verifier"] == generated_verifier
+        # 保存された state を取得
+        assert len(stored_states) == 1
+        saved_state = next(iter(stored_states.keys()))
+        assert stored_states[saved_state]["userid"] == TEST_USER_ID
+        assert stored_states[saved_state]["code_verifier"] == generated_verifier
 
-        # 2. コールバックで保存済み verifier が exchange にそのまま渡ることを検証
+        # 2. コールバックで saved_state を渡すと同じ verifier が exchange に渡ることを検証
         with patch("chatbot.main.LineMessenger"):
             asyncio.run(
                 google_drive_oauth_callback(
                     code="auth-code-xyz",
-                    state=TEST_USER_ID,
-                    user_repository=mock_user_repo,
+                    state=saved_state,
+                    oauth_state_repository=mock_oauth_state_repo,
                     oauth_manager=mock_oauth_manager,
                 )
             )
 
         mock_oauth_manager.exchange_code_for_credentials.assert_called_once_with("auth-code-xyz", generated_verifier)
+        # ワンタイム消費されていること
+        assert stored_states == {}
 
-    def test_callback_without_saved_verifier_fails_gracefully(self):
-        """verifier 未保存でコールバックが来た場合、exchange は呼ばれず失敗レスポンスが返る"""
+    def test_callback_with_unknown_state_fails_gracefully(self):
+        """未知 / 期限切れの state でコールバックが来た場合、exchange は呼ばれず案内メッセージが返る"""
         from unittest.mock import patch
 
         from chatbot.main import google_drive_oauth_callback
 
-        mock_user_repo = MagicMock()
-        mock_user_repo.fetch_user.return_value = {"id": TEST_USER_ID, "userid": TEST_USER_ID}
+        mock_oauth_state_repo = MagicMock()
+        mock_oauth_state_repo.consume_state.return_value = None
 
         mock_oauth_manager = MagicMock()
 
@@ -446,11 +480,32 @@ class TestOAuthCallbackVerifierSymmetry:
             result = asyncio.run(
                 google_drive_oauth_callback(
                     code="auth-code-xyz",
-                    state=TEST_USER_ID,
-                    user_repository=mock_user_repo,
+                    state="unknown-state",
+                    oauth_state_repository=mock_oauth_state_repo,
                     oauth_manager=mock_oauth_manager,
                 )
             )
 
         mock_oauth_manager.exchange_code_for_credentials.assert_not_called()
-        assert result == {"message": "Authorization failed."}
+        assert "認可リンクの有効期限が切れたか" in result["message"]
+
+    def test_check_oauth_generates_unique_state_each_call(self):
+        """`_check_oauth` は呼び出しごとに異なる乱数 state を生成する"""
+        from unittest.mock import patch
+
+        from chatbot.main import _check_oauth
+
+        mock_user_repo = MagicMock()
+        mock_oauth_state_repo = MagicMock()
+        mock_oauth_manager = MagicMock()
+        mock_oauth_manager.get_user_credentials.return_value = None
+        mock_oauth_manager.generate_authorization_url.return_value = ("https://example.com/auth", "verifier")
+
+        with patch("chatbot.main.GoogleDriveOAuthManager", return_value=mock_oauth_manager):
+            _check_oauth(mock_user_repo, mock_oauth_state_repo, TEST_USER_ID, MagicMock())
+            _check_oauth(mock_user_repo, mock_oauth_state_repo, TEST_USER_ID, MagicMock())
+
+        assert mock_oauth_state_repo.save_state.call_count == 2
+        state_1 = mock_oauth_state_repo.save_state.call_args_list[0][0][0]
+        state_2 = mock_oauth_state_repo.save_state.call_args_list[1][0][0]
+        assert state_1 != state_2

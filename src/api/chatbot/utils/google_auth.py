@@ -37,16 +37,21 @@ class GoogleDriveOAuthManager:
             }
         }
 
-    def generate_authorization_url(self, userid: str) -> Tuple[str, str]:
+    def generate_authorization_url(self, state: str) -> Tuple[str, str]:
         """
-        指定したユーザーIDを OAuth の state として利用して認可 URL を生成する。
+        指定した state を OAuth の state パラメータに載せて認可 URL を生成する。
 
-        戻り値は (認可URL, code_verifier) のタプル。PKCE 用の code_verifier は
-        コールバックで fetch_token に渡す必要があるため、呼び出し側で永続化すること。
+        Args:
+            state: CSRF 対策用のランダム文字列。呼び出し側で生成し、コールバックで
+                照合できるよう永続化すること。
+
+        Returns:
+            (認可URL, code_verifier) のタプル。PKCE 用の code_verifier は
+            コールバックで fetch_token に渡す必要があるため、呼び出し側で永続化すること。
         """
         flow = Flow.from_client_config(self._client_config(), scopes=GoogleDriveHandler.SCOPES, redirect_uri=self.redirect_uri)
         auth_url, _ = flow.authorization_url(
-            access_type="offline", include_granted_scopes="true", prompt="consent", state=userid
+            access_type="offline", include_granted_scopes="true", prompt="consent", state=state
         )
         logger.info("Generated Google OAuth authorization URL")
         return auth_url, flow.code_verifier
