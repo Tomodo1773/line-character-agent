@@ -126,6 +126,7 @@ module AppService './app/api.bicep' = {
       COSMOS_DB_CONNECTION_VERIFY: 'true'
       UV_FROZEN: 'true'
       UV_NO_DEV: 'true'
+      UV_CACHE_DIR: '/tmp/uv-cache'
     }
   }
 }
