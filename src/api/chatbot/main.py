@@ -5,8 +5,6 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-# Azure Application Insights imports
-from azure.monitor.opentelemetry import configure_azure_monitor
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.responses import StreamingResponse
@@ -16,7 +14,6 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import AudioMessageContent, MessageEvent, TextMessageContent
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from psycopg import OperationalError as PsycopgOperationalError
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
@@ -179,12 +176,6 @@ app = FastAPI(
     description="LINEBOT-AI-AGENT by FastAPI.",
     lifespan=lifespan,
 )
-
-# Azure Application Insightsの初期化
-APPLICATIONINSIGHTS_CONNECTION_STRING = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
-if APPLICATIONINSIGHTS_CONNECTION_STRING:
-    configure_azure_monitor(connection_string=APPLICATIONINSIGHTS_CONNECTION_STRING)
-    FastAPIInstrumentor.instrument_app(app)
 
 
 @app.get("/")
