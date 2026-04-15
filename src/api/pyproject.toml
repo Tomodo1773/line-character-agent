@@ -15,7 +15,6 @@ dependencies = [
     "azure-monitor-opentelemetry>=1.0.0,<2",
     "opentelemetry-instrumentation-fastapi>=0.40b0,<1",
     "deepagents>=0.4.12",
-    "langchain>=1.0,<2",
     "langchain-core>=1.0,<2",
     "langchain-openai>=1.0,<2",
     "langchain-mcp-adapters>=0.2.1,<0.3",
@@ -27,7 +26,6 @@ dependencies = [
     "google-auth-httplib2>=0.2.0",
     "google-auth-oauthlib>=1.2.2",
     "psycopg[binary,pool]>=3.2.13",
-    "gunicorn>=23.0.0",
 ]
 
 [tool.uv]
