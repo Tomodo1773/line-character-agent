@@ -196,12 +196,6 @@ class OAuthStateRepository(BaseRepository):
 
     def save_state(self, state: str, userid: str, code_verifier: str) -> None:
         """state をキーに userid と code_verifier を保存する。"""
-        if not state:
-            raise ValueError("state must be a non-empty string")
-        if not userid:
-            raise ValueError("userid must be a non-empty string")
-        if not code_verifier:
-            raise ValueError("code_verifier must be a non-empty string")
         self.save({"id": state, "userid": userid, "code_verifier": code_verifier})
 
     def consume_state(self, state: str) -> Optional[Dict[str, str]]:
