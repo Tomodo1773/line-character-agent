@@ -1,5 +1,6 @@
 import asyncio
 import os
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -24,8 +25,14 @@ from google.oauth2.credentials import Credentials
 
 from chatbot.agent import ChatbotAgent
 from chatbot.agent.diary_workflow import DiaryWorkflowError, get_diary_workflow
-from chatbot.database.repositories import UserRepository
-from chatbot.dependencies import create_user_repository, get_oauth_manager, get_user_repository
+from chatbot.database.repositories import OAuthStateRepository, UserRepository
+from chatbot.dependencies import (
+    create_oauth_state_repository,
+    create_user_repository,
+    get_oauth_manager,
+    get_oauth_state_repository,
+    get_user_repository,
+)
 from chatbot.utils.drive_folder import extract_drive_folder_id
 from chatbot.models import (
     ChatCompletionRequest,
@@ -132,7 +139,7 @@ async def lifespan(app: FastAPI):
         app.state.pool = pool
 
         # CosmosClient を初期化
-        from chatbot.database.core import _create_cosmos_client, init_users_container
+        from chatbot.database.core import _create_cosmos_client, init_oauth_states_container, init_users_container
 
         cosmos_client = _create_cosmos_client()
         logger.info("CosmosClient initialized")
@@ -141,6 +148,11 @@ async def lifespan(app: FastAPI):
         users_container = init_users_container(cosmos_client)
         app.state.users_container = users_container
         logger.info("Users container initialized")
+
+        # oauth_states コンテナを初期化（TTL 600 秒）
+        oauth_states_container = init_oauth_states_container(cosmos_client)
+        app.state.oauth_states_container = oauth_states_container
+        logger.info("OAuth states container initialized")
 
         # agent tools の CosmosClient も初期化
         from chatbot.agent.tools import initialize_cosmos_client
@@ -184,27 +196,21 @@ async def root():
 async def google_drive_oauth_callback(
     code: str,
     state: str,
-    user_repository: UserRepository = Depends(get_user_repository),
+    oauth_state_repository: OAuthStateRepository = Depends(get_oauth_state_repository),
     oauth_manager: GoogleDriveOAuthManager = Depends(get_oauth_manager),
 ):
-    # state には userid を渡している前提
-    userid = state
-    user_data = user_repository.fetch_user(userid)
-    if not user_data:
-        logger.warning("No user found for the provided state; prompting user to restart OAuth.")
-        return {"message": "ユーザー情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。"}
+    # ランダムな state をキーに userid と code_verifier を引き当てて即削除（ワンタイム消費）
+    consumed = oauth_state_repository.consume_state(state)
+    if not consumed:
+        logger.warning("OAuth callback received with unknown or expired state.")
+        return {"message": "認可リンクの有効期限が切れたか、無効なstateだよ。もう一度LINEからOAuthをやり直してね。"}
+
+    userid = consumed["userid"]
+    code_verifier = consumed["code_verifier"]
 
     # ローカル開発時は LOCAL_LINE_USER_ID を使用（LINE APIに送信するため正式なLINE user IDが必要）
     line_user_id = os.getenv("LOCAL_LINE_USER_ID") or userid
     line_messenger = LineMessenger(user_id=line_user_id)
-
-    code_verifier = user_data.get("oauth_code_verifier", "")
-    if not code_verifier:
-        logger.warning("No PKCE code_verifier stored for user; prompting user to restart OAuth.")
-        line_messenger.push_message(
-            [TextMessage(text="認可フローの情報が見つからなかったよ。もう一度LINEからOAuthをやり直してね。")]
-        )
-        return {"message": "Authorization failed."}
 
     try:
         credentials = oauth_manager.exchange_code_for_credentials(code, code_verifier)
@@ -240,13 +246,20 @@ async def callback(
     return "ok"
 
 
-def _check_oauth(user_repository: UserRepository, userid: str, line_messenger: LineMessenger) -> Credentials | None:
+def _check_oauth(
+    user_repository: UserRepository,
+    oauth_state_repository: OAuthStateRepository,
+    userid: str,
+    line_messenger: LineMessenger,
+) -> Credentials | None:
     """OAuth 認証情報を検証し、未設定なら認証URLを返信して None を返す。"""
     oauth_manager = GoogleDriveOAuthManager(user_repository)
     credentials = oauth_manager.get_user_credentials(userid)
     if not credentials:
-        auth_url, code_verifier = oauth_manager.generate_authorization_url(userid)
-        user_repository.save_code_verifier(userid, code_verifier)
+        # CSRF 対策のランダム state を発行し、oauth_states コンテナに userid と code_verifier を紐付けて保存する。
+        state = secrets.token_urlsafe(32)
+        auth_url, code_verifier = oauth_manager.generate_authorization_url(state)
+        oauth_state_repository.save_state(state, userid, code_verifier)
         line_messenger.reply_message(
             [
                 TextMessage(text="Google Drive へのアクセス許可がまだ設定されていないみたい。\n以下のURLから認可してね。"),
@@ -286,6 +299,7 @@ async def handle_text_async(event):
         line_messenger = LineMessenger(event)
         userid = _get_effective_userid(event.source.user_id)
         user_repository = create_user_repository(app.state.users_container)
+        oauth_state_repository = create_oauth_state_repository(app.state.oauth_states_container)
 
         # 会話履歴リセットのキーワードをチェック
         if event.message.text.strip() == "閑話休題":
@@ -296,7 +310,7 @@ async def handle_text_async(event):
             return
 
         # OAuth / フォルダ ID の事前チェック
-        if not _check_oauth(user_repository, userid, line_messenger):
+        if not _check_oauth(user_repository, oauth_state_repository, userid, line_messenger):
             return
 
         folder_id = user_repository.fetch_drive_folder_id(userid)
@@ -353,13 +367,14 @@ async def handle_audio_async(event):
         line_messenger = LineMessenger(event)
         userid = _get_effective_userid(event.source.user_id)
         user_repository = create_user_repository(app.state.users_container)
+        oauth_state_repository = create_oauth_state_repository(app.state.oauth_states_container)
 
         # ローディングアニメーションを表示
         logger.info("Showing loading animation")
         line_messenger.show_loading_animation()
 
         # OAuth / フォルダ ID の事前チェック
-        credentials = _check_oauth(user_repository, userid, line_messenger)
+        credentials = _check_oauth(user_repository, oauth_state_repository, userid, line_messenger)
         if not credentials:
             return
 

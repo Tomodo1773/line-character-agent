@@ -1,14 +1,17 @@
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytz
 
+from chatbot.utils.config import create_logger
 from chatbot.utils.crypto import decrypt_dict, encrypt_dict
 
 from .core import CosmosCore
 from .interfaces import BaseRepository
 from .models import SessionMetadata
+
+logger = create_logger(__name__)
 
 
 class UserRepository(BaseRepository):
@@ -144,12 +147,6 @@ class UserRepository(BaseRepository):
         decrypted = decrypt_dict(record.get("google_tokens_enc", ""))
         return decrypted
 
-    def save_code_verifier(self, userid: str, code_verifier: str) -> None:
-        """PKCE の code_verifier をユーザーレコードに保存する（次回の URL 発行で上書きされる前提）。"""
-        if not code_verifier:
-            raise ValueError("code_verifier must be a non-empty string")
-        self._upsert_user(userid, {"oauth_code_verifier": code_verifier})
-
     def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
         if not folder_id:
             raise ValueError("folder_id must be a non-empty string")
@@ -174,3 +171,57 @@ class UserRepository(BaseRepository):
 
         record = result[0]
         return str(record.get("drive_folder_id", ""))
+
+
+class OAuthStateRepository(BaseRepository):
+    """
+    OAuth の state と紐づく userid / PKCE code_verifier を一時保存するリポジトリ。
+
+    state をキーにランダム生成したワンタイムトークンを扱う。コンテナ側に TTL 600 秒が
+    設定されているため、期限切れのレコードは自動削除される。
+    """
+
+    def __init__(self, cosmos_core: CosmosCore):
+        """
+        Args:
+            cosmos_core: CosmosCore インスタンス
+        """
+        self._core = cosmos_core
+
+    def save(self, data: Dict[str, Any]) -> None:
+        self._core.save(data)
+
+    def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return self._core.fetch(query, parameters)
+
+    def save_state(self, state: str, userid: str, code_verifier: str) -> None:
+        """state をキーに userid と code_verifier を保存する。"""
+        if not state:
+            raise ValueError("state must be a non-empty string")
+        if not userid:
+            raise ValueError("userid must be a non-empty string")
+        if not code_verifier:
+            raise ValueError("code_verifier must be a non-empty string")
+        self.save({"id": state, "userid": userid, "code_verifier": code_verifier})
+
+    def consume_state(self, state: str) -> Optional[Dict[str, str]]:
+        """
+        state で引き当てて即削除する（ワンタイム消費）。
+
+        Returns:
+            見つかれば {"userid": ..., "code_verifier": ...}、無ければ None。
+        """
+        logger.info("Consuming OAuth state")
+        query = "SELECT TOP 1 * FROM c WHERE c.id = @state"
+        parameters = [{"name": "@state", "value": state}]
+        result = self.fetch(query, parameters)
+        if not result:
+            return None
+
+        item = result[0]
+        try:
+            self._core.delete(state, state)
+        except Exception as error:
+            # 削除失敗時はログだけ残し、TTL による事後掃除に委ねる。
+            logger.warning("Failed to delete consumed oauth_state (will be cleaned by TTL): %s", error)
+        return {"userid": item["userid"], "code_verifier": item["code_verifier"]}

@@ -16,6 +16,16 @@ def init_users_container(cosmos_client: CosmosClient):
     return database.create_container_if_not_exists(id="users", partition_key=PartitionKey(path="/id"))
 
 
+def init_oauth_states_container(cosmos_client: CosmosClient):
+    """oauth_states コンテナを初期化して返す（TTL 600秒）。アプリ起動時に1回だけ呼び出す。"""
+    database = cosmos_client.create_database_if_not_exists(id="main", offer_throughput=600)
+    return database.create_container_if_not_exists(
+        id="oauth_states",
+        partition_key=PartitionKey(path="/id"),
+        default_ttl=600,
+    )
+
+
 class CosmosCore:
     """CosmosDBの基本操作を提供するクラス"""
 
@@ -49,6 +59,13 @@ class CosmosCore:
             return list(self._container.query_items(query=query, parameters=parameters, enable_cross_partition_query=True))
         except Exception as e:
             raise HTTPException(status_code=500, detail="Failed to fetch data") from e
+
+    def delete(self, item_id: str, partition_key: str) -> None:
+        """データの削除"""
+        try:
+            self._container.delete_item(item=item_id, partition_key=partition_key)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Failed to delete data") from e
 
 
 def _create_cosmos_client() -> CosmosClient:
