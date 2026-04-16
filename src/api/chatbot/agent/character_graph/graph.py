@@ -32,18 +32,20 @@ def _load_skill_files() -> dict:
     for skill_dir in _SKILLS_DIR.iterdir():
         if not skill_dir.is_dir():
             continue
-        skill_md = skill_dir / "SKILL.md"
-        if skill_md.exists():
-            content = skill_md.read_text(encoding="utf-8")
-            path_key = f"/skills/{skill_dir.name}/SKILL.md"
-            files[path_key] = {"content": content, "encoding": "utf-8"}
+        try:
+            content = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        path_key = f"/skills/{skill_dir.name}/SKILL.md"
+        files[path_key] = {"content": content, "encoding": "utf-8"}
     return files
 
 
 class ChatbotAgent:
-    def __init__(self, agent, checkpointer: BaseCheckpointSaver | None = None) -> None:
+    def __init__(self, agent, checkpointer: BaseCheckpointSaver | None = None, skill_files: dict | None = None) -> None:
         self.agent = agent
         self.checkpointer = checkpointer
+        self._skill_files = skill_files or {}
 
     @classmethod
     async def create(cls, checkpointer: BaseCheckpointSaver | None = None):
@@ -72,7 +74,8 @@ class ChatbotAgent:
             checkpointer=checkpointer,
         )
 
-        return cls(agent, checkpointer)
+        skill_files = _load_skill_files()
+        return cls(agent, checkpointer, skill_files)
 
     def _config(self, session_id: str, userid: str, user_repository=None) -> dict:
         return {
@@ -86,9 +89,8 @@ class ChatbotAgent:
     async def ainvoke(self, messages: list, userid: str, session_id: str, user_repository=None):
         config = self._config(session_id, userid, user_repository)
         input_dict: dict = {"messages": messages}
-        skill_files = _load_skill_files()
-        if skill_files:
-            input_dict["files"] = skill_files
+        if self._skill_files:
+            input_dict["files"] = self._skill_files
         async for chunk in self.agent.astream(
             input_dict,
             config,
