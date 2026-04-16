@@ -8,7 +8,7 @@ from langchain_openai import OpenAIEmbeddings
 from pydantic import Field
 
 from chatbot.utils.config import create_logger
-from chatbot.utils.diary_utils import generate_diary_filename
+from chatbot.utils.diary_utils import generate_diary_digest, generate_diary_filename, save_digest_to_drive
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
 
@@ -367,3 +367,32 @@ def diary_update_tool(
         return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"
     except Exception as e:
         return f"日記の更新中にエラーが発生しました: {str(e)}"
+
+
+@tool("diary-digest-tool")
+def diary_digest_tool(
+    date: Annotated[str, Field(description="日記の対象日付 (YYYY-MM-DD形式)")],
+    content: Annotated[str, Field(description="日記の本文テキスト")],
+    config: RunnableConfig,
+) -> str:
+    """日記のダイジェスト（2-5語の要約）を生成しGoogle Driveに保存する。日記の作成・更新後に呼び出す。"""
+    userid, user_repository = _get_injected_args(config)
+    logger.info("diary-digest-tool実行: date=%s", date)
+    drive_handler = _create_drive_handler(userid, user_repository)
+    if not drive_handler:
+        return "Google Drive に接続できませんでした。"
+    try:
+        _, filename, _ = _parse_diary_date(date)
+
+        digest = generate_diary_digest(content)
+        if not digest:
+            return "ダイジェストの生成に失敗しました。"
+
+        saved = save_digest_to_drive(digest, filename, drive_handler)
+        if saved:
+            return f"ダイジェストを保存しました: {digest}"
+        return "ダイジェストの保存に失敗しました。"
+    except ValueError:
+        return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"
+    except Exception as e:
+        return f"ダイジェスト生成中にエラーが発生しました: {str(e)}"

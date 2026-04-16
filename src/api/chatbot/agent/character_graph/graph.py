@@ -1,5 +1,7 @@
 """ChatbotAgent class definition - Deep Agent based chatbot."""
 
+from pathlib import Path
+
 from deepagents import create_deep_agent
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langchain_openai import ChatOpenAI
@@ -7,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from chatbot.agent.character_graph.prompts import DEEP_AGENT_PROMPT
 from chatbot.agent.tools import (
     diary_create_tool,
+    diary_digest_tool,
     diary_drive_tool,
     diary_search_tool,
     diary_update_tool,
@@ -17,6 +20,24 @@ from chatbot.utils import get_japan_datetime
 from chatbot.utils.config import create_logger
 
 logger = create_logger(__name__)
+
+_SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
+
+
+def _load_skill_files() -> dict:
+    """skills/ 配下の SKILL.md を StateBackend 用の files dict として読み込む。"""
+    files: dict = {}
+    if not _SKILLS_DIR.is_dir():
+        return files
+    for skill_dir in _SKILLS_DIR.iterdir():
+        if not skill_dir.is_dir():
+            continue
+        skill_md = skill_dir / "SKILL.md"
+        if skill_md.exists():
+            content = skill_md.read_text(encoding="utf-8")
+            path_key = f"/skills/{skill_dir.name}/SKILL.md"
+            files[path_key] = {"content": content, "encoding": "utf-8"}
+    return files
 
 
 class ChatbotAgent:
@@ -36,6 +57,7 @@ class ChatbotAgent:
             diary_drive_tool,
             diary_create_tool,
             diary_update_tool,
+            diary_digest_tool,
             {"type": "web_search_preview"},
         ]
 
@@ -46,6 +68,7 @@ class ChatbotAgent:
             model=llm,
             tools=all_tools,
             system_prompt=system_prompt,
+            skills=["/skills/"],
             checkpointer=checkpointer,
         )
 
@@ -62,8 +85,12 @@ class ChatbotAgent:
 
     async def ainvoke(self, messages: list, userid: str, session_id: str, user_repository=None):
         config = self._config(session_id, userid, user_repository)
+        input_dict: dict = {"messages": messages}
+        skill_files = _load_skill_files()
+        if skill_files:
+            input_dict["files"] = skill_files
         async for chunk in self.agent.astream(
-            {"messages": messages},
+            input_dict,
             config,
             stream_mode="updates",
         ):
