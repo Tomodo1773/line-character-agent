@@ -37,22 +37,15 @@ jobs:
           cd src/func
           uv sync
 
-      - name: Install dependencies for mcp
-        run: |
-          cd src/mcp
-          uv sync
-
       - name: Run Ruff check with fix
         run: |
           (cd src/api && uv run ruff check --fix .)
           (cd src/func && uv run ruff check --fix .)
-          (cd src/mcp && uv run ruff check --fix .)
 
       - name: Run Ruff format
         run: |
           (cd src/api && uv run ruff format .)
           (cd src/func && uv run ruff format .)
-          (cd src/mcp && uv run ruff format .)
 
       - name: Commit fixed files
         uses: stefanzweifel/git-auto-commit-action@v7

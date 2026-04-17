@@ -2,7 +2,7 @@
 
 ## 目的と背景
 
-このリポジトリは「キャラクター性のあるパーソナルエージェント」を自分用に育てることを第一目的としている。同時にエンジニアとして幅広い技術スタック（API設計、サーバーレス、MCP、RAG、インフラ自動化など）を体系的に学び、ベストプラクティスへ寄せていくための実験場でもある。動けばいいわけではなく、人に見られて恥ずかしくない「よいコードを書く」ことを重視する。
+このリポジトリは「キャラクター性のあるパーソナルエージェント」を自分用に育てることを第一目的としている。同時にエンジニアとして幅広い技術スタック（API設計、サーバーレス、RAG、インフラ自動化など）を体系的に学び、ベストプラクティスへ寄せていくための実験場でもある。動けばいいわけではなく、人に見られて恥ずかしくない「よいコードを書く」ことを重視する。
 
 ユーザは作者1名だが、学習用に10~20人程度のユーザのアプリと想定する。
 
@@ -27,7 +27,6 @@
 
 - `src/api/` FastAPI アプリ（LINE webhook、エージェント）。テストは `src/api/tests/`。
 - `src/func/` Azure Functions（日記アップロード/RAG）。テストは `src/func/tests/`。
-- `src/mcp/` MCP サーバー（Spotify/OpenAI 連携）。テストは `src/mcp/tests/`。
 - `infra/` Bicep、`images/` 図版、`tools/` 開発ユーティリティ。
 
 ## ビルド・テスト・開発コマンド
@@ -38,7 +37,6 @@
 |----------|------|--------|
 | API | `cd src/api && uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 3100` | `uv run pytest` |
 | Func | Azure Functions Core Tools を使用 | `uv run pytest` |
-| MCP | Azure Functions Core Tools を使用 | `uv run pytest` |
 
 ### Python 実行時の注意
 
@@ -59,7 +57,7 @@
 
 ### Format/Lint
 
-全サービス（api, func, mcp）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
+全サービス（api, func）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
 
 ```bash
 # 各サービスディレクトリで実行
@@ -73,7 +71,7 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 
 - フレームワーク: pytest（必要に応じて pytest-asyncio）。
 - 置き場/命名: `src/*/tests/`、ファイルは `test_*.py`、関数は `test_*`。
-- 外部依存: 必須環境変数が無い場合は `pytest.skip` を使用（MCP テスト参照）。
+- 外部依存: 必須環境変数が無い場合は `pytest.skip` を使用。
 - 実行: 各サービスディレクトリで `uv run pytest`。小さく独立したユニットテストを重視。
 
 ## コミット・PR ガイドライン
@@ -84,14 +82,14 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 ## セキュリティと構成
 
 - 秘密情報はコミットしない。ローカルは `.env`、クラウドは Azure Key Vault を使用。
-- 必要サービス: LINE、Cosmos DB、Google Drive、Spotify、OpenAI/Azure OpenAI（詳細は `README.md`）。
+- 必要サービス: LINE、Cosmos DB、Google Drive、OpenAI/Azure OpenAI（詳細は `README.md`）。
 - 環境変数は各サービスの `.env.sample` で確認。
 
 ## 環境変数追加時の注意
 
 - 追加時は「設定モジュール定義」→「`.env.sample` 追記」→「`infra/main.bicep` の該当サービス `appSettings` へキー追加」→「PR に用途記載」の4ステップ。
 - Key Vault シークレットは事前登録の上 `@Microsoft.KeyVault(SecretUri=...)` 形式で main.bicep に書く。Cosmos/Storage の接続情報は各 service module が自動 union するため重複定義しない。
-- ランタイム側で散発的に `os.environ.get` を書かず集中ファイル（API は `utils/config.py`）で一括検証する方針。Functions/MCP は今後統合予定。
+- ランタイム側で散発的に `os.environ.get` を書かず集中ファイル（API は `utils/config.py`）で一括検証する方針。Functions は今後統合予定。
 - main.bicep への追加漏れは本番起動時クラッシュ (503) に直結するので PR レビューで `main.bicep` と `.env.sample` の両方を必ず確認する。
 
 例: 新しい OAuth シークレット追加なら Key Vault 登録 → main.bicep appSettings に参照式 → config 定義 → `.env.sample` 追記 → PR に "env: XXX 追加"。

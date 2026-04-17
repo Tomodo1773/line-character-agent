@@ -1,14 +1,10 @@
 import asyncio
 import os
 import secrets
-import time
-import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Security, status
-from fastapi.responses import StreamingResponse
-from fastapi.security.api_key import APIKeyHeader
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -28,16 +24,8 @@ from chatbot.dependencies import (
     create_user_repository,
     get_oauth_manager,
     get_oauth_state_repository,
-    get_user_repository,
 )
 from chatbot.utils.drive_folder import extract_drive_folder_id
-from chatbot.models import (
-    ChatCompletionRequest,
-    ChatCompletionStreamResponse,
-    ChatCompletionStreamResponseChoice,
-    ChatCompletionStreamResponseChoiceDelta,
-)
-from chatbot.utils.auth import verify_api_key
 from chatbot.utils.config import create_logger, get_env_variable
 from chatbot.utils.google_auth import GoogleDriveOAuthManager
 from chatbot.utils.google_drive import GoogleDriveHandler
@@ -438,106 +426,6 @@ def handle_audio(event):
         logger.error("Event loop is not initialized. Cannot handle audio message.")
         return
     _schedule_coroutine(handle_audio_async(event), description="handle_audio_async")
-
-
-api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
-
-
-async def get_api_key(api_key_header: str = Security(api_key_header)):
-    if not api_key_header or not api_key_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API Key",
-        )
-
-    api_key = api_key_header.replace("Bearer ", "")
-    if not verify_api_key(api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key",
-        )
-
-    return api_key
-
-
-@app.post("/v1/chat/completions")
-async def create_chat_completion(
-    request: ChatCompletionRequest,
-    api_key: str = Depends(get_api_key),
-    user_repository: UserRepository = Depends(get_user_repository),
-):
-    """OpenAI互換のチャット補完APIエンドポイント"""
-    userid = "openai-compatible-api-user"
-    session = user_repository.ensure_session(userid)
-
-    # request.messagesをdict形式に変換
-    messages = [{"type": msg.role.value, "content": msg.content} for msg in request.messages]
-
-    agent = await ChatbotAgent.create(checkpointer=app.state.checkpointer)
-
-    async def generate_stream():
-        stream_id = f"chatcmpl-{str(uuid.uuid4())}"
-        created = int(time.time())
-
-        start_response = ChatCompletionStreamResponse(
-            id=stream_id,
-            created=created,
-            choices=[
-                ChatCompletionStreamResponseChoice(
-                    index=0,
-                    delta=ChatCompletionStreamResponseChoiceDelta(role="assistant"),
-                    finish_reason=None,
-                )
-            ],
-        )
-        yield f"data: {start_response.model_dump_json()}\n\n"
-
-        try:
-            response = await agent.ainvoke(
-                messages=messages, userid=userid, session_id=session.session_id, user_repository=user_repository
-            )
-
-            reply_text = response["messages"][-1].text
-            chunk_response = ChatCompletionStreamResponse(
-                id=stream_id,
-                created=created,
-                choices=[
-                    ChatCompletionStreamResponseChoice(
-                        index=0,
-                        delta=ChatCompletionStreamResponseChoiceDelta(content=reply_text),
-                        finish_reason=None,
-                    )
-                ],
-            )
-            yield f"data: {chunk_response.model_dump_json()}\n\n"
-
-            end_response = ChatCompletionStreamResponse(
-                id=stream_id,
-                created=created,
-                choices=[
-                    ChatCompletionStreamResponseChoice(
-                        index=0,
-                        delta=ChatCompletionStreamResponseChoiceDelta(),
-                        finish_reason="stop",
-                    )
-                ],
-            )
-            yield f"data: {end_response.model_dump_json()}\n\n"
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            logger.error(f"Error during streaming: {e}")
-            yield f"data: [ERROR] {str(e)}\n\n"
-            yield "data: [DONE]\n\n"
-
-    return StreamingResponse(
-        generate_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Transfer-Encoding": "chunked",
-        },
-    )
 
 
 if __name__ == "__main__":

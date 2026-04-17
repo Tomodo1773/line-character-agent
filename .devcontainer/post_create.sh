@@ -17,7 +17,6 @@ git config --global codespaces-theme.hide-status 1
 
 (cd src/api && uv sync) || true
 (cd src/func && uv sync) || true
-(cd src/mcp && uv sync) || true
 uv tool install pre-commit
 pre-commit install
 
