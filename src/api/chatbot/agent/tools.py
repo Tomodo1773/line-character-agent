@@ -328,7 +328,8 @@ def diary_create_tool(
 
         saved_id = drive_handler.save_markdown(content, f"{filename}.md", year_folder_id)
         if saved_id:
-            return f"{filename}の日記をGoogle Driveに保存しました。"
+            url = f"https://drive.google.com/file/d/{saved_id}/view"
+            return f"{filename}の日記をGoogle Driveに保存しました。\n{url}"
         return "日記の保存に失敗しました。"
     except ValueError:
         return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"
@@ -361,7 +362,8 @@ def diary_update_tool(
 
         success = drive_handler.update_markdown(file_id, content)
         if success:
-            return f"{filename}の日記を更新しました。"
+            url = f"https://drive.google.com/file/d/{file_id}/view"
+            return f"{filename}の日記を更新しました。\n{url}"
         return "日記の更新に失敗しました。"
     except ValueError:
         return f"日付の形式が正しくありません: {date}（YYYY-MM-DD形式で指定してください）"

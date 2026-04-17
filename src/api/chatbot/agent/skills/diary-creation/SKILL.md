@@ -68,3 +68,4 @@ allowed-tools: diary-drive-tool diary-create-tool diary-update-tool diary-digest
 ### 6. 完了報告
 - 保存できたことをユーザに伝える
 - ユーザの日記に対して、キャラクターとして一言コメントを添える
+- `diary-create-tool` / `diary-update-tool` の戻り値に含まれる Google Drive の URL（`https://drive.google.com/...`）は、返信の末尾に改行して**そのまま**残す。省略・短縮・パラフレーズしない
