@@ -10,17 +10,17 @@ dependencies = [
     "azure-cosmos>=4.7.0,<5",
     "azure-identity>=1.16.0,<2",
     "python-dotenv>=1.0.0,<2",
-    "openai>=1.0.0,<3",
-    "cryptography>=46.0.3,<47",
-    "google-auth>=2.35.0,<3",
+    "openai>=2.31.0,<3",
+    "cryptography>=46.0.7,<47",
+    "google-auth>=2.49.2,<3",
     "google-auth-oauthlib>=1.2.1,<2",
     "google-auth-httplib2>=0.2.0,<0.4",
-    "google-api-python-client>=2.149.0,<3",
-    "langchain-core>=1.0,<2",
-    "deepagents>=0.2.8",
+    "google-api-python-client>=2.194.0,<3",
+    "langchain-core>=1.2.28,<2",
+    "deepagents>=0.5.1",
     "langchain-openai>=1.1.0",
-    "langsmith>=0.1.99",
-    "line-bot-sdk>=3.0.0,<4",
+    "langsmith>=0.7.30",
+    "line-bot-sdk>=3.23.0,<4",
 ]
 
 [tool.uv]
@@ -29,8 +29,8 @@ exclude-newer = "7 days"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.11.8",
-    "pytest>=8.0.0",
+    "ruff>=0.15.10",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.23.0",
     "pytest-mock>=3.14.1",
     "debugpy>=1.8.17",
