@@ -160,10 +160,6 @@ module storageAccount 'core/storage/storage-account.bicep' = {
         publicAccess: 'None'
       }
       {
-        name: 'app-package-mcp-${resourceToken}'
-        publicAccess: 'None'
-      }
-      {
         name: 'azure-webjobs-hosts'
         publicAccess: 'None'
       }
@@ -222,48 +218,11 @@ module functionApp 'app/func.bicep' = {
   }
 }
 
-module mcpFunctionApp 'app/mcp.bicep' = {
-  name: 'mcp'
-  scope: rg
-  params: {
-    name: '${abbrs.webSitesFunctions}mcp-${resourceToken}'
-    location: location
-    tags: union(tags, { 'azd-service-name': 'mcp' })
-    alwaysOn: false
-    keyVaultName: keyVaultName
-    appSettings: {
-      AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      SPOTIFY_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-ID)'
-      SPOTIFY_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-CLIENT-SECRET)'
-      SPOTIFY_REFRESH_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/SPOTIFY-REFRESH-TOKEN)'
-      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
-    }
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
-    appServicePlanId: appServicePlan.outputs.id
-    runtimeName: 'python'
-    runtimeVersion: '3.11'
-    storageAccountName: storageAccount.outputs.name
-    functionAppContainer: 'https://${storageAccount.outputs.name}.blob.${environment().suffixes.storage}/app-package-mcp-${resourceToken}'
-    functionAppScaleLimit: 100
-    minimumElasticInstanceCount: 0
-  }
-}
-
 module diagnostics 'core/host/app-diagnostics.bicep' = {
   name: 'functions-diagnostics'
   scope: rg
   params: {
     appName: functionApp.outputs.name
-    kind: 'functionapp'
-    diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
-  }
-}
-
-module mcpDiagnostics 'core/host/app-diagnostics.bicep' = {
-  name: 'mcp-diagnostics'
-  scope: rg
-  params: {
-    appName: mcpFunctionApp.outputs.name
     kind: 'functionapp'
     diagnosticWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
   }
@@ -286,10 +245,6 @@ module assignKeyVaultRoles 'core/host/assign-keyvault-roles.bicep' = {
       {
         name: functionApp.name
         principalId: functionApp.outputs.identityPrincipalId
-      }
-      {
-        name: mcpFunctionApp.name
-        principalId: mcpFunctionApp.outputs.identityPrincipalId
       }
     ]
   }

@@ -8,12 +8,10 @@ on:
       - "infra/**"
       - "src/api/**"
       - "src/func/**"
-      - "src/mcp/**"
       - ".github/workflows/**"
       - ".github/actions/**"
       - "!src/api/uv.lock"
       - "!src/func/uv.lock"
-      - "!src/mcp/uv.lock"
   workflow_dispatch:
     inputs:
       deploy_api:
@@ -22,10 +20,6 @@ on:
         default: true
       deploy_func:
         description: Func をデプロイ
-        type: boolean
-        default: true
-      deploy_mcp:
-        description: MCP をデプロイ
         type: boolean
         default: true
 
@@ -48,10 +42,4 @@ jobs:
     needs: provision
     if: needs.provision.outputs.func_changed == 'true' || needs.provision.outputs.infra_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_func)
     uses: ./.github/workflows/deploy-func.yml
-    secrets: inherit
-
-  deploy_mcp:
-    needs: provision
-    if: needs.provision.outputs.mcp_changed == 'true' || needs.provision.outputs.infra_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_mcp)
-    uses: ./.github/workflows/deploy-mcp.yml
     secrets: inherit

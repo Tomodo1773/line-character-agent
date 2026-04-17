@@ -9,9 +9,6 @@ on:
       func_changed:
         description: Func サービスに変更あり
         value: ${{ jobs.provision.outputs.func_changed }}
-      mcp_changed:
-        description: MCP サービスに変更あり
-        value: ${{ jobs.provision.outputs.mcp_changed }}
       infra_changed:
         description: インフラ構成に変更あり
         value: ${{ jobs.provision.outputs.infra_changed }}
@@ -36,7 +33,6 @@ jobs:
     outputs:
       api_changed: ${{ steps.changes.outputs.api }}
       func_changed: ${{ steps.changes.outputs.func }}
-      mcp_changed: ${{ steps.changes.outputs.mcp }}
       infra_changed: ${{ steps.changes.outputs.infra }}
     steps:
       - uses: actions/checkout@v6
@@ -52,9 +48,6 @@ jobs:
             func:
               - 'src/func/**'
               - '!src/func/uv.lock'
-            mcp:
-              - 'src/mcp/**'
-              - '!src/mcp/uv.lock'
             infra:
               - 'infra/**'
 

@@ -46,7 +46,7 @@ model: sonnet
 
 ## テスト実行手順
 
-1. 実行対象のサービスを確認する（`src/api` / `src/func` / `src/mcp`）。
+1. 実行対象のサービスを確認する（`src/api` / `src/func`）。
 2. 対象ディレクトリで `uv sync --frozen` を実行して依存を固定する
 3. 対象ディレクトリで `uv run pytest` を実行する
 4. テストの実行が完了するまで待機します
