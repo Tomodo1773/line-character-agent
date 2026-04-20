@@ -39,7 +39,7 @@ jobs:
 
       - name: 変更検知
         id: changes
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@v4.0.1
         with:
           filters: |
             api:
@@ -52,7 +52,7 @@ jobs:
               - 'infra/**'
 
       - name: azd のセットアップ
-        uses: Azure/setup-azd@v2
+        uses: Azure/setup-azd@v2.2.1
 
       - name: Azure へのログイン (OIDC)
         run: |
