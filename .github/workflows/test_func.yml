@@ -30,10 +30,15 @@ jobs:
         with:
           version: "0.5.13"
 
+      - name: Setup Socket Firewall
+        uses: socketdev/action@937f824ec476dfd164d4a4d9995751427b0be143 # v1
+        with:
+          mode: firewall
+
       - name: Install dependencies
         run: |
           cd src/func
-          uv sync
+          sfw uv sync
 
       - name: Run Ruff check
         run: |
