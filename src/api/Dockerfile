@@ -9,8 +9,15 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSL -o /usr/local/bin/sfw \
+        https://github.com/SocketDev/sfw-free/releases/latest/download/sfw-free-linux-x86_64 \
+    && chmod +x /usr/local/bin/sfw \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN sfw uv sync --frozen --no-dev --no-install-project
 
 COPY chatbot ./chatbot
 
