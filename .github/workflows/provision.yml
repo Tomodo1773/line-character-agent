@@ -36,6 +36,8 @@ jobs:
       infra_changed: ${{ steps.changes.outputs.infra }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: 変更検知
         id: changes
