@@ -21,7 +21,7 @@ jobs:
       AZURE_KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
       AZURE_KEYVAULT_RG: ${{ vars.AZURE_KEYVAULT_RG }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           persist-credentials: false
 
