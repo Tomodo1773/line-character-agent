@@ -375,13 +375,13 @@ requires-dist = [
     { name = "cryptography", specifier = ">=49.0.0,<50" },
     { name = "deepagents", specifier = ">=0.6.12" },
     { name = "google-api-python-client", specifier = ">=2.198.0,<3" },
-    { name = "google-auth", specifier = ">=2.55.1,<3" },
+    { name = "google-auth", specifier = ">=2.55.2,<3" },
     { name = "google-auth-httplib2", specifier = ">=0.4.0,<0.5" },
     { name = "google-auth-oauthlib", specifier = ">=1.4.0,<2" },
     { name = "langchain-core", specifier = ">=1.4.8,<2" },
     { name = "langchain-openai", specifier = ">=1.3.3" },
-    { name = "langsmith", specifier = ">=0.9.1" },
-    { name = "line-bot-sdk", specifier = ">=3.24.0,<4" },
+    { name = "langsmith", specifier = ">=0.9.8" },
+    { name = "line-bot-sdk", specifier = ">=3.25.0,<4" },
     { name = "openai", specifier = ">=2.44.0,<3" },
     { name = "python-dotenv", specifier = ">=1.0.0,<2" },
 ]
@@ -489,15 +489,15 @@ wheels = [
 
 [[package]]
 name = "google-auth"
-version = "2.55.1"
+version = "2.55.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "pyasn1-modules" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/6f/f3f4ac177c67bbee8fe8e88f2ab4f36af88c44a096e165c5217accf6e5d3/google_auth-2.55.1.tar.gz", hash = "sha256:fb2d9b730f2c9b8d326ec8d7222f21aef2ead15bf0513793d6442485d87af0a1", size = 349527, upload-time = "2026-06-25T23:39:27.182Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/b9/e370d86fea3da13ec0256df30323dd26c0cb9c8c85f0c6ec42ac9df0106b/google_auth-2.55.2.tar.gz", hash = "sha256:97ae7790ff740f2bc9db60eb864a7804f4ac19f5f02c38b3d942f2fea6e9b9ae", size = 361414, upload-time = "2026-07-07T18:43:21.227Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/1d/f6d3ca1ad0725f2e08a1c6915640748a52de2e66596160a4d53b010cccf0/google_auth-2.55.1-py3-none-any.whl", hash = "sha256:eada68dfd52b3b81191827601e2a0c3fa12540c818534b630ddc5355769c3995", size = 252349, upload-time = "2026-06-25T23:38:52.946Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/c6/02eb5a337ac316a4c30c012e747bad5cea36e1a876efecdf80865541f7d8/google_auth-2.55.2-py3-none-any.whl", hash = "sha256:d715f265f2cafc6a5f1bf0dc19870d20e3119f6f6682785a250bce3d03d38a3b", size = 256778, upload-time = "2026-07-07T18:43:19.52Z" },
 ]
 
 [package.optional-dependencies]
@@ -822,7 +822,7 @@ wheels = [
 
 [[package]]
 name = "langsmith"
-version = "0.9.1"
+version = "0.9.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -840,14 +840,14 @@ dependencies = [
     { name = "xxhash" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/26/b72987d947278f63ec1e85f01ce85ca7ab2621c7efc0845d4a3a8e5d5dfb/langsmith-0.9.1.tar.gz", hash = "sha256:e5eb905224d156bcece4985285c55b51fffcb06c9353b2c4adb42e1c48b0d05d", size = 4557557, upload-time = "2026-06-23T17:04:23.233Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/68/8d8471233ee0cd82c2af946d76f80a01aeb8bb04160c392c1229fddf5d3d/langsmith-0.9.8.tar.gz", hash = "sha256:8c3d6a6d5246a3ea6d439b726d59edefba31dfb251de9eedb256119bbea4439e", size = 4710812, upload-time = "2026-07-06T19:06:10.866Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/42/13c67eb24cddb368df2c8af13e319c86b1d270c90f5b8c9e8baed3593e04/langsmith-0.9.1-py3-none-any.whl", hash = "sha256:1160bf667af63d9bc081821f1df351cb84f7875740858f2a97ffef62b21800a9", size = 578856, upload-time = "2026-06-23T17:04:21.47Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/67/a85caaa99117bbc988a0df7faa39e7f68344361854638d86bcce0ffe3619/langsmith-0.9.8-py3-none-any.whl", hash = "sha256:098da9fc6c184284f17913cb813a41e28c5ab1508e90bd50db40c28166681017", size = 671148, upload-time = "2026-07-06T19:06:08.911Z" },
 ]
 
 [[package]]
 name = "line-bot-sdk"
-version = "3.24.0"
+version = "3.25.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aenum" },
@@ -859,9 +859,9 @@ dependencies = [
     { name = "requests" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/60/4d9aa6a82e761d6b23e75bdb74e3bacddfb138c09417dc66b6ff85244e18/line_bot_sdk-3.24.0.tar.gz", hash = "sha256:12736f1488d9c51101af05d3faf3552f35f2a8b18b56a6fa5715c400c4a2a0a8", size = 476197, upload-time = "2026-07-01T07:36:05.844Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/74/cf9150e1192ccd8f615d738657a552df4623de822888f26e4201c6e67295/line_bot_sdk-3.25.0.tar.gz", hash = "sha256:c9f0d00494322e1b477fc19b51ffa9076eaccb8de39b067d06c49ee6d463354a", size = 476550, upload-time = "2026-07-07T08:50:57.437Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/d0/51be78579422b5f8152a56ddacb0ba0423a4b17870c25d8cd826a992096e/line_bot_sdk-3.24.0-py2.py3-none-any.whl", hash = "sha256:558fd00ae0d283db03c6abdc08dc4ecd66f164a7ac30f78185295d5a5b48d4c1", size = 837105, upload-time = "2026-07-01T07:36:03.965Z" },
+    { url = "https://files.pythonhosted.org/packages/af/d8/380e68ba0e643e47843a18a07c97fd8b79da3f7604e2656e4cd1088720c0/line_bot_sdk-3.25.0-py2.py3-none-any.whl", hash = "sha256:2950eba64da474ce753b3bc4372f22a285f7ccad23a140ca8490679c0ec56535", size = 838667, upload-time = "2026-07-07T08:50:55.871Z" },
 ]
 
 [[package]]
