@@ -152,7 +152,9 @@ class DeepAgentFactory:
 class DigestReorganizer:
     """digest.json の再編処理を Deep Agent で実行する。"""
 
-    def __init__(self, *, agent_factory: Callable[[Path], AgentRunner] | None = None, model_name: str = "gpt-5.6-terra") -> None:
+    def __init__(
+        self, *, agent_factory: Callable[[Path], AgentRunner] | None = None, model_name: str = "gpt-5.6-terra"
+    ) -> None:
         self.agent_factory = agent_factory or DeepAgentFactory(model_name)
 
     def reorganize(self, raw_digest: str, *, today_override: str | None = None) -> str:
