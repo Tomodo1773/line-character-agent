@@ -139,7 +139,7 @@ def generate_diary_digest(diary_content: str) -> str:
             ]
         )
 
-        llm = ChatOpenAI(model="gpt-5.2", temperature=0.2)
+        llm = ChatOpenAI(model="gpt-5.6-luna", reasoning_effort="none")
         chain = template | llm | StrOutputParser()
 
         return chain.invoke({"diary_content": diary_content})

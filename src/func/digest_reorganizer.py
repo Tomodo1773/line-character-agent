@@ -141,18 +141,18 @@ def _update_last_updated(content: str, today: str) -> str:
 
 @dataclass
 class DeepAgentFactory:
-    model_name: str = "gpt-5.2"
+    model_name: str = "gpt-5.6-terra"
 
     def __call__(self, workspace: Path) -> AgentRunner:
         backend = FilesystemBackend(root_dir=workspace, virtual_mode=True)
-        llm = ChatOpenAI(model=self.model_name, temperature=0, reasoning_effort="medium")
+        llm = ChatOpenAI(model=self.model_name, reasoning_effort="medium")
         return create_deep_agent(model=llm, system_prompt=SYSTEM_PROMPT, backend=backend)
 
 
 class DigestReorganizer:
     """digest.json の再編処理を Deep Agent で実行する。"""
 
-    def __init__(self, *, agent_factory: Callable[[Path], AgentRunner] | None = None, model_name: str = "gpt-5.2") -> None:
+    def __init__(self, *, agent_factory: Callable[[Path], AgentRunner] | None = None, model_name: str = "gpt-5.6-terra") -> None:
         self.agent_factory = agent_factory or DeepAgentFactory(model_name)
 
     def reorganize(self, raw_digest: str, *, today_override: str | None = None) -> str:

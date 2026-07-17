@@ -65,7 +65,7 @@ class ChatbotAgent:
 
         system_prompt = DEEP_AGENT_PROMPT.format(current_datetime=get_japan_datetime())
 
-        llm = ChatOpenAI(model="gpt-5.2", temperature=1.0)
+        llm = ChatOpenAI(model="gpt-5.6-terra", reasoning_effort="low")
         agent = create_deep_agent(
             model=llm,
             tools=all_tools,

@@ -70,7 +70,7 @@ class DiaryTranscription:
             raise RuntimeError(f"Generate diary transcription error: {e}") from e
 
     def _create_chain(self):
-        chat = ChatOpenAI(model="gpt-4o", temperature=0.2)
+        chat = ChatOpenAI(model="gpt-5.6-luna", reasoning_effort="none")
         # chat = ChatGoogleGenerativeAI(
         #     model="gemini-1.5-pro-latest",
         #     temperature=0.2,
