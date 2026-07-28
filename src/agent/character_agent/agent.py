@@ -32,18 +32,19 @@ def create_skills_provider() -> SkillsProvider:
     )
 
 
-def create_agent() -> Agent:
+def create_agent(model: str | None = None) -> Agent:
     """ホステッドエージェントとして公開するエージェントを組み立てる。
 
     モデルは Foundry プロジェクトのエンドポイント経由で Entra 認証により呼び出す。
     モデル名は環境変数で切り替える前提のため、コードには持たせない（ADR-0001 モデル選定）。
+    `model` は評価でモデルを差し替えるための引数で、通常は指定しない（`evals/run_eval.py`）。
     """
     logger.info("create_agent が呼び出されました")
     settings = get_settings()
 
     client = FoundryChatClient(
         project_endpoint=settings.foundry_project_endpoint,
-        model=settings.model_deployment_name,
+        model=model or settings.model_deployment_name,
         credential=DefaultAzureCredential(),
     )
     # ツールが投げた例外の内容をモデルに返す。日付の指定ミスなどをモデル自身が直せるようにする。

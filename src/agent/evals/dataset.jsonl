@@ -1,0 +1,10 @@
+{"id": "diary-write-declaration", "description": "宣言してから本文を送る、日記登録の基本形。スキルを読んでから登録できるか", "turns": ["今から昨日の日記を書くね", "朝から雨で、午前中は家で本を読んでた。午後は駅前にできたカフェで企画をまとめて、夜は久しぶりに自炊して豚汁を作った。"], "expected_tools": [{"name": "load_skill"}, {"name": "get_current_datetime"}, {"name": "diary_create"}]}
+{"id": "diary-search-topic", "description": "話題から過去の日記を探す。日付の指定はない", "turns": ["前に江ノ島に行ったときのこと、どんな一日だったか教えて"], "expected_tools": [{"name": "diary_search"}]}
+{"id": "diary-update-fix", "description": "既存の日記の記述を直す。全文を取り直してから更新できるか", "turns": ["2026年7月21日の日記だけど、健康診断じゃなくて人間ドックだったわ。直しておいて"], "expected_tools": [{"name": "diary_search"}, {"name": "diary_update", "arguments": {"date": "2026-07-21"}}]}
+{"id": "diary-delete", "description": "日付を指定した削除", "turns": ["2026年7月22日の日記は消しておいて"], "expected_tools": [{"name": "diary_delete", "arguments": {"date": "2026-07-22"}}]}
+{"id": "diary-rename", "description": "日付を間違えて登録した日記の付け替え。更新や再作成で代替しないか", "turns": ["2026年7月20日の日記、日付を間違えてた。本当は7月19日の出来事だから付け替えて"], "expected_tools": [{"name": "diary_rename", "arguments": {"date": "2026-07-20", "new_date": "2026-07-19"}}]}
+{"id": "profile-reference", "description": "相手の背景を聞かれたとき、記憶を騙らずプロフィールを読むか", "turns": ["ねぇ、私がどんな仕事してるか覚えてる?"], "expected_tools": [{"name": "read_profile"}]}
+{"id": "digest-regenerate", "description": "頼まれたときだけ実行するダイジェストの再編", "turns": ["日ごとの記録が溜まってきたから、ダイジェストを月ごとにまとめ直しておいて"], "expected_tools": [{"name": "digest_regenerate"}]}
+{"id": "chat-no-tool", "description": "ツールが要らない雑談。キャラクターとして返せるか", "turns": ["今日もあついわね。なんか元気の出ること言ってよ"], "expected_tools": []}
+{"id": "topic-change", "description": "閑話休題による話題転換。履歴の切り替えは Worker 側の仕事なので、エージェントはツールを使わず受け止めるだけでよい", "turns": ["閑話休題。さっきの話はもういいや、全然違う話していい?"], "expected_tools": []}
+{"id": "ambiguous-request", "description": "対象が特定できない依頼。勝手に消さず聞き返せるか", "turns": ["この前のあれ、消しといて"], "expected_tools": []}
