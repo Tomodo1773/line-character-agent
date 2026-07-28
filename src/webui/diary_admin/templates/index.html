@@ -1,0 +1,27 @@
+{% extends "base.html" %} {% block content %}
+<form method="get" action="/">
+  <label>
+    月で絞る
+    <select name="month" onchange="this.form.submit()">
+      <option value="">すべて</option>
+      {% for month in months %}
+      <option value="{{ month }}" {% if month == selected_month %}selected{% endif %}>{{ month }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">絞り込む</button></noscript>
+</form>
+
+<p>{{ entries | length }} 件</p>
+
+<ul>
+  {% for entry in entries %}
+  <li>
+    <a href="/entries/{{ entry.id }}">{{ entry.date }}</a>
+    <div class="preview">{{ entry.preview }}</div>
+  </li>
+  {% else %}
+  <li>日記がありません。</li>
+  {% endfor %}
+</ul>
+{% endblock %}

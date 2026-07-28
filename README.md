@@ -17,6 +17,7 @@ LINE上で動作するAIキャラクターエージェントシステムです�
 - **バックエンド**
   - Foundry ホステッドエージェント（`src/agent`）
   - Azure Functions（`src/func`。LINE ゲートウェイ／ワーカー）
+  - 日記管理 Web UI（`src/webui`。Azure Container Apps Express）
 
 - **データベース・ストレージ**
   - Azure Cosmos DB（日記エントリのベクトル検索、ユーザー情報）
@@ -169,6 +170,136 @@ sfw uv sync                  # 依存関係インストール
 # Azure Functions Core Tools でローカル実行
 ```
 
+#### Web UI Service（`src/webui/`）
+
+日記の閲覧・日付変更・削除ができる管理画面です。作成と本文の編集は LINE 経由が本線のため持ちません。
+
+```bash
+cd src/webui
+sfw uv sync                  # 依存関係インストール
+cp .env.sample .env          # 環境変数を設定（ADMIN_USER / ADMIN_PASSWORD など）
+az login                     # Cosmos DB へは自分の権限で接続する
+uv run uvicorn diary_admin.main:app --reload --env-file .env --port 8000
+uv run pytest                # テスト実行
+uv run ruff check .          # リント
+uv run ruff format .         # フォーマット
+```
+
+<http://localhost:8000> を開くと Basic 認証を求められます。`.env` に設定した `ADMIN_USER` / `ADMIN_PASSWORD` で入ってください。
+
+## 日記 Web UI のデプロイ（Azure Container Apps Express）
+
+[ADR-0001 §8](./docs/adr/0001-azure-native-agent-architecture.md) の通り、この UI だけは IaC の対象外とし、手順をここに残します。ACA Express はパブリックプレビューで仕様が動くため、Bicep に固定するより手順として書いておくほうが実態に合うという判断です。本体（LINE 経路）から独立しているので、止まってもサービスに影響はありません。
+
+### 前提と制約（2026年7月時点）
+
+- 対応リージョンは **West Central US と East Asia のみ**
+- **シークレット管理・Key Vault 連携・マネージド ID・Easy Auth はいずれも未対応**（開発中）。そのため接続情報は環境変数に平文で載り、UI 自体の保護はアプリ側の Basic 認証で行う
+- Microsoft Entra ID のアカウントが必要（個人の Microsoft アカウントでは使えない）
+- HTTP のワークロードのみ。scale to zero に対応
+- `containerapp` 拡張は 1.3.0b4 以降が必要
+
+### 1. 権限を絞ったサービスプリンシパルを用意する
+
+マネージド ID が使えないため資格情報を環境変数で渡すことになります。アカウントキーは日記以外にも届いてしまうので使わず、**日記コンテナだけに絞ったカスタムロール**を割り当てたサービスプリンシパルを使います。UI は日記の作成をしないので、作成・upsert の権限も渡しません（漏れても新規書き込みはできない状態にする）。
+
+```bash
+# UI 専用のサービスプリンシパルを作る（--role を指定しないので Azure ロールは付かない）
+az ad sp create-for-rbac --name diary-webui
+# 出力の appId / password / tenant を控える
+```
+
+`role-definition.json`:
+
+```json
+{
+  "RoleName": "DiaryWebUi",
+  "Type": "CustomRole",
+  "AssignableScopes": ["/dbs/diary/colls/entries"],
+  "Permissions": [
+    {
+      "DataActions": [
+        "Microsoft.DocumentDB/databaseAccounts/readMetadata",
+        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/executeQuery",
+        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/read",
+        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/replace",
+        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/delete"
+      ]
+    }
+  ]
+}
+```
+
+```bash
+az cosmosdb sql role definition create \
+  --account-name <COSMOS_ACCOUNT> --resource-group <RESOURCE_GROUP> \
+  --body @role-definition.json
+
+# --principal-id はアプリ ID ではなくサービスプリンシパルのオブジェクト ID
+az cosmosdb sql role assignment create \
+  --account-name <COSMOS_ACCOUNT> --resource-group <RESOURCE_GROUP> \
+  --role-definition-name DiaryWebUi \
+  --principal-id "$(az ad sp show --id <APP_ID> --query id -o tsv)" \
+  --scope /dbs/diary/colls/entries
+```
+
+### 2. イメージをビルドする
+
+Express のイメージ取得はマネージド ID に未対応なので、匿名かトークン（ACR の管理者ユーザー）で引ける状態にします。`az acr build` を使えばローカルのアーキテクチャに関係なく linux/amd64 でビルドされます。
+
+```bash
+cd src/webui
+az acr build --registry <ACR_NAME> --image diary-webui:latest --platform linux/amd64 .
+```
+
+### 3. Express 環境とアプリを作る
+
+```bash
+az extension add --name containerapp --upgrade
+
+az containerapp env create \
+  --environment-mode express \
+  --name diary-webui-env \
+  --resource-group <RESOURCE_GROUP> \
+  --location westcentralus \
+  --logs-destination none
+
+az containerapp create \
+  --name diary-webui \
+  --resource-group <RESOURCE_GROUP> \
+  --environment diary-webui-env \
+  --image <ACR_NAME>.azurecr.io/diary-webui:latest \
+  --target-port 8000 \
+  --ingress external \
+  --min-replicas 0 --max-replicas 1 \
+  --registry-server <ACR_NAME>.azurecr.io \
+  --registry-username <ACR_USERNAME> --registry-password <ACR_PASSWORD> \
+  --env-vars \
+    COSMOS_DB_ACCOUNT_URL=https://<COSMOS_ACCOUNT>.documents.azure.com:443/ \
+    DIARY_USER_ID=<LINE_USER_ID> \
+    ADMIN_USER=<BASIC_AUTH_USER> \
+    ADMIN_PASSWORD=<BASIC_AUTH_PASSWORD> \
+    AZURE_TENANT_ID=<TENANT> \
+    AZURE_CLIENT_ID=<APP_ID> \
+    AZURE_CLIENT_SECRET=<PASSWORD>
+```
+
+`ADMIN_PASSWORD` と `AZURE_CLIENT_SECRET` は `az containerapp show` で読める平文の環境変数です。手順1でスコープを日記コンテナに絞っているのはこのためです。Express がシークレット管理に対応したら移行してください。
+
+### 4. 更新と確認
+
+```bash
+az acr build --registry <ACR_NAME> --image diary-webui:latest --platform linux/amd64 .
+az containerapp update --name diary-webui --resource-group <RESOURCE_GROUP> \
+  --image <ACR_NAME>.azurecr.io/diary-webui:latest
+
+# 払い出された URL を確認する
+az containerapp show --name diary-webui --resource-group <RESOURCE_GROUP> \
+  --query properties.configuration.ingress.fqdn -o tsv
+```
+
+表示された URL をブラウザで開き、Basic 認証を通ると日記の一覧が出ます。
+
 ## プロジェクト構造
 
 ```text
@@ -177,7 +308,10 @@ line-character-agent/
 │   ├── agent/            # Foundry ホステッドエージェント（Microsoft Agent Framework）
 │   │   ├── character_agent/  # エージェント定義・ツール・スキル
 │   │   └── tests/        # テストコード
-│   └── func/             # Azure Functions（LINE ゲートウェイ／ワーカー）
+│   ├── func/             # Azure Functions（LINE ゲートウェイ／ワーカー）
+│   └── webui/            # 日記管理 Web UI（FastAPI + Jinja2、ACA Express）
+│       ├── diary_admin/  # アプリ本体・テンプレート
+│       └── tests/        # テストコード
 ├── docs/                 # ADR・移行計画
 ├── infra/                # Bicep インフラコード
 └── images/               # ドキュメント用画像
