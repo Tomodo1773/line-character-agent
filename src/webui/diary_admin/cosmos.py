@@ -78,7 +78,7 @@ def change_date(entry: dict[str, Any], new_date: datetime.date) -> None:
 
     upsert ではなく replace を使うのは、この UI の資格情報に作成権限を持たせないため。
     """
-    logger.info("change_date が呼び出されました: id=%s, new_date=%s", log_safe(entry["id"]), new_date)
+    logger.info("change_date が呼び出されました: id=%s, new_date=%s", log_safe(entry["id"]), log_safe(new_date))
     date_fields = {
         "date": new_date.isoformat(),
         "year": new_date.year,

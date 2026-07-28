@@ -9,7 +9,6 @@ import datetime
 import secrets
 from pathlib import Path
 from typing import Annotated, Any
-from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, status
 from fastapi import Path as PathParam
@@ -65,9 +64,9 @@ def detail(request: Request, entry_id: EntryId):
 
 @app.post("/entries/{entry_id}/date")
 def change_date(entry_id: EntryId, date: Annotated[datetime.date, Form()]):
-    """日記の日付を変更する。"""
+    """日記の日付を変更する。変更後は並び順が変わった一覧へ戻す（ユーザ入力を URL に含めない）。"""
     cosmos.change_date(_find_entry(entry_id), date)
-    return RedirectResponse(f"/entries/{quote(entry_id, safe='')}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/entries/{entry_id}/delete")
