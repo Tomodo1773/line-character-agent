@@ -26,8 +26,8 @@
 ## プロジェクト構成とモジュール
 
 - `src/agent/` Foundry ホステッドエージェント（Microsoft Agent Framework、Responses プロトコル）。テストは `src/agent/tests/`。
-- `src/api/` FastAPI アプリ（LINE webhook、エージェント）。テストは `src/api/tests/`。
-- `src/func/` Azure Functions（日記アップロード/RAG）。テストは `src/func/tests/`。
+- `src/func/` Azure Functions。LINE Gateway（HTTPトリガー）と Worker（Queueトリガー）。テストは `src/func/tests/`。
+- `src/api/` Phase 5 でホステッドエージェントへ移植する日記検索ツールの置き場。起動するアプリはない。
 - `infra/` Bicep、`images/` 図版、`tools/` 開発ユーティリティ。
 
 ## ビルド・テスト・開発コマンド
@@ -37,8 +37,8 @@
 | サービス | 起動 | テスト |
 |----------|------|--------|
 | Agent | `cd src/agent && azd ai agent run`（ポート 8088） | `uv run pytest` |
-| API | `cd src/api && uv run fastapi dev chatbot/main.py --host 0.0.0.0 --port 8000` | `uv run pytest` |
 | Func | Azure Functions Core Tools を使用 | `uv run pytest` |
+| API | 起動するアプリはない（移植素材のみ） | `uv run pytest` |
 
 ### Python 実行時の注意
 

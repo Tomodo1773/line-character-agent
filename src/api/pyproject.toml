@@ -5,17 +5,12 @@ description = ""
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = "~=3.11.0"
 readme = "README.md"
+# LINE 経路は Phase 4 で src/func へ移った。ここに残るのは Phase 5 で
+# ホステッドエージェントへ移植する日記検索ツールだけ。
 dependencies = [
-    "fastapi[standard]>=0.136.1,<0.137",
-    "uvicorn>=0.46.0,<0.47",
-    "line-bot-sdk>=3.11.0,<4",
-    "python-dotenv>=1.0.1,<2",
     "azure-cosmos>=4.6.0,<5",
-    "pytz~=2026.1",
-    "deepagents>=0.5.3",
     "langchain-core>=1.3.3,<2",
     "langchain-openai>=1.2.1,<2",
-    "langgraph>=1.1.10,<2",
 ]
 
 [tool.uv]
@@ -26,7 +21,6 @@ exclude-newer = "7 days"
 dev = [
     "debugpy>=1.8.17",
     "pytest>=8.4.2",
-    "pytest-asyncio>=0.25.2,<1.4",
     "ruff>=0.15.12,<0.16",
 ]
 

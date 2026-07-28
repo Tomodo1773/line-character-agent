@@ -15,8 +15,8 @@ LINE上で動作するAIキャラクターエージェントシステムです�
   - LINE Messaging API（メッセージング）
 
 - **バックエンド**
-  - AIエージェントアプリ（`src/api`。ホステッドエージェントへ移行予定）
-  - Azure Functions（`src/func`。LINE ゲートウェイ／ワーカーへ移行予定）
+  - Foundry ホステッドエージェント（`src/agent`）
+  - Azure Functions（`src/func`。LINE ゲートウェイ／ワーカー）
 
 - **データベース・ストレージ**
   - Azure Cosmos DB（日記エントリのベクトル検索、ユーザー情報）
@@ -132,8 +132,9 @@ cp src/func/.env.sample src/func/.env
 `.env` ファイルを編集して必要な環境変数を設定してください。
 
 **ローカル開発時の注意点**:
-- `COSMOS_DB_ACCOUNT_URL` と `COSMOS_DB_ACCOUNT_KEY` にクラウド上のCosmosDBの接続情報を設定してください
-- `LOCAL_USER_ID` を設定することで、本番とは別のユーザーとして動作させることができます（例: `LOCAL_USER_ID=local-dev-user`）
+- `src/func` は Cosmos DB・Storage・Foundry にマネージド ID で接続します。ローカルでは `az login` した
+  ユーザーの権限が使われるため、接続文字列やアカウントキーの設定は不要です
+- LINE のチャネルシークレットとアクセストークンだけは `.env` に設定してください
 
 #### 3. 各サービスの起動
 
@@ -150,12 +151,12 @@ cp src/func/.env.sample src/func/.env
 
 #### API Service（`src/api/`）
 
-依存関係の取得は Socket Firewall Free 経由で行います。
+LINE 経路は `src/func` へ移りました。ここに残っているのは Phase 5 でホステッドエージェントへ
+移植する日記検索ツールだけで、起動するアプリはありません。
 
 ```bash
 cd src/api
 sfw uv sync                  # 依存関係インストール
-uv run fastapi dev chatbot/main.py --host 0.0.0.0 --port 8000  # ローカル実行（ポート8000）
 uv run pytest                # テスト実行
 uv run ruff check            # リント
 uv run ruff format           # フォーマット

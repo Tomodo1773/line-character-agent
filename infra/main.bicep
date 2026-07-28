@@ -60,6 +60,9 @@ param embeddingModelCapacity int = 30
 @description('Principal ID of the hosted agent Entra agent identity. Empty until the agent is deployed in Phase 3; set it afterwards to grant the agent access to Cosmos DB.')
 param agentPrincipalId string = ''
 
+@description('Name of the hosted agent the LINE worker calls. Must match `services.agent.name` in azure.yaml.')
+param agentName string = 'character-agent'
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -143,7 +146,7 @@ module foundry 'core/ai/foundry.bicep' = {
   }
 }
 
-// LINE gateway and queue worker. The functions themselves arrive in Phase 4.
+// LINE gateway (HTTP trigger) and queue worker (queue trigger), in one Functions app.
 module functions 'core/host/functions.bicep' = {
   name: 'functions'
   scope: rg
@@ -158,12 +161,16 @@ module functions 'core/host/functions.bicep' = {
     appSettings: {
       FOUNDRY_PROJECT_ENDPOINT: foundry.outputs.projectEndpoint
       AZURE_AI_MODEL_DEPLOYMENT_NAME: chatDeploymentName
+      HOSTED_AGENT_NAME: agentName
       COSMOS_DB_ACCOUNT_URL: cosmosDb.properties.documentEndpoint
       STORAGE_ACCOUNT_NAME: storage.outputs.name
       LINE_MESSAGE_QUEUE_NAME: lineMessageQueueName
       DIARY_BACKUP_CONTAINER_NAME: diaryBackupContainerName
       LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-SECRET)'
       LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
+      // Lets the Python worker stream its OpenTelemetry logs straight to Application Insights,
+      // so worker spans join the host's trace instead of being duplicated at host level.
+      PYTHON_APPLICATIONINSIGHTS_ENABLE_TELEMETRY: 'true'
     }
   }
 }
@@ -200,6 +207,9 @@ output FOUNDRY_PROJECT_NAME string = foundry.outputs.projectName
 output FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = chatDeploymentName
 output AZURE_AI_EMBEDDING_DEPLOYMENT_NAME string = embeddingDeploymentName
+output HOSTED_AGENT_NAME string = agentName
+
+output LINE_WEBHOOK_URL string = '${functions.outputs.uri}/api/line/callback'
 
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
 

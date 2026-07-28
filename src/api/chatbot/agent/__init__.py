@@ -1,7 +1,7 @@
 """Chatbot agent public API exports."""
 
-from chatbot.agent.character_graph import ChatbotAgent
+from chatbot.agent.tools import diary_search_tool
 
 __all__ = [
-    "ChatbotAgent",
+    "diary_search_tool",
 ]
