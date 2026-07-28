@@ -259,10 +259,10 @@ cp src/func/.env.sample src/func/.env
 ```bash
 cd src/api
 sfw uv sync                  # 依存関係インストール
-uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 8000  # ローカル実行（ポート8000）
-pytest                       # テスト実行
-ruff check                   # リント
-ruff format                  # フォーマット
+uv run fastapi dev chatbot/main.py --host 0.0.0.0 --port 8000  # ローカル実行（ポート8000）
+uv run pytest                # テスト実行
+uv run ruff check            # リント
+uv run ruff format           # フォーマット
 ```
 
 #### Function Service（`src/func/`）
