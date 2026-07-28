@@ -35,7 +35,7 @@
 
 | サービス | 起動 | テスト |
 |----------|------|--------|
-| API | `cd src/api && uv run fastapi dev chatbot.main:app --host 0.0.0.0 --port 3100` | `uv run pytest` |
+| API | `cd src/api && uv run fastapi dev chatbot/main.py --host 0.0.0.0 --port 8000` | `uv run pytest` |
 | Func | Azure Functions Core Tools を使用 | `uv run pytest` |
 
 ### Python 実行時の注意
