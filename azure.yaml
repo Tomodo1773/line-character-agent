@@ -1,4 +1,8 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 name: demo-app
+requiredVersions:
+  extensions:
+    azure.ai.agents: '>=1.0.0-beta.4'
 infra:
   provider: bicep
 services:
@@ -7,6 +11,36 @@ services:
     dist: .azure/dist
     language: python
     host: function
+
+  # Foundry のアカウント・プロジェクト・モデルデプロイは infra/main.bicep が作る。
+  # ここは既にあるプロジェクトへ接続するだけに留め、deployments は宣言しない。
+  ai-project:
+    host: azure.ai.project
+    endpoint: ${FOUNDRY_PROJECT_ENDPOINT}
+
+  agent:
+    host: azure.ai.agent
+    kind: hosted
+    name: character-agent
+    description: LINE キャラクターエージェント本体（Microsoft Agent Framework / Responses プロトコル）
+    project: ./src/agent
+    language: docker
+    docker:
+      platform: linux/amd64
+    uses:
+      - ai-project
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    # FOUNDRY_PROJECT_ENDPOINT と APPLICATIONINSIGHTS_CONNECTION_STRING は
+    # プラットフォームが自動注入するため、ここでは宣言しない。
+    env:
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    startupCommand: python main.py
+    container:
+      resources:
+        cpu: '0.5'
+        memory: 1Gi
 pipeline:
   variables:
     - AZURE_COSMOSDB_NAME
