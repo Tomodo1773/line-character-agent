@@ -15,7 +15,7 @@ fi
 git config --global devcontainers-theme.hide-status 1
 git config --global codespaces-theme.hide-status 1
 
-(cd src/api && uv sync) || true
+(cd src/agent && uv sync) || true
 (cd src/func && uv sync) || true
 uv tool install pre-commit
 pre-commit install

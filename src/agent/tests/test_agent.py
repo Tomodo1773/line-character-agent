@@ -3,18 +3,20 @@
 モデルは呼ばないため接続先はダミー値でよい（`FoundryChatClient` は生成時に通信しない）。
 """
 
+import asyncio
 import re
 
 import pytest
+from agent_framework import FileSkillsSource, SkillsProvider, SkillsSourceContext
 
-from character_agent.agent import AGENT_NAME, create_agent, get_current_datetime
+from character_agent.agent import AGENT_NAME, SKILLS_DIR, create_agent
+from character_agent.config import get_settings
 from character_agent.prompts import CHARACTER_PROMPT
+from character_agent.tools import get_current_datetime
 
 
 @pytest.fixture
-def agent(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://example.services.ai.azure.com/api/projects/dummy")
-    monkeypatch.setenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "dummy-deployment")
+def agent():
     return create_agent()
 
 
@@ -32,14 +34,35 @@ def test_agent_model_comes_from_environment(agent):
     assert agent.default_options["model"] == "dummy-deployment"
 
 
-def test_agent_registers_datetime_tool(agent):
-    assert [tool.name for tool in agent.default_options["tools"]] == ["get_current_datetime"]
+def test_agent_registers_every_tool(agent):
+    assert [tool.name for tool in agent.default_options["tools"]] == [
+        "get_current_datetime",
+        "read_profile",
+        "diary_search",
+        "diary_create",
+        "diary_update",
+        "diary_delete",
+        "diary_rename",
+        "digest_regenerate",
+    ]
 
 
-def test_create_agent_requires_project_endpoint(monkeypatch: pytest.MonkeyPatch):
+def test_agent_registers_the_skills_provider(agent):
+    assert any(isinstance(provider, SkillsProvider) for provider in agent.context_providers)
+
+
+def test_diary_writing_skill_is_discoverable(agent):
+    source = FileSkillsSource(str(SKILLS_DIR))
+
+    skills = asyncio.run(source.get_skills(SkillsSourceContext(agent=agent)))
+
+    assert [skill.frontmatter.name for skill in skills] == ["diary-writing"]
+
+
+def test_create_agent_requires_settings(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
-    monkeypatch.setenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "dummy-deployment")
-    with pytest.raises(KeyError):
+    get_settings.cache_clear()
+    with pytest.raises(EnvironmentError):
         create_agent()
 
 

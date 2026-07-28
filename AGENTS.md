@@ -25,9 +25,8 @@
 
 ## プロジェクト構成とモジュール
 
-- `src/agent/` Foundry ホステッドエージェント（Microsoft Agent Framework、Responses プロトコル）。テストは `src/agent/tests/`。
+- `src/agent/` Foundry ホステッドエージェント（Microsoft Agent Framework、Responses プロトコル）。ツールは `character_agent/tools.py`、スキルは `character_agent/skills/`。テストは `src/agent/tests/`。
 - `src/func/` Azure Functions。LINE Gateway（HTTPトリガー）と Worker（Queueトリガー）。テストは `src/func/tests/`。
-- `src/api/` Phase 5 でホステッドエージェントへ移植する日記検索ツールの置き場。起動するアプリはない。
 - `infra/` Bicep、`images/` 図版、`tools/` 開発ユーティリティ。
 
 ## ビルド・テスト・開発コマンド
@@ -38,7 +37,6 @@
 |----------|------|--------|
 | Agent | `cd src/agent && azd ai agent run`（ポート 8088） | `uv run pytest` |
 | Func | Azure Functions Core Tools を使用 | `uv run pytest` |
-| API | 起動するアプリはない（移植素材のみ） | `uv run pytest` |
 
 ### Python 実行時の注意
 
@@ -48,7 +46,7 @@
 
 - `print()` をログ目的で使わない。必ず `logging` モジュール（`logger.info` / `logger.error` 等）を使う。
 - ツールや関数が実行されたことが分かるよう、処理の入口で `logger.info` を出す。
-- ロガー初期化は `create_logger(__name__)`（`utils/config.py`）を使う。`logging.getLogger` を直接使わない。
+- ロガー初期化は `create_logger(__name__)`（Agent は `character_agent/config.py`、Func は `logger.py`）を使う。`logging.getLogger` を直接使わない。
 
 ## コーディング規約と命名
 
@@ -59,7 +57,7 @@
 
 ### Format/Lint
 
-全サービス（api, func）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
+全サービス（agent, func）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
 
 ```bash
 # 各サービスディレクトリで実行
@@ -78,7 +76,7 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 
 ## コミット・PR ガイドライン
 
-- コミット: Conventional Commits（例: `feat(api): add diary route`、`fix(func): handle 404`）。
+- コミット: Conventional Commits（例: `feat(agent): add diary tools`、`fix(func): handle 404`）。
 - PR: 簡潔なタイトル、変更概要、関連 Issue（例: `Closes #123`）、テスト証跡（ログ/コマンド等）、必要に応じてドキュメント更新。ruff/テスト/pre-commit を通過させること。
 
 ## セキュリティと構成
@@ -89,9 +87,9 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 
 ## 環境変数追加時の注意
 
-- 追加時は「設定モジュール定義」→「`.env.sample` 追記」→「`infra/main.bicep` の該当サービス `appSettings` へキー追加」→「PR に用途記載」の4ステップ。
+- 追加時は「設定モジュール定義」→「`.env.sample` 追記」→「配布先へキー追加（Func は `infra/main.bicep` の `appSettings`、Agent は `azure.yaml` の `services.agent.env`）」→「PR に用途記載」の4ステップ。
 - Key Vault シークレットは事前登録の上 `@Microsoft.KeyVault(SecretUri=...)` 形式で main.bicep に書く。Cosmos/Storage の接続情報は各 service module が自動 union するため重複定義しない。
-- ランタイム側で散発的に `os.environ.get` を書かず集中ファイル（API は `utils/config.py`）で一括検証する方針。Functions は今後統合予定。
-- main.bicep への追加漏れは本番起動時クラッシュ (503) に直結するので PR レビューで `main.bicep` と `.env.sample` の両方を必ず確認する。
+- ランタイム側で散発的に `os.environ.get` を書かず集中ファイル（Agent は `character_agent/config.py`、Func は `config.py`）で一括検証する方針。
+- 追加漏れは本番起動時クラッシュに直結するので PR レビューで `main.bicep` / `azure.yaml` と `.env.sample` の両方を必ず確認する。
 
 例: 新しい OAuth シークレット追加なら Key Vault 登録 → main.bicep appSettings に参照式 → config 定義 → `.env.sample` 追記 → PR に "env: XXX 追加"。

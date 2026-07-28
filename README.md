@@ -51,8 +51,7 @@ LINE上で動作するAIキャラクターエージェントシステムです�
 ### バックエンド
 
 - Python 3.11
-- FastAPI
-- LangGraph / deepagents（Microsoft Agent Framework へ移行予定）
+- Microsoft Agent Framework（Foundry ホステッドエージェント）
 - Azure Functions
 
 ### AI・検索
@@ -99,7 +98,7 @@ LINE上で動作するAIキャラクターエージェントシステムです�
 
 ### ローカル開発環境
 
-各サービス（api、func）はローカルで直接起動します。ストレージエミュレータのみDocker Composeで実行します。
+各サービス（agent、func）はローカルで直接起動します。ストレージエミュレータのみDocker Composeで実行します。
 
 #### 1. ストレージエミュレータの起動
 
@@ -125,7 +124,7 @@ docker compose down
 各サービスの `.env` ファイルを作成：
 
 ```bash
-cp src/api/.env.sample src/api/.env
+cp src/agent/.env.sample src/agent/.env
 cp src/func/.env.sample src/func/.env
 ```
 
@@ -149,14 +148,14 @@ cp src/func/.env.sample src/func/.env
 
 ### 個別サービスの開発
 
-#### API Service（`src/api/`）
+#### Agent Service（`src/agent/`）
 
-LINE 経路は `src/func` へ移りました。ここに残っているのは Phase 5 でホステッドエージェントへ
-移植する日記検索ツールだけで、起動するアプリはありません。
+Foundry ホステッドエージェント本体です。日記ツールとスキルを持ち、Responses プロトコルで応答します。
 
 ```bash
-cd src/api
+cd src/agent
 sfw uv sync                  # 依存関係インストール
+azd ai agent run             # ローカル起動（ポート 8088）
 uv run pytest                # テスト実行
 uv run ruff check            # リント
 uv run ruff format           # フォーマット
@@ -175,10 +174,10 @@ sfw uv sync                  # 依存関係インストール
 ```text
 line-character-agent/
 ├── src/
-│   ├── api/              # FastAPI アプリケーション（LINE webhook、チャットボット）
-│   │   ├── chatbot/      # エージェント実装
+│   ├── agent/            # Foundry ホステッドエージェント（Microsoft Agent Framework）
+│   │   ├── character_agent/  # エージェント定義・ツール・スキル
 │   │   └── tests/        # テストコード
-│   └── func/             # Azure Functions
+│   └── func/             # Azure Functions（LINE ゲートウェイ／ワーカー）
 ├── docs/                 # ADR・移行計画
 ├── infra/                # Bicep インフラコード
 └── images/               # ドキュメント用画像
@@ -204,25 +203,32 @@ line-character-agent/
   "day": 11,                   // 日（数値）
   "dayOfWeek": 4,              // 曜日（0=月曜, 6=日曜）
   "content": "string",         // 日記本文
-  "contentVector": [0.1, ...], // 埋め込みベクトル
-  "tags": [],                  // タグ配列
-  "metadata": {
-    "source": "2025年07月11日(金).md"
-  }
+  "contentVector": [0.1, ...]  // 埋め込みベクトル
 }
 ```
+
+`tags` と `metadata.source` は Google Drive 同期時代の名残で、エージェントが作る日記には含まれません。
 
 ### Cosmos DB - ユーザー情報（main/users）
 
 ```json
 {
   "id": "line-user-id",        // ユーザーID（パーティションキー）
-  "date": "2025-07-13T15:30:00+09:00", // 作成・更新日時（ISO形式）
   "userid": "line-user-id",    // LINEユーザーID
-  "session_id": "hex",         // 会話セッションID
-  "last_accessed": "2025-07-13T15:30:00+09:00" // 最終アクセス日時
+  "conversation_id": "conv_...", // Foundry の会話ID（Worker が管理）
+  "profile": "# プロフィール\n...", // プロフィール（Markdown、read_profile が読む）
+  "digest": {                  // 直近の出来事ダイジェスト
+    "version": "2.0",
+    "lastUpdated": "2026-07-28",
+    "daily": [{ "date": "2026-07-27", "text": "家族と映画" }],
+    "monthly": [{ "month": "2026-06", "summary": "...", "highlights": ["..."] }],
+    "yearly": [{ "year": "2025", "summary": "...", "highlights": ["..."] }]
+  }
 }
 ```
+
+プロフィールは1件だけなので、移行スクリプトは用意していません。Cosmos DB のデータエクスプローラーか
+`az cosmosdb` で `users` ドキュメントに `profile` フィールドを足してください。
 
 ## リファレンス
 

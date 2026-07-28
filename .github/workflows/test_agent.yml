@@ -1,4 +1,4 @@
-name: Test API
+name: Test AGENT
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - "src/api/**"
+      - "src/agent/**"
   workflow_dispatch:
 
 permissions:
@@ -39,20 +39,20 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd src/api
+          cd src/agent
           sfw uv sync
 
       - name: Run Ruff check
         run: |
-          cd src/api
+          cd src/agent
           uv run ruff check .
 
       - name: Run Ruff format check
         run: |
-          cd src/api
+          cd src/agent
           uv run ruff format --check .
 
       - name: Run tests
         run: |
-          cd src/api
+          cd src/agent
           uv run pytest -s

@@ -34,8 +34,13 @@ services:
         version: 2.0.0
     # FOUNDRY_PROJECT_ENDPOINT と APPLICATIONINSIGHTS_CONNECTION_STRING は
     # プラットフォームが自動注入するため、ここでは宣言しない。
+    # DIARY_USER_ID は日記とプロフィールの持ち主の LINE ユーザ ID。インフラの出力ではないため
+    # `azd env set DIARY_USER_ID <LINE ユーザ ID>` で設定する。
     env:
       AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      AZURE_AI_EMBEDDING_DEPLOYMENT_NAME: ${AZURE_AI_EMBEDDING_DEPLOYMENT_NAME}
+      COSMOS_DB_ACCOUNT_URL: ${COSMOS_DB_ACCOUNT_URL}
+      DIARY_USER_ID: ${DIARY_USER_ID}
     startupCommand: python main.py
     container:
       resources:
@@ -48,3 +53,4 @@ pipeline:
     - AZURE_KEYVAULT_NAME
     - AZURE_KEYVAULT_RG
     - AZURE_AI_AGENT_PRINCIPAL_ID
+    - DIARY_USER_ID

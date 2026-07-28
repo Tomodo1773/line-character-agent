@@ -1,32 +1,35 @@
 """Microsoft Agent Framework によるシングルエージェントの定義。"""
 
-import os
-from datetime import datetime
-from typing import Annotated
-from zoneinfo import ZoneInfo
+from pathlib import Path
 
-from agent_framework import Agent, tool
+from agent_framework import Agent, SkillsProvider
 from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential
 
-from character_agent.config import create_logger
+from character_agent.config import create_logger, get_settings
 from character_agent.prompts import CHARACTER_PROMPT
+from character_agent.tools import TOOLS
 
 logger = create_logger(__name__)
 
 AGENT_NAME = "character-agent"
 
-_JAPAN = ZoneInfo("Asia/Tokyo")
+SKILLS_DIR = Path(__file__).parent / "skills"
 
 
-@tool(approval_mode="never_require", description="現在の日本時間（日付・時刻・曜日）を取得する。")
-def get_current_datetime() -> Annotated[str, "yyyy-mm-dd hh:mm:ss (曜日) 形式の日本時間"]:
-    """現在の日本時間を返す。
+def create_skills_provider() -> SkillsProvider:
+    """`skills/` 配下の SKILL.md を発見し、progressive disclosure で読み込めるようにする。
 
-    プロンプトに日時を埋め込むとコンテナの起動時刻で固定されてしまうため、ツールとして都度取得する。
+    スキルはリポジトリでコンテナに同梱する信頼できるものだけで、LINE 越しの会話にはツール承認を
+    返す相手がいないため、`load_skill` / `read_skill_resource` の承認は求めない。
+    スクリプトは持たないので `script_runner` は設定しない。
     """
-    logger.info("get_current_datetime が呼び出されました")
-    return datetime.now(_JAPAN).strftime("%Y-%m-%d %H:%M:%S (%a)")
+    logger.info("create_skills_provider が呼び出されました")
+    return SkillsProvider.from_paths(
+        skill_paths=str(SKILLS_DIR),
+        disable_load_skill_approval=True,
+        disable_read_skill_resource_approval=True,
+    )
 
 
 def create_agent() -> Agent:
@@ -36,18 +39,22 @@ def create_agent() -> Agent:
     モデル名は環境変数で切り替える前提のため、コードには持たせない（ADR-0001 モデル選定）。
     """
     logger.info("create_agent が呼び出されました")
+    settings = get_settings()
 
     client = FoundryChatClient(
-        project_endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"],
-        model=os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"],
+        project_endpoint=settings.foundry_project_endpoint,
+        model=settings.model_deployment_name,
         credential=DefaultAzureCredential(),
     )
+    # ツールが投げた例外の内容をモデルに返す。日付の指定ミスなどをモデル自身が直せるようにする。
+    client.function_invocation_configuration["include_detailed_errors"] = True
 
     return Agent(
         client=client,
         name=AGENT_NAME,
         instructions=CHARACTER_PROMPT,
-        tools=[get_current_datetime],
+        tools=TOOLS,
+        context_providers=[create_skills_provider()],
         # 会話履歴はホスティング基盤が管理するため、エージェント側では保存しない（ADR-0001 §3）。
         default_options={"store": False},
     )

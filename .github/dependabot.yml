@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "uv"
-    directory: "/src/api"
+    directory: "/src/agent"
     open-pull-requests-limit: 2
     schedule:
       interval: weekly
@@ -13,17 +13,17 @@ updates:
     labels:
       - "dependencies"
     groups:
-      api-version:
+      agent-version:
         applies-to: version-updates
         patterns:
           - "*"
-      api-security:
+      agent-security:
         applies-to: security-updates
         patterns:
           - "*"
     commit-message:
-      prefix: "deps(api)"
-      prefix-development: "deps(api)"
+      prefix: "deps(agent)"
+      prefix-development: "deps(agent)"
   - package-ecosystem: "uv"
     directory: "/src/func"
     open-pull-requests-limit: 2

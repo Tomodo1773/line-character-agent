@@ -6,11 +6,11 @@ on:
       - main
     paths:
       - "infra/**"
-      - "src/api/**"
+      - "src/agent/**"
       - "src/func/**"
       - ".github/workflows/**"
       - ".github/actions/**"
-      - "!src/api/uv.lock"
+      - "!src/agent/uv.lock"
       - "!src/func/uv.lock"
   workflow_dispatch:
     inputs:
