@@ -63,6 +63,10 @@ param agentPrincipalId string = ''
 @description('Name of the hosted agent the LINE worker calls. Must match `services.agent.name` in azure.yaml.')
 param agentName string = 'character-agent'
 
+@minLength(1)
+@description('LINE user ID owning the diary. The daily backup pushes to it when an export fails. Set it with `azd env set DIARY_USER_ID <id>`.')
+param diaryUserId string
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -166,6 +170,7 @@ module functions 'core/host/functions.bicep' = {
       STORAGE_ACCOUNT_NAME: storage.outputs.name
       LINE_MESSAGE_QUEUE_NAME: lineMessageQueueName
       DIARY_BACKUP_CONTAINER_NAME: diaryBackupContainerName
+      DIARY_USER_ID: diaryUserId
       LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-SECRET)'
       LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
       // Lets the Python worker stream its OpenTelemetry logs straight to Application Insights,

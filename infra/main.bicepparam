@@ -18,5 +18,8 @@ param chatModelName = readEnvironmentVariable('AZURE_AI_MODEL_NAME', 'Kimi-K2.6'
 param chatModelFormat = readEnvironmentVariable('AZURE_AI_MODEL_FORMAT', 'Moonshot AI')
 param chatModelVersion = readEnvironmentVariable('AZURE_AI_MODEL_VERSION', '2026-04-20')
 
+// Owner of the diary, also the recipient of backup failure notices. Same value the agent gets.
+param diaryUserId = readEnvironmentVariable('DIARY_USER_ID', '')
+
 // Set after the hosted agent is deployed (Phase 3) to grant it Cosmos DB data access.
 param agentPrincipalId = readEnvironmentVariable('AZURE_AI_AGENT_PRINCIPAL_ID', '')

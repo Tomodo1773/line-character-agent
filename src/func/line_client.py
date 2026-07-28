@@ -51,6 +51,13 @@ def show_loading_animation(user_id: str) -> None:
     _messaging_api().show_loading_animation(ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=LOADING_SECONDS))
 
 
+def push(user_id: str, text: str) -> None:
+    """こちらから送る。フリープランでは月200通が上限のため、呼び出し箇所を絞る（ADR-0001 §1）。"""
+    logger.info("push が呼び出されました")
+    _messaging_api().push_message(PushMessageRequest(to=user_id, messages=[TextMessage(text=text)]))
+    logger.info("push で送信しました: user_id=%s", user_id)
+
+
 def reply_or_push(user_id: str, reply_token: str, text: str) -> None:
     """reply で返信し、失敗した場合だけ push にフォールバックする。
 
@@ -58,11 +65,9 @@ def reply_or_push(user_id: str, reply_token: str, text: str) -> None:
     一方 push はフリープランで月200通の上限があるため、フォールバック専用とする（ADR-0001 §1）。
     """
     logger.info("reply_or_push が呼び出されました")
-    messages = [TextMessage(text=text)]
     try:
-        _messaging_api().reply_message(ReplyMessageRequest(reply_token=reply_token, messages=messages))
+        _messaging_api().reply_message(ReplyMessageRequest(reply_token=reply_token, messages=[TextMessage(text=text)]))
         logger.info("reply で返信しました: user_id=%s", user_id)
     except ApiException as e:
         logger.warning("reply に失敗したため push にフォールバックします: status=%s", e.status)
-        _messaging_api().push_message(PushMessageRequest(to=user_id, messages=messages))
-        logger.info("push で返信しました: user_id=%s", user_id)
+        push(user_id, text)

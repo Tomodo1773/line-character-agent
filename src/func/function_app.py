@@ -6,9 +6,11 @@ Application Insights への OpenTelemetry 送出は host.json の `telemetryMode
 
 import azure.functions as func
 
+import diary_backup
 import line_gateway
 import line_worker
 
 app = func.FunctionApp()
 app.register_blueprint(line_gateway.bp)
 app.register_blueprint(line_worker.bp)
+app.register_blueprint(diary_backup.bp)

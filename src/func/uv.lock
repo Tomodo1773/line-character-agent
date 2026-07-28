@@ -391,6 +391,7 @@ dependencies = [
     { name = "azure-functions" },
     { name = "azure-identity" },
     { name = "azure-monitor-opentelemetry" },
+    { name = "azure-storage-blob" },
     { name = "line-bot-sdk" },
     { name = "python-dotenv" },
 ]
@@ -411,6 +412,7 @@ requires-dist = [
     { name = "azure-functions", specifier = ">=1.21.3,<2" },
     { name = "azure-identity", specifier = ">=1.19.0,<2" },
     { name = "azure-monitor-opentelemetry", specifier = ">=1.6.0,<2" },
+    { name = "azure-storage-blob", specifier = ">=12.30.0" },
     { name = "line-bot-sdk", specifier = ">=3.25.0,<4" },
     { name = "python-dotenv", specifier = ">=1.0.0,<2" },
 ]

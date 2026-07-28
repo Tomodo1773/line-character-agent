@@ -22,6 +22,9 @@ class Settings:
     cosmos_db_account_url: str
     foundry_project_endpoint: str
     hosted_agent_name: str
+    storage_account_name: str
+    diary_backup_container_name: str
+    diary_user_id: str
 
 
 def _required(key: str) -> str:
@@ -40,4 +43,8 @@ def get_settings() -> Settings:
         cosmos_db_account_url=_required("COSMOS_DB_ACCOUNT_URL"),
         foundry_project_endpoint=_required("FOUNDRY_PROJECT_ENDPOINT"),
         hosted_agent_name=_required("HOSTED_AGENT_NAME"),
+        storage_account_name=_required("STORAGE_ACCOUNT_NAME"),
+        diary_backup_container_name=_required("DIARY_BACKUP_CONTAINER_NAME"),
+        # 日記の持ち主（LINE ユーザ ID）。バックアップ失敗時の通知先に使う。
+        diary_user_id=_required("DIARY_USER_ID"),
     )

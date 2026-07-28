@@ -8,28 +8,10 @@ import json
 import azure.functions as func
 import pytest
 
-CHANNEL_SECRET = "test-channel-secret"
+from tests.conftest import CHANNEL_SECRET
 
 TEXT_MESSAGE = {"type": "text", "id": "1", "text": "こんにちは", "quoteToken": "q1"}
 AUDIO_MESSAGE = {"type": "audio", "id": "1", "duration": 1000, "contentProvider": {"type": "line"}}
-
-
-@pytest.fixture(autouse=True)
-def settings(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
-    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-    monkeypatch.setenv("COSMOS_DB_ACCOUNT_URL", "https://example.documents.azure.com:443/")
-    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://example.services.ai.azure.com/api/projects/dummy")
-    monkeypatch.setenv("HOSTED_AGENT_NAME", "character-agent")
-
-    import config
-    import line_client
-
-    config.get_settings.cache_clear()
-    line_client._webhook_parser.cache_clear()
-    yield
-    config.get_settings.cache_clear()
-    line_client._webhook_parser.cache_clear()
 
 
 class FakeQueue:
