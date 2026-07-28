@@ -53,8 +53,6 @@ jobs:
           uv run ruff format --check .
 
       - name: Run tests
-        env:
-          SPAN_DAYS: "1"
         run: |
           cd src/func
           uv run pytest -s

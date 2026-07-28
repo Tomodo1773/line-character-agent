@@ -2,7 +2,12 @@
 
 ## プロジェクト概要
 
-LINE上で動作するAIキャラクターエージェントシステムです。ユーザーの音声日記を管理し、パーソナライズされた会話を提供します。LangGraphを活用したマルチエージェント構成により、日記管理、Web検索などの多様な機能を実現しています。
+LINE上で動作するAIキャラクターエージェントシステムです。テキストで送った日記を管理し、パーソナライズされた会話を提供します。
+
+> ⚠️ **アーキテクチャ刷新中**
+> 現在 [ADR-0001](./docs/adr/0001-azure-native-agent-architecture.md) で定義した Azure ネイティブ構成（LINE ゲートウェイ + Microsoft Foundry ホステッドエージェント + Cosmos DB）へ移行中です。
+> 進め方とフェーズごとの完了条件は [移行計画](./docs/migration-plan.md) を参照してください。
+> 本 README は移行が進むにつれて更新されます。**この時点でアプリ全体は動作しません。**
 
 ### 主要サービス構成
 
@@ -10,70 +15,32 @@ LINE上で動作するAIキャラクターエージェントシステムです�
   - LINE Messaging API（メッセージング）
 
 - **バックエンド**
-  - LangGraph AIエージェントアプリ（Azure App Service）
-  - 日記データアップロード機能（Azure Functions）
+  - AIエージェントアプリ（`src/api`。ホステッドエージェントへ移行予定）
+  - Azure Functions（`src/func`。LINE ゲートウェイ／ワーカーへ移行予定）
 
 - **データベース・ストレージ**
-  - PostgreSQL（LangGraph checkpointer による会話履歴管理）
   - Azure Cosmos DB（日記エントリのベクトル検索、ユーザー情報）
-  - Google Drive（ユーザープロファイル、日記データ）
 
 - **監視・管理**
   - Application Insights（アプリケーション監視）
   - Azure Key Vault（シークレット管理）
-  - LangSmith（エージェントトレース・プロンプト管理）
 
 ## 構成図
 
 ![構成図](./images/system-architecture.png)
 
+※ 上図は刷新前の構成です。目指す最終形は ADR-0001 の構成図を参照してください。
+
 ## 主な機能
 
-### 1. 音声日記機能
+### 1. パーソナライズされた会話
 
-- LINEから音声メッセージを送信すると自動で日記として処理
-- AI音声認識による文字起こし
-- ユーザー辞書による誤字修正
-- Markdown形式でGoogle Driveに自動保存
-- AIエージェントからの感想コメント付きで返信（テキストメッセージ）
-- 複数日の内容をまとめた日記ダイジェストの自動作成
-
-### 2. パーソナライズされた会話
-
-- Google Driveに保存されたユーザープロファイルを参照
-- 日記ダイジェストを活用した文脈理解
 - 幼馴染のお姉さん風キャラクターとしての応答
 
-### 3. 高度なエージェント機能
+### 2. エージェント機能
 
 - **Web検索**: OpenAI APIによる最新情報取得
 - **日記検索**: ベクトル化による過去日記の検索・RAG機能
-
-## 日記登録ワークフロー
-
-![日記登録ワークフロー](./src/api/images/diary_workflow_graph.png)
-
-### ワークフロー構成
-
-音声日記の登録処理は、LangGraphを活用した以下のワークフローで実現されています：
-
-1. **transcribe_diary_node**: 音声の文字起こし
-   - AI音声認識により音声データをテキスト化
-   - Google Driveのユーザー辞書を使用して誤字を自動修正
-
-2. **save_diary_node**: 日記の保存
-   - 文字起こしされた内容をMarkdown形式でGoogle Driveに保存
-   - ファイル名は日付ベースで自動生成（例：`2025年12月04日(水).md`）
-
-3. **generate_digest_node**: ダイジェストの生成
-   - 複数日分の日記内容を要約したダイジェストを生成
-   - ダイジェストファイルもGoogle Driveに保存
-
-4. **invoke_character_comment_node**: キャラクターコメントの生成
-   - 日記内容に対してAIキャラクターが感想コメントを生成
-   - LINEを通じてユーザーに返信
-
-各ノードは独立してトレース可能で、LangSmithによる実行モニタリングに対応しています。
 
 ## 技術スタック
 
@@ -85,23 +52,16 @@ LINE上で動作するAIキャラクターエージェントシステムです�
 
 - Python 3.11
 - FastAPI
-- LangGraph（マルチエージェントオーケストレーション）
-- LangChain
-- Azure Functions（日記アップロード）
+- LangGraph / deepagents（Microsoft Agent Framework へ移行予定）
+- Azure Functions
 
 ### AI・検索
 
 - OpenAI（Web検索含む）
 - Azure Cosmos DB（ベクトル検索）
 
-### 外部サービス連携
-
-- Google Drive API（ファイル管理）
-- LangChain Hub（プロンプト管理）
-
 ### Azure Services
 
-- Azure App Service
 - Azure Functions
 - Azure Cosmos DB
 - Azure Key Vault
@@ -109,55 +69,11 @@ LINE上で動作するAIキャラクターエージェントシステムです�
 
 ### 開発・デプロイ
 
-- Docker（データベース・ストレージエミュレータ用）
+- Docker（ストレージエミュレータ用）
 - Azure Developer CLI（azd）
 - Bicep（Infrastructure as Code）
 - uv（パッケージ管理）
 - sfw（Socket Firewall Free）
-
-## システムフロー
-
-### 音声日記登録フロー
-
-```mermaid
-sequenceDiagram
-    participant User as ユーザー
-    participant LINE as LINE
-    participant API as API Service
-    participant GoogleDrive as Google Drive
-    participant LLM as LLM
-
-    User->>LINE: 音声メッセージ送信
-    LINE->>API: 音声データ転送
-    API->>API: AI音声認識・文字起こし
-    API->>GoogleDrive: ユーザー辞書取得
-    GoogleDrive-->>API: 辞書データ
-    API->>API: 誤字修正・Markdown化
-    API->>GoogleDrive: 日記ファイル保存
-    API->>LLM: 感想コメント生成
-    LLM-->>API: 感想文
-    API->>LINE: 日記内容＋感想を返信
-    API->>GoogleDrive: 日記ダイジェスト更新
-```
-
-### エージェント会話フロー
-
-```mermaid
-sequenceDiagram
-    participant User as ユーザー
-    participant Frontend as フロントエンド
-    participant API as API Service
-    participant Postgres as PostgreSQL (LangGraph Checkpointer)
-    participant GoogleDrive as Google Drive
-
-    User->>Frontend: メッセージ送信
-    Frontend->>API: リクエスト
-    API->>Postgres: スレッドメタデータ取得
-    API->>GoogleDrive: プロファイル・日記取得
-    API->>API: エージェントルーティング
-    API->>Frontend: 応答返信
-    API->>Postgres: スレッドチェックポイント保存
-```
 
 ## 事前準備
 
@@ -165,48 +81,30 @@ sequenceDiagram
 
 - Azureサブスクリプション
 - LINE Developersチャンネル
-- Google Cloud Platform（Drive API有効化）
 - OpenAI APIまたはAzure OpenAI
-- LangSmithアカウント（オプション）
-
-### Google Drive事前準備ファイル
-
-以下のファイルをGoogle Driveに配置してください：
-
-- `dictionary.md`: ユーザー辞書（音声認識の誤字修正用）
-- `profile.md`: ユーザープロファイル（エージェントの応答パーソナライズ用）
 
 ## インストール・デプロイ
 
-> ⚠️ **注意**: インストール・デプロイ手順は現在整備中です。  
-> 現時点では本格的な運用に推奨できる状態ではありません。  
-> 完全な手順書は後日公開予定です。
-
-### 現在の状況
-
-- Azure Bicepテンプレートによるインフラ自動構築
-- 複数の外部サービス連携が必要（LINE、Google Drive等）
-- 環境変数の設定が複雑
-- セットアップ手順の簡素化作業中
+> ⚠️ **注意**: アーキテクチャ刷新中のため、インストール・デプロイ手順は整備されていません。
 
 ### 開発者向け情報
 
 開発に参加される方は、以下のドキュメントを参照してください：
 
 - [CLAUDE.md](./CLAUDE.md) - 開発コマンドと環境構築
-- `src/api/README.md` - API Service詳細
+- [ADR-0001](./docs/adr/0001-azure-native-agent-architecture.md) - 目指す最終形
+- [移行計画](./docs/migration-plan.md) - フェーズ分割と完了条件
 
 ## 開発環境のセットアップ
 
 ### ローカル開発環境
 
-各サービス（api、func）はローカルで直接起動します。データベース・ストレージエミュレータのみDocker Composeで実行します。
+各サービス（api、func）はローカルで直接起動します。ストレージエミュレータのみDocker Composeで実行します。
 
-#### 1. データベース・ストレージエミュレータの起動
+#### 1. ストレージエミュレータの起動
 
 以下のサービスがDocker Composeで提供されます：
 
-- **postgres**: PostgreSQL データベース（ポート 5432）
 - **azurite**: Azure Storage エミュレータ（ポート 10000-10002）
 
 **注**: CosmosDBはクラウド上の実際のCosmosDBインスタンスを使用します。エミュレータは削除されました。
@@ -236,7 +134,6 @@ cp src/func/.env.sample src/func/.env
 **ローカル開発時の注意点**:
 - `COSMOS_DB_ACCOUNT_URL` と `COSMOS_DB_ACCOUNT_KEY` にクラウド上のCosmosDBの接続情報を設定してください
 - `LOCAL_USER_ID` を設定することで、本番とは別のユーザーとして動作させることができます（例: `LOCAL_USER_ID=local-dev-user`）
-- これにより本番環境とは異なるGoogle DriveフォルダやOAuth認証情報を使用して開発できます
 
 #### 3. 各サービスの起動
 
@@ -244,7 +141,6 @@ cp src/func/.env.sample src/func/.env
 
 #### 接続情報
 
-- PostgreSQL: `postgresql://postgres:postgres@localhost:5432/chatbot`
 - Cosmos DB: クラウド上のCosmosDBインスタンス（環境変数で設定）
 - Azurite Blob: http://localhost:10000
 - Azurite Queue: http://localhost:10001
@@ -281,17 +177,16 @@ line-character-agent/
 │   ├── api/              # FastAPI アプリケーション（LINE webhook、チャットボット）
 │   │   ├── chatbot/      # エージェント実装
 │   │   └── tests/        # テストコード
-│   └── func/             # Azure Functions（日記データのCosmosDBアップロード）
+│   └── func/             # Azure Functions
+├── docs/                 # ADR・移行計画
 ├── infra/                # Bicep インフラコード
-├── images/               # ドキュメント用画像
-└── tools/                # 開発ツール
+└── images/               # ドキュメント用画像
 ```
 
 ## データベース構成
 
 ### ストレージ構成
 
-- **PostgreSQL**: LangGraph の PostgreSQL checkpointer が会話スレッド（メッセージ履歴、ステート）を自動管理します。テーブルはライブラリ側で自動作成され、環境変数 `POSTGRES_CHECKPOINT_URL` で接続文字列を指定します。
 - **Cosmos DB**: 日記エントリのベクトル検索とユーザー情報管理に利用します。データベース名・コンテナ名はハードコーディングされており、環境変数での設定は不要です。
 
 ## データベーススキーマ
@@ -323,17 +218,14 @@ line-character-agent/
   "id": "line-user-id",        // ユーザーID（パーティションキー）
   "date": "2025-07-13T15:30:00+09:00", // 作成・更新日時（ISO形式）
   "userid": "line-user-id",    // LINEユーザーID
-  "google_tokens_enc": "暗号化された文字列", // Google OAuth認証トークン（暗号化済み）
-  "drive_folder_id": "1AbCdEfGhIjKlMnOp" // Google Driveの保存先フォルダID
+  "session_id": "hex",         // 会話セッションID
+  "last_accessed": "2025-07-13T15:30:00+09:00" // 最終アクセス日時
 }
 ```
-
-> **注意**: `google_tokens_enc`はGoogle DriveのOAuth認証トークンを暗号化して保存しています。トークンには`token`、`refresh_token`、`token_uri`、`expiry`が含まれます。
 
 ## リファレンス
 
 - [Azure Developer CLI](https://learn.microsoft.com/ja-jp/azure/developer/azure-developer-cli/)
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
 - [LINE Messaging API](https://developers.line.biz/ja/docs/messaging-api/)
 
 ## ライセンス

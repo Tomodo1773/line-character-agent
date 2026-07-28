@@ -1,15 +1,13 @@
 """FastAPI依存性注入の定義モジュール。
 
-アプリケーション全体で共有するコンテナや各種リポジトリ、
-OAuth マネージャーのインスタンスを提供します。
+アプリケーション全体で共有するコンテナやリポジトリのインスタンスを提供します。
 """
 
 from azure.cosmos import ContainerProxy
-from fastapi import Depends, Request
+from fastapi import Request
 
 from chatbot.database.core import CosmosCore
-from chatbot.database.repositories import OAuthStateRepository, UserRepository
-from chatbot.utils.google_auth import GoogleDriveOAuthManager
+from chatbot.database.repositories import UserRepository
 
 
 def get_user_repository(request: Request) -> UserRepository:
@@ -25,18 +23,6 @@ def get_user_repository(request: Request) -> UserRepository:
     return UserRepository(CosmosCore(container))
 
 
-def get_oauth_manager(user_repository: UserRepository = Depends(get_user_repository)) -> GoogleDriveOAuthManager:
-    """UserRepository を使って GoogleDriveOAuthManager を生成。
-
-    Args:
-        user_repository: DI により注入される UserRepository
-
-    Returns:
-        GoogleDriveOAuthManager: 新規作成された GoogleDriveOAuthManager インスタンス
-    """
-    return GoogleDriveOAuthManager(user_repository)
-
-
 def create_user_repository(container: ContainerProxy) -> UserRepository:
     """UserRepository を生成するヘルパー関数。
 
@@ -49,30 +35,3 @@ def create_user_repository(container: ContainerProxy) -> UserRepository:
         UserRepository: 新規作成された UserRepository インスタンス
     """
     return UserRepository(CosmosCore(container))
-
-
-def get_oauth_state_repository(request: Request) -> OAuthStateRepository:
-    """app.state.oauth_states_container から OAuthStateRepository を生成。
-
-    Args:
-        request: FastAPI の Request オブジェクト
-
-    Returns:
-        OAuthStateRepository: 新規作成された OAuthStateRepository インスタンス
-    """
-    container = request.app.state.oauth_states_container
-    return OAuthStateRepository(CosmosCore(container))
-
-
-def create_oauth_state_repository(container: ContainerProxy) -> OAuthStateRepository:
-    """OAuthStateRepository を生成するヘルパー関数。
-
-    webhook ハンドラなど FastAPI DI が使えないコンテキストで使用。
-
-    Args:
-        container: 初期化済みの Cosmos DB oauth_states コンテナ。
-
-    Returns:
-        OAuthStateRepository: 新規作成された OAuthStateRepository インスタンス
-    """
-    return OAuthStateRepository(CosmosCore(container))

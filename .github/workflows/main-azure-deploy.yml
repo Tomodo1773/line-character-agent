@@ -14,10 +14,6 @@ on:
       - "!src/func/uv.lock"
   workflow_dispatch:
     inputs:
-      deploy_api:
-        description: API をデプロイ
-        type: boolean
-        default: true
       deploy_func:
         description: Func をデプロイ
         type: boolean
@@ -30,12 +26,6 @@ permissions:
 jobs:
   provision:
     uses: ./.github/workflows/provision.yml
-    secrets: inherit
-
-  deploy_api:
-    needs: provision
-    if: needs.provision.outputs.api_changed == 'true' || needs.provision.outputs.infra_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
-    uses: ./.github/workflows/deploy-api.yml
     secrets: inherit
 
   deploy_func:

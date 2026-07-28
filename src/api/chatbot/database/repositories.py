@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pytz
 
 from chatbot.utils.config import create_logger
-from chatbot.utils.crypto import decrypt_dict, encrypt_dict
 
 from .core import CosmosCore
 from .interfaces import BaseRepository
@@ -113,109 +112,3 @@ class UserRepository(BaseRepository):
             },
         )
         return metadata
-
-    def save_google_tokens(self, userid: str, tokens: Dict[str, Any]) -> None:
-        encrypted = encrypt_dict(tokens)
-        self._upsert_user(userid, {"google_tokens_enc": encrypted})
-
-    def clear_google_tokens(self, userid: str) -> None:
-        """
-        指定ユーザーの Google 認可トークン情報を削除する。
-
-        リフレッシュトークン失効などで再認可が必要になった場合に使用する。
-        """
-        existing = self._sanitize_item(self.fetch_user(userid))
-        if not existing:
-            return
-
-        existing.pop("google_tokens_enc", None)
-        self.save({**existing, "id": userid, "userid": userid})
-
-    def fetch_google_tokens(self, userid: str) -> Dict[str, Any]:
-        query = (
-            "SELECT TOP 1 c.google_tokens_enc "
-            "FROM c WHERE c.userid = @userid "
-            "AND IS_DEFINED(c.google_tokens_enc) "
-            "ORDER BY c.date DESC"
-        )
-        parameters = [{"name": "@userid", "value": userid}]
-        result = self.fetch(query, parameters)
-        if not result:
-            return {}
-
-        record = result[0]
-        decrypted = decrypt_dict(record.get("google_tokens_enc", ""))
-        return decrypted
-
-    def save_drive_folder_id(self, userid: str, folder_id: str) -> None:
-        if not folder_id:
-            raise ValueError("folder_id must be a non-empty string")
-
-        sanitized_id = folder_id.strip()
-        if not sanitized_id:
-            raise ValueError("folder_id must not be blank")
-
-        self._upsert_user(userid, {"drive_folder_id": sanitized_id})
-
-    def fetch_drive_folder_id(self, userid: str) -> str:
-        query = (
-            "SELECT TOP 1 c.drive_folder_id "
-            "FROM c WHERE c.userid = @userid "
-            "AND IS_DEFINED(c.drive_folder_id) "
-            "ORDER BY c.date DESC"
-        )
-        parameters = [{"name": "@userid", "value": userid}]
-        result = self.fetch(query, parameters)
-        if not result:
-            return ""
-
-        record = result[0]
-        return str(record.get("drive_folder_id", ""))
-
-
-class OAuthStateRepository(BaseRepository):
-    """
-    OAuth の state と紐づく userid / PKCE code_verifier を一時保存するリポジトリ。
-
-    state をキーにランダム生成したワンタイムトークンを扱う。コンテナ側に TTL 600 秒が
-    設定されているため、期限切れのレコードは自動削除される。
-    """
-
-    def __init__(self, cosmos_core: CosmosCore):
-        """
-        Args:
-            cosmos_core: CosmosCore インスタンス
-        """
-        self._core = cosmos_core
-
-    def save(self, data: Dict[str, Any]) -> None:
-        self._core.save(data)
-
-    def fetch(self, query: str, parameters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._core.fetch(query, parameters)
-
-    def save_state(self, state: str, userid: str, code_verifier: str) -> None:
-        """state をキーに userid と code_verifier を保存する。"""
-        self.save({"id": state, "userid": userid, "code_verifier": code_verifier})
-
-    def consume_state(self, state: str) -> Optional[Dict[str, str]]:
-        """
-        state で引き当てて即削除する（ワンタイム消費）。
-
-        Returns:
-            見つかれば {"userid": ..., "code_verifier": ...}、無ければ None。
-        """
-        logger.info("Consuming OAuth state")
-        query = "SELECT TOP 1 * FROM c WHERE c.id = @state"
-        parameters = [{"name": "@state", "value": state}]
-        result = self.fetch(query, parameters)
-        if not result:
-            return None
-
-        item = result[0]
-        try:
-            self._core.delete(state, state)
-        except Exception as error:
-            # 削除失敗時はログだけ残し、TTL による事後掃除に委ねる。
-            logger.warning("Failed to delete consumed oauth_state (will be cleaned by TTL): %s", error)
-        return {"userid": item["userid"], "code_verifier": item["code_verifier"]}

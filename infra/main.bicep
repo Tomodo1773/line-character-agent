@@ -14,8 +14,6 @@ param resourceGroupName string = ''
 
 param cosmosDbAccountName string = ''
 param cosmosDbResourceGroupName string = ''
-param appServicePlanName string = ''
-param appServicePlanResourceGroupName string = ''
 
 param keyVaultName string
 param keyVaultResourceGroupName string
@@ -59,30 +57,6 @@ module CosmosDB 'core/db/cosmos.bicep' = if (empty(cosmosDbAccountName)) {
 }
 
 // ****************************************************************
-// AppServicePlan
-// ****************************************************************
-
-resource existingAppServicePlan 'Microsoft.Web/serverfarms@2021-02-01' existing = {
-  name: appServicePlanName
-  scope: resourceGroup(appServicePlanResourceGroupName)
-}
-
-module AppServicePlan 'core/host/appserviceplan.bicep' = if (empty(appServicePlanName)) {
-  name: 'AppServicePlan'
-  scope: rg
-  params: {
-    name: '${abbrs.webServerFarms}${resourceToken}'
-    location: location
-    tags: tags
-    sku: {
-      name: 'F1'
-      tier: 'Free'
-    }
-    kind: 'linux'
-  }
-}
-
-// ****************************************************************
 // Key Vault (existing)
 // ****************************************************************
 
@@ -90,46 +64,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   name: keyVaultName
   scope: resourceGroup(!empty(keyVaultResourceGroupName) ? keyVaultResourceGroupName : resourceGroupName)
 }
-
-// ****************************************************************
-// AppService
-// ****************************************************************
-
-// The application backend
-var appServiceName = '${abbrs.webSitesAppService}${resourceToken}'
-var appServiceUri = 'https://${appServiceName}.azurewebsites.net'
-var googleOAuthRedirectUri = '${appServiceUri}/auth/google/callback'
-
-module AppService './app/api.bicep' = {
-  name: 'AppService'
-  scope: rg
-  params: {
-    name: appServiceName
-    location: location
-    tags: tags
-    appServicePlanId: empty(appServicePlanName) ? AppServicePlan.outputs.id : existingAppServicePlan.id
-    cosmosDbAccountName: empty(cosmosDbAccountName) ? CosmosDB.outputs.name : existingCosmosDB.name
-    cosmosDbResourceGroupName: empty(cosmosDbResourceGroupName) ? rg.name : cosmosDbResourceGroupName
-    keyVaultName: keyVaultName
-    alwaysOn: false
-    appSettings: {
-      LANGSMITH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LANGSMITH-API-KEY)'
-      LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
-      LINE_CHANNEL_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-SECRET)'
-      OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
-      GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-ID)'
-      GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-SECRET)'
-      GOOGLE_OAUTH_REDIRECT_URI: googleOAuthRedirectUri
-      GOOGLE_TOKEN_ENC_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-TOKEN-ENC-KEY)'
-      POSTGRES_CHECKPOINT_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/POSTGRES-CHECKPOINT-URL)'
-      COSMOS_DB_CONNECTION_VERIFY: 'true'
-      UV_FROZEN: 'true'
-      UV_NO_DEV: 'true'
-      UV_CACHE_DIR: '/tmp/uv-cache'
-    }
-  }
-}
-
 
 // ****************************************************************
 // Functions
@@ -199,11 +133,6 @@ module functionApp 'app/func.bicep' = {
     appSettings: {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
       OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/OPENAI-API-KEY)'
-      LANGSMITH_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LANGSMITH-API-KEY)'
-      SPAN_DAYS: 5
-      GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-ID)'
-      GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-CLIENT-SECRET)'
-      GOOGLE_TOKEN_ENC_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/GOOGLE-TOKEN-ENC-KEY)'
       COSMOS_DB_CONNECTION_VERIFY: 'true'
       LINE_CHANNEL_ACCESS_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/LINE-CHANNEL-ACCESS-TOKEN)'
     }
@@ -238,10 +167,6 @@ module assignKeyVaultRoles 'core/host/assign-keyvault-roles.bicep' = {
   params: {
     keyVaultName: keyVaultName
     principalAssignments: [
-      {
-        name: AppService.name
-        principalId: AppService.outputs.identityPrincipalId
-      }
       {
         name: functionApp.name
         principalId: functionApp.outputs.identityPrincipalId

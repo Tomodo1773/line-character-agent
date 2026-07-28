@@ -3,9 +3,6 @@ name: Azure Provision (main)
 on:
   workflow_call:
     outputs:
-      api_changed:
-        description: API サービスに変更あり
-        value: ${{ jobs.provision.outputs.api_changed }}
       func_changed:
         description: Func サービスに変更あり
         value: ${{ jobs.provision.outputs.func_changed }}
@@ -26,12 +23,9 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      # AZURE_APPSERVICEPLAN_NAME: ${{ vars.AZURE_APPSERVICEPLAN_NAME }}
-      # AZURE_APPSERVICEPLAN_RG: ${{ vars.AZURE_APPSERVICEPLAN_RG }}
       AZURE_KEYVAULT_NAME: ${{ vars.AZURE_KEYVAULT_NAME }}
       AZURE_KEYVAULT_RG: ${{ vars.AZURE_KEYVAULT_RG }}
     outputs:
-      api_changed: ${{ steps.changes.outputs.api }}
       func_changed: ${{ steps.changes.outputs.func }}
       infra_changed: ${{ steps.changes.outputs.infra }}
     steps:
@@ -44,9 +38,6 @@ jobs:
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         with:
           filters: |
-            api:
-              - 'src/api/**'
-              - '!src/api/uv.lock'
             func:
               - 'src/func/**'
               - '!src/func/uv.lock'

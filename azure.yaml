@@ -2,11 +2,6 @@ name: demo-app
 infra:
   provider: bicep
 services:
-  api:
-    project: ./src/api
-    dist: .azure/dist
-    language: python
-    host: appservice
   func:
     project: ./src/func
     dist: .azure/dist
@@ -14,8 +9,6 @@ services:
     host: function
 pipeline:
   variables:
-    - AZURE_APPSERVICEPLAN_NAME
-    - AZURE_APPSERVICEPLAN_RG
     - AZURE_COSMOSDB_NAME
     - AZURE_COSMOSDB_RG
     - AZURE_KEYVAULT_NAME
