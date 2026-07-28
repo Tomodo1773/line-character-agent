@@ -9,17 +9,24 @@ import datetime
 import secrets
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, status
+from fastapi import Path as PathParam
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 from diary_admin import cosmos
-from diary_admin.config import create_logger, get_settings
+from diary_admin.config import create_logger, get_settings, log_safe
 
 logger = create_logger(__name__)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+# 入口でユーザ入力の形式を制約する。ID は URL やログにそのまま流れるため、
+# 改行やスラッシュを含み得ない安全な文字種に限定する（オープンリダイレクト対策も兼ねる）。
+EntryId = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.:-]+$")]
+Month = Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")]
 
 
 def require_admin(credentials: Annotated[HTTPBasicCredentials, Depends(HTTPBasic())]) -> None:
@@ -42,29 +49,29 @@ def _find_entry(entry_id: str) -> dict[str, Any]:
 
 
 @app.get("/")
-def index(request: Request, month: str | None = None):
+def index(request: Request, month: Month = None):
     """日記の一覧。`month`（`YYYY-MM`）が指定されていればその月に絞る。"""
-    logger.info("index が呼び出されました: month=%s", month)
+    logger.info("index が呼び出されました: month=%s", log_safe(month))
     context = {"entries": cosmos.list_entries(month), "months": cosmos.list_months(), "selected_month": month}
     return templates.TemplateResponse(request, "index.html", context)
 
 
 @app.get("/entries/{entry_id}")
-def detail(request: Request, entry_id: str):
+def detail(request: Request, entry_id: EntryId):
     """日記の本文表示と、日付変更・削除の操作。"""
-    logger.info("detail が呼び出されました: id=%s", entry_id)
+    logger.info("detail が呼び出されました: id=%s", log_safe(entry_id))
     return templates.TemplateResponse(request, "entry.html", {"entry": _find_entry(entry_id)})
 
 
 @app.post("/entries/{entry_id}/date")
-def change_date(entry_id: str, date: Annotated[datetime.date, Form()]):
+def change_date(entry_id: EntryId, date: Annotated[datetime.date, Form()]):
     """日記の日付を変更する。"""
     cosmos.change_date(_find_entry(entry_id), date)
-    return RedirectResponse(f"/entries/{entry_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/entries/{quote(entry_id, safe='')}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/entries/{entry_id}/delete")
-def delete(entry_id: str):
+def delete(entry_id: EntryId):
     """日記を削除する。"""
     cosmos.delete_entry(_find_entry(entry_id))
     return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)

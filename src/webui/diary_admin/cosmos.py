@@ -18,7 +18,7 @@ from azure.cosmos import ContainerProxy, CosmosClient
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 
-from diary_admin.config import create_logger, get_settings
+from diary_admin.config import create_logger, get_settings, log_safe
 
 logger = create_logger(__name__)
 
@@ -49,7 +49,7 @@ def list_entries(month: str | None) -> list[dict[str, Any]]:
 
     一覧では本文の冒頭しか表示しないため、本文全体は取得しない。
     """
-    logger.info("list_entries が呼び出されました: month=%s", month)
+    logger.info("list_entries が呼び出されました: month=%s", log_safe(month))
     condition = " AND STARTSWITH(c.date, @month)" if month else ""
     parameters = [{"name": "@month", "value": month}] if month else []
     return _query(
@@ -69,7 +69,7 @@ def read_entry(entry_id: str) -> dict[str, Any] | None:
     try:
         return _container().read_item(item=entry_id, partition_key=user_id)
     except CosmosResourceNotFoundError:
-        logger.info("日記が見つかりませんでした: id=%s", entry_id)
+        logger.info("日記が見つかりませんでした: id=%s", log_safe(entry_id))
         return None
 
 
@@ -78,7 +78,7 @@ def change_date(entry: dict[str, Any], new_date: datetime.date) -> None:
 
     upsert ではなく replace を使うのは、この UI の資格情報に作成権限を持たせないため。
     """
-    logger.info("change_date が呼び出されました: id=%s, new_date=%s", entry["id"], new_date)
+    logger.info("change_date が呼び出されました: id=%s, new_date=%s", log_safe(entry["id"]), new_date)
     date_fields = {
         "date": new_date.isoformat(),
         "year": new_date.year,
@@ -91,5 +91,5 @@ def change_date(entry: dict[str, Any], new_date: datetime.date) -> None:
 
 def delete_entry(entry: dict[str, Any]) -> None:
     """日記を削除する。"""
-    logger.info("delete_entry が呼び出されました: id=%s", entry["id"])
+    logger.info("delete_entry が呼び出されました: id=%s", log_safe(entry["id"]))
     _container().delete_item(item=entry["id"], partition_key=entry["userId"])

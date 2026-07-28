@@ -14,6 +14,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 
+def log_safe(value: object) -> str:
+    """ユーザ入力由来の値をログに載せる前に改行を取り除く（ログインジェクション対策）。"""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 def create_logger(name: str) -> logging.Logger:
     """
     ロガーを作成するファクトリー関数
