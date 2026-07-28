@@ -1,45 +1,55 @@
+metadata description = 'Creates a storage account with the blob containers and queues the app needs.'
+
 param name string
 param location string = resourceGroup().location
 param tags object = {}
 
-param allowBlobPublicAccess bool = false
-param containers array = []
-param kind string = 'StorageV2'
-param minimumTlsVersion string = 'TLS1_2'
-param sku object = { name: 'Standard_LRS' }
+@description('Blob container names.')
+param containers string[] = []
 
-resource storage 'Microsoft.Storage/storageAccounts@2022-05-01' = {
+@description('Queue names.')
+param queues string[] = []
+
+resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
   location: location
   tags: tags
-  kind: kind
-  sku: sku
+  kind: 'StorageV2'
+  sku: {
+    name: 'Standard_LRS'
+  }
   properties: {
-    minimumTlsVersion: minimumTlsVersion
-    allowBlobPublicAccess: allowBlobPublicAccess
+    minimumTlsVersion: 'TLS1_2'
+    allowBlobPublicAccess: false
+    // Every caller (Functions host, Timer backup) authenticates with a managed identity.
+    allowSharedKeyAccess: false
     networkAcls: {
       bypass: 'AzureServices'
       defaultAction: 'Allow'
     }
   }
 
-  resource blobServices 'blobServices' = if (!empty(containers)) {
+  resource blobServices 'blobServices' = {
     name: 'default'
-    resource container 'containers' = [for container in containers: {
-      name: container.name
-      properties: {
-        immutableStorageWithVersioning: {
-          enabled: false
-        }
-        defaultEncryptionScope: '$account-encryption-key'
-        denyEncryptionScopeOverride: false
-        publicAccess: contains(container, 'publicAccess') ? container.publicAccess : 'None'
+
+    resource container 'containers' = [
+      for containerName in containers: {
+        name: containerName
       }
-    }]
+    ]
+  }
+
+  resource queueServices 'queueServices' = {
+    name: 'default'
+
+    resource queue 'queues' = [
+      for queueName in queues: {
+        name: queueName
+      }
+    ]
   }
 }
 
-
-
 output name string = storage.name
-output primaryEndpoints object = storage.properties.primaryEndpoints
+output blobEndpoint string = storage.properties.primaryEndpoints.blob
+output queueEndpoint string = storage.properties.primaryEndpoints.queue
