@@ -69,10 +69,20 @@ LINE の webhook 受信とエージェント実行を、**キューを挟んで�
 
 #### モデル選定
 
-- **Azure がホストするオープンウェイトモデルを既定とする。** Foundry プロジェクトのサーバーレス（従量課金）デプロイで利用し、専有 GPU は使わない。
-- 出発点は **`gpt-oss-120b`**（Apache 2.0、131k コンテキスト、並列呼び出しを含むツール呼び出しに対応）とする。トークン単価がプロプライエタリモデルより一桁安く、本構成のコスト前提と整合する。
+**Azure がホストするオープンウェイトモデルを使う。** 選定条件は次の3つ。
+
+1. オープンウェイトであること
+2. **従量課金（Pay-per-token）で利用できること** — 専有スループット（PTU）や Managed Compute は月額が本構成の前提を超えるため、モデルの性能によらず選定対象外とする
+3. ツール呼び出しに対応していること
+
+- 既定モデルは **`Kimi-K2.6`**（Moonshot AI、オープンウェイト、262k コンテキスト、ツール呼び出し対応のエージェント志向モデル）とする。Azure が直接販売しており、従量課金で利用できる。
 - **モデルは用途ごとに明示的に指定し、プラットフォームによる自動選択は使わない。** 同じ入力に対して同じモデルが応答する状態を保ち、キャラクター応答の品質を評価・調整できることを優先する。
-- 日本語のキャラクター応答品質が要件に届かない場合の代替候補として、`Kimi-K2` 系および `DeepSeek-V3.2`（いずれもツール呼び出し対応、オープンウェイト）を置く。**入れ替えの判断は Foundry Evaluations の結果に基づいて行い、感覚で切り替えない。**
+- **パートナー（Fireworks）経由のモデルより、Azure が直接販売するモデルを優先する。** 理由は3点。
+  1. **従量課金の提供が短期で終了しうる**。Fireworks 経由の従量課金は15日前通知で終了する規定があり、実際に `FW-GPT-OSS-120B` / `FW-DeepSeek-V3.2` / `FW-Kimi-K2.5` / `FW-GLM-5` の従量課金は提供終了済み、`FW-GLM-5.1` と `FW-MiniMax-M2.5` も2026年8月7日に終了予定である。
+  2. **リージョンが米国のみ**（Data Zone Standard の対応は East US / East US 2 / Central US / North Central US / West US / West US 3）。
+  3. **Microsoft と Fireworks の間でデータが共有される**。日記という個人的な内容を扱う以上、経路に入る事業者は少ないほうがよい。
+- 代替候補は `DeepSeek-V4-Pro`（Azure 直販、従量課金）。Fireworks 経由となるが `GLM-5.2`（1M コンテキスト、従量課金）も候補とし、上記のライフサイクルとデータ共有の前提を許容できる場合に限る。
+- **入れ替えの判断は Foundry Evaluations の結果に基づいて行い、感覚で切り替えない。**
 - **埋め込みモデルは例外**とし、現行の `text-embedding-3-small` を Foundry 経由で継続利用する。オープンウェイトの埋め込みモデルは Managed Compute（専有 GPU）が前提となりコスト条件に合わず、変更すると日記全件の再ベクトル化が発生するため、ここは実利を取る。
 
 ### 3. 状態管理: 会話履歴はプラットフォーム、アプリデータは Cosmos DB
@@ -147,6 +157,8 @@ App Service および同 Free プランは削除する。
 | **LangGraph / deepagents の継続利用** | 技術的には成立し、ホステッドエージェントもフレームワーク非依存である。ただし Azure のキャッチアップという目的に対して MAF の方が適合する。今回必要なのはシングルエージェント + ツール + スキルのみであり、deepagents のプランニングやサブエージェントは過剰装備だった |
 | **Model Router によるモデルの自動選択** | 入力に応じてプラットフォームがモデルを選ぶため、同じ入力に対する応答の再現性が下がり、キャラクター応答の評価と調整がしにくくなる。コスト最適化の効果より、どのモデルで動いているかを自分で決められることを優先する。またオープンウェイトモデルを使う場合、単価が十分に低くルーティングによる節約の意義が小さい |
 | **Foundry 経由で OpenAI などのプロプライエタリモデルを使う** | 動作はするが、それ自体は既存構成と変わらず学習上の新規性がない。Azure がホストするオープンウェイトモデルを選ぶことで、モデル選定・評価まで含めて Azure 上で完結させる |
+| **`Qwen` シリーズ** | オープンウェイトとしては最有力の系列だが、Foundry では Qwen3 / Qwen3.5 / Qwen3.6 のいずれも **PTU（専有スループット）のみの提供**で従量課金の選択肢がない。モデルの良し悪し以前にコスト前提と両立しないため採用できない。従量課金が提供された時点で再評価する |
+| **`gpt-oss-120b`** | 当初の既定候補としていたが撤回した。単価と可用性以外に積極的な選定理由がなく、英語偏重で日本語のキャラクター応答に不利。Foundry でも Fireworks 経由の従量課金提供は既に終了しており、現在のオープンウェイトの選択肢として妥当でない |
 | **webhook を同期処理して直接エージェントを呼ぶ** | ゲートウェイとエージェントで2回のコールドスタートが直列し、reply token の1分制限を超えるリスクがある |
 | **音声文字起こしの継続** | スマートフォン側で辞書適用込みの文字起こしが完結するようになり、アプリ側で担う価値がなくなった。入力経路を2系統に保つコストに見合わない |
 | **Foundry IQ によるマネージド RAG** | Azure AI Search が前提でコストが跳ねる。日記のベクトル検索は Cosmos DB 無料枠で完結しているため現状維持とする。RAG を深掘りする際の将来テーマとして残す |
@@ -166,7 +178,7 @@ App Service および同 Free プランは削除する。
 | 項目 | 概算 |
 |------|------|
 | ホステッドエージェント（scale-to-zero、1日数時間の稼働想定） | 数百円程度 |
-| モデル利用（`gpt-oss-120b`、従量課金） | 数十〜数百円程度 |
+| モデル利用（`Kimi-K2.6`、従量課金） | 数十〜数百円程度 |
 | Azure Functions（Flex Consumption） | 無料枠内 |
 | Cosmos DB | 無料枠内 |
 | Blob Storage / Queue | 数十円 |
@@ -177,7 +189,8 @@ App Service および同 Free プランは削除する。
 
 - **ホステッドエージェントは新しいサービスであり仕様変更の可能性がある**。ただしフレームワーク非依存であるため、最悪の場合は同一コンテナを標準の Container Apps に載せ替えられる。その場合は会話履歴の管理のみ自前実装が必要になる。
 - **会話セッションは30日間の非アクティブで削除される**。永続すべきデータをサンドボックスの `$HOME` に置かず、Cosmos DB に保持する設計を守ることで影響を受けない。
-- **オープンウェイトモデルの日本語品質は未検証である**。キャラクター応答の自然さが最大の懸念点となる。代替候補（`Kimi-K2` 系、`DeepSeek-V3.2`）への切り替えは容易であり、判断材料を Foundry Evaluations で用意することを前提とする。品質がどうしても要件に届かない場合に限り、プロプライエタリモデルへの回帰を検討する。
+- **オープンウェイトモデルの日本語品質は未検証である**。キャラクター応答の自然さが最大の懸念点となる。代替候補（`DeepSeek-V4-Pro`、`GLM-5.2`）への切り替えは容易であり、判断材料を Foundry Evaluations で用意することを前提とする。品質がどうしても要件に届かない場合に限り、プロプライエタリモデルへの回帰を検討する。
+- **オープンウェイトモデルの提供形態は変動が速い**。従量課金の提供終了やモデルの入れ替わりが数か月単位で起きるため、既定モデルは固定資産ではなく差し替え前提の設定値として扱う。モデル名をコードに散在させず、環境変数1か所で切り替えられる状態を維持する。
 - **push メッセージの月200通制限**。reply 優先・push フォールバックの設計を維持する。バックアップ失敗通知などの能動的な通知もこの枠を消費する点に留意する。
 - **ACA Express のプレビュー起因の不安定さ**。本体経路から切り離しているため、停止してもサービス影響はない。
 
@@ -195,5 +208,6 @@ App Service および同 Free プランは削除する。
 - [Observability in Generative AI](https://learn.microsoft.com/en-us/azure/foundry/concepts/observability)
 - [Foundry Models sold directly by Azure](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure)
 - [Understanding deployment types in Microsoft Foundry Models](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/deployment-types)
+- [Fireworks models on Microsoft Foundry](https://learn.microsoft.com/en-us/azure/foundry/how-to/fireworks/enable-fireworks-models)（提供モデル一覧と従量課金の提供終了予定）
 - [Azure Container Apps Express Overview (preview)](https://learn.microsoft.com/en-us/azure/container-apps/express-overview)
 - [Receive messages (webhook) - LINE Developers](https://developers.line.biz/en/docs/messaging-api/receiving-messages/)
