@@ -1,0 +1,253 @@
+# PR #557 レビュー判断台帳
+
+## 目的
+
+PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・実装・検証する。
+このファイルをセッション間の引き継ぎ元とし、PRを越えて残す作業だけ GitHub Issue へ昇格する。
+
+## 進め方
+
+1. 1セッションでは原則1項目だけ扱う。
+2. まず設計方針を議論し、`決定` と `完了条件` を確定する。
+3. 実装は方針決定後に行い、テスト結果を記録する。
+4. PR内で直すなら Issue は作らない。別PRへ送る場合だけ Issue URL を記録する。
+
+状態は `未検討` → `方針決定` → `実装中` → `検証済み`、または `Issue化` とする。
+
+## 判断項目
+
+### D1. デプロイ可能な最小構成
+
+- 優先度: P1
+- 状態: 方針決定
+- 論点:
+  - CIへ必須の azd 変数が渡っていない
+  - Hosted Agent用ACRと出力がない
+  - main workflowがAgentをデプロイしない
+  - FunctionsにHosted Agent呼び出し権限がない
+  - Agent identityへのCosmos権限付与が手動二段階のまま
+- 主な場所:
+  - `.github/workflows/provision.yml`
+  - `.github/workflows/main-azure-deploy.yml`
+  - `azure.yaml`
+  - `infra/main.bicep`
+- 決めること: 初回構築と継続デプロイを、どこまで `azd up` / CIで自動化するか
+- 決定:
+  - 初回構築だけ、手動起動する補助スクリプトで azd provision → Agentデプロイ → Agent principal ID取得・azd env保存 → 再provision → Funcデプロイを行う
+  - 通常CIは補助スクリプトで包まず、azd を直接呼んで継続デプロイする
+  - デプロイ定義の共通の正本は azure.yaml とBicepとし、初回補助スクリプトはAgent identityとCosmos RBACの循環依存解消だけを担う
+  - Docker HubはHosted Agentのサポートされたイメージ配布経路として採用せず、ACRも新設しない
+  - AgentはDocker方式からACR不要のDirect code deployへ変更する
+  - Foundry管理のremote buildだけsfw必須ルールの例外とし、ローカルとCIでの依存取得は引き続きsfw経由とする
+  - Agent・Func・Web UI・CI・開発環境のPythonを、Foundry Direct codeとAzure Functions Flex Consumptionの双方で安定利用できる3.13へ統一する
+  - Python 3.14への一括更新は、Azure FunctionsでGAかつremote build対応になってから行う
+  - Agentのrequirements.txtはコミットせず、azure.yamlのAgent用prepackage hookでuv.lockからhash付きで生成する
+  - 継続デプロイは1ワークフロー・1ジョブとし、Azure認証とazd環境設定を共有する
+  - infra変更時はazd provision、Agentまたはinfraまたはazure.yaml変更時はazd deploy agent、Funcまたはinfraまたはazure.yaml変更時はazd deploy funcを条件付きで実行する
+  - FunctionsのManaged IdentityへFoundry Agent ConsumerをFoundry ProjectスコープでBicepから付与する
+  - Functionsのアプリ設定はBicep内でAzureリソースから直接設定し、GitHub Variablesやazd envへ重複させない
+  - Hosted Agentへ渡すAzureリソース値だけBicep outputからazure.yamlへ橋渡しし、同じ実行でprovisionを省略した場合はazd env refreshで復元する
+  - GitHub VariablesにはOIDC・azd環境識別子・DIARY_USER_IDなどAzureから導出できない入力だけを置く
+- 完了条件: クリーン環境で provision → Agent → Func の順にデプロイしてLINEから応答を確認し、Agentのみの変更も再provisionなしで継続デプロイできる
+- Issue: なし
+
+### D2. 単一ユーザーか複数ユーザーか
+
+- 優先度: P1
+- 状態: 検証済み
+- 論点:
+  - Agentの日記所有者が固定 `DIARY_USER_ID`
+  - PRのHEADでは第三者も所有者の日記を操作可能
+  - ローカル未コミット変更にはGatewayの単一ユーザー制限がある
+  - Web UIはBasic認証の管理者1名と固定 `DIARY_USER_ID` を暗黙に対応させている
+  - プロジェクト方針には10〜20人程度の利用想定がある
+- 主な場所:
+  - `src/agent/character_agent/config.py`
+  - `src/func/line_gateway.py`
+  - `src/func/line_worker.py`
+  - `src/webui/diary_admin/main.py`
+  - `src/webui/diary_admin/cosmos.py`
+- 決めること: 個人専用として明示的に閉じるか、LINE user IDをAgentまで安全に伝搬するか
+- 決定:
+  - 今回は個人専用とし、Gatewayで `DIARY_USER_ID` 以外を拒否する
+  - AgentとWeb UIの固定 `DIARY_USER_ID` は、この利用者モデルでは意図した設計とする
+  - Cosmos DBのユーザー別パーティション構造は将来の拡張余地として維持する
+  - 複数ユーザー対応は、Agentへの利用者ID伝搬だけでなく、Web UIの認証とLINEアカウントの連携を含む別Issue・別PRとする
+  - 将来対応時は、認証済みアカウントとの対応からサーバー側でLINE user IDを決定し、リクエスト指定のuser IDを認可に使わない
+- 完了条件:
+  - 所有者以外のLINEイベントがキューへ入らない
+  - AgentとWeb UIが所有者のCosmosパーティションだけを参照する
+  - 個人専用であることと複数ユーザー化の前提条件が文書化されている
+- 検証結果（2026-07-29）:
+  - Func: `uv run --locked ruff check --fix .`、`uv run --locked ruff format .`、`uv run --locked pytest`（15件成功）
+  - Agent: `uv run --locked ruff check .`、`uv run --locked pytest`（34件成功、既存のExperimentalWarning 1件）
+  - Web UI: `uv run --locked ruff check --fix .`、`uv run --locked ruff format .`、`uv run --locked pytest`（8件成功、既存のStarletteDeprecationWarning 1件）
+  - Gatewayは所有者外のテキスト・非テキストイベントをキュー投入も返信もしないこと、AgentとWeb UIは固定所有者のパーティションを使うことをテストで確認
+- Issue: 未作成（複数ユーザー化は別Issue候補）
+
+### D3. 会話キューの順序保証と冪等性
+
+- 優先度: P1
+- 状態: 検証済み
+- 論点:
+  - Storage QueueはFIFOを保証しない
+  - Queue Triggerが同一ユーザーのメッセージを並列処理する
+  - `webhookEventId`を保持せず再送を重複実行する
+  - conversation新規作成が競合する
+- 主な場所:
+  - `src/func/line_gateway.py`
+  - `src/func/line_worker.py`
+  - `src/func/host.json`
+- 決めること: 単一実行制約、ユーザー単位ロック、またはセッション対応キューのどれを採用するか
+- 決定:
+  - 個人専用の今回はStorage Queueを維持する
+  - Queue Triggerの `batchSize` を1、Functionsの `maximumInstanceCount` を1にしてWorkerを直列化する
+  - `webhookEventId` とイベントの `timestamp` をキューメッセージへ引き継ぎ、追跡できるようにする
+  - 厳密なExactly Onceや分散ロックは実装せず、Service Busも導入しない
+  - 将来の複数ユーザー対応ではService Bus Sessionsを使い、`SessionId` をLINE user IDとして、ユーザー間は並列・同一ユーザー内は直列にする
+- 完了条件:
+  - Functionsが単一インスタンスで動作し、Queue Triggerが1件ずつ処理する
+  - `webhookEventId` と `timestamp` がGatewayからWorkerまで伝搬される
+  - 連続する通常配送のメッセージをWorkerが並列処理しない
+- 検証結果（2026-07-29）:
+  - Func: `uv run --locked ruff check --fix .`、`uv run --locked ruff format .`、`uv run --locked pytest`（16件成功）
+  - Bicep: `az bicep build --file infra/main.bicep --stdout`（成功）
+  - `host.json` の `batchSize` を1、Flex Consumptionの `maximumInstanceCount` を1に設定
+  - Microsoft LearnのQueue Trigger仕様で、`batchSize=1` は単一VM上の並列実行を排除することを確認
+  - GatewayのキューペイロードからWorkerのログ・トレースまで `webhookEventId` と `timestamp` が伝搬することをテストで確認
+- Issue: 未作成（複数ユーザー向けService Bus化は別Issue候補）
+
+### D4. 日記・conversation・digestの整合性
+
+- 優先度: P1
+- 状態: 方針決定
+- 論点:
+  - 同日の日記を重複作成できる
+  - usersドキュメント全体のread-modify-upsertで更新を失う
+  - 日記とdigestの二段書き込みが部分成功する
+- 主な場所:
+  - `src/agent/character_agent/cosmos.py`
+  - `src/agent/character_agent/tools.py`
+  - `src/func/users.py`
+- 決めること: 決定的ID、Cosmos PATCH/ETag、digest再生成のどこまでを採用するか
+- 決定:
+  - ダイジェストは「日記本文 → 日次要約 → 月次要約 → 年次要約」の段階集約とする
+  - 日次要約は日記ドキュメントの `summary` フィールドへ本文と一緒に保存する
+  - 日記の更新時は本文・埋め込み・日次要約を同じドキュメントで更新する
+  - 月次要約は対象月の日記本文を読み直さず、日記ドキュメントの `summary` だけから生成する
+  - `users.digest.daily` は持たず、直近の日次要約が必要な場合は日記ドキュメントから取得する
+  - usersドキュメントは初回だけ作成し、それ以降はCosmos PATCHで担当フィールドだけを更新する
+  - Functionは `conversation_id`、Agentは月次・年次の `digest` だけを更新し、ドキュメント全体をupsertしない
+  - 日記IDは既存のUUIDを維持し、CosmosコンテナのUnique Key追加や決定的IDへの移行は行わない
+  - AgentとWeb UIの両方で、同じ日付の日記が既にあれば作成・日付変更を拒否する
+- 完了条件:
+  - 日記本文・埋め込み・日次要約が同じ日記ドキュメントで更新される
+  - FunctionとAgentがusersドキュメントの担当フィールドだけをPATCHする
+  - LINEとWeb UIのどちらからも同日の日記を重複作成できない
+- Issue: なし
+
+### D5. 既存機能の継承範囲
+
+- 優先度: P1/P2
+- 状態: 方針決定
+- 論点:
+  - ADRと旧アプリにあるWeb検索が未実装
+  - 旧Timerの自動digest再編が手動ツールへ変わった
+- 主な場所:
+  - `src/agent/character_agent/agent.py`
+  - `src/agent/character_agent/prompts.py`
+  - `docs/adr/0001-azure-native-agent-architecture.md`
+- 決めること: Web検索と自動digest再編を今回のPRへ含めるか、意図的廃止としてADRを変更するか
+- 決定:
+  - Web検索は既存機能として今回のPRで復活させる
+  - Foundry ToolboxへWeb Searchを登録し、Hosted AgentからToolboxのMCPエンドポイントへ接続する
+  - Toolboxと接続設定はBicep/azdで再現可能にし、手作業のPortal設定へ依存させない
+  - 最新情報を必要とする評価ケースを追加し、AgentがWeb Searchを選択して回答できることを確認する
+  - digest再編は手動専用にせず、毎月1日にFoundry RoutineからHosted Agentを呼び出す
+  - 月次要約は前月の日記ドキュメントの `summary` から生成し、1月は前年の月次要約を年次へ集約する
+  - Routineは `azure.yaml` の `host: azure.ai.routine` サービスとして宣言し、azdで再現可能にする
+  - ダイジェスト作成規則は専用の `digest-rollup` スキルへ移し、RoutineからメインAgentにそのスキルを使わせる
+  - メインAgentが要約内容を作り、取得ツールは日次summary・月次digestの読み取り、保存ツールは構造検証とCosmos更新だけを担当する
+  - `digest_regenerate` 内の `foundry.complete()` は廃止し、ツール内部からLLMや別Agentを再呼び出さない
+  - この原則の対象は生成LLM・Agentの再呼び出しとし、ベクトル索引に必要なEmbedding生成は機械的処理として許可する
+- 完了条件:
+  - Hosted AgentがFoundry Toolbox経由でWeb検索できる
+  - 毎月1日のRoutineが前月の日次要約を月次へ集約し、年境界では年次も更新する
+  - ダイジェスト集約でツール内部から生成LLMを呼ばず、スキルを読んだメインAgentが要約を作る
+  - 残す機能と廃止する機能がADR・README・実装で一致する
+- Issue: なし
+
+### D6. Web UIのデータ契約
+
+- 優先度: P1/P2
+- 状態: 方針決定
+- 論点:
+  - Cosmosカスタムロールに `readChangeFeed` がなく一覧が403になる
+  - 日付変更・削除がdigestへ反映されない
+  - 日付変更で同日の日記を複数作れる
+- 主な場所:
+  - `README.md`
+  - `src/webui/diary_admin/main.py`
+  - `src/webui/diary_admin/cosmos.py`
+- 決めること: Web UIが直接更新する範囲と、Agent側ドメイン処理との共有方法
+- 決定:
+  - Web UIは一覧・月別絞り込み・本文表示だけを提供する読み取り専用ビューワーとする
+  - 日付変更・削除の画面、POSTルート、Cosmos更新処理をWeb UIから削除する
+  - Web UIのサービスプリンシパルには日記コンテナのクエリ・読み取り権限だけを付与し、replace/delete権限を外す
+  - 日記の作成・更新・日付変更・削除はLINE Agentだけを変更経路とする
+  - 日付変更・削除の手順は `diary-maintenance` スキルへ置き、対象確認と削除前のユーザー確認を必須にする
+- 完了条件:
+  - Web UIからCosmos DBへの書き込み経路が存在しない
+  - 読み取り専用の最小権限で一覧・絞り込み・本文表示が動く
+  - 日記の変更経路がLINE Agentへ一本化されている
+- Issue: なし
+
+### D7. 品質ゲート・AVM・サプライチェーン
+
+- 優先度: P2/P3
+- 状態: 方針決定
+- 論点:
+  - Web UI、Bicep、Docker、実デプロイ契約がPR CIの対象外
+  - 評価が本文破壊や誤ったツール実行タイミングを検出できない
+  - `sfw`を可変のlatest URLから検証なしで実行する
+  - `.dockerignore`がなく `.env` をremote build contextへ送り得る
+  - 利用可能な主要リソースでもAVMを使っていない
+- 主な場所:
+  - `.github/workflows/`
+  - `src/agent/evals/`
+  - `src/agent/Dockerfile`
+  - `src/webui/Dockerfile`
+  - `infra/`
+- 決めること: 今回のPRで必須とする品質ゲートと、別PRへ送る改善の境界
+- 決定:
+  - PRではAgent・Func・Web UIの3サービスすべてに、`sfw uv sync --locked`、ruff check、ruff format check、pytestを必須化する
+  - PythonバージョンはD1で決定した3.13へ統一する
+  - BicepはPRごとにコンパイルし、構文・型・参照エラーを検出する
+  - Foundry Evaluationsと実デプロイは、外部環境・料金・結果の安定性を把握するまで手動実行のままにし、PRの必須ゲートにしない
+  - 手動評価を運用して信頼できる評価項目が固まった後、その項目だけCIへの昇格を別途判断する
+  - AgentはDirect code deployへ変更するため `src/agent/Dockerfile` を削除し、AgentのDocker buildは行わない
+  - Web UIのDockerfileはSocket FirewallのバージョンとSHA-256を固定し、可変のlatestバイナリを検証なしで実行しない
+  - `src/webui/.dockerignore` で `.env`、`.venv`、テスト、キャッシュなどをremote build contextから除外する
+  - PR CIでWeb UIのDocker buildを実行する
+  - Functionsは `avm/res/web/serverfarm` と `avm/res/web/site`、Storageと監視も対応する公式AVMへ置き換える
+  - 既存Cosmos DBへのSQL Role Assignmentは対応する子AVMへ置き換える
+  - FoundryはAccountとモデルデプロイだけ `avm/res/cognitive-services/account` を使い、未対応のProjectとConnectionはraw Bicepを維持する
+  - 既存Key VaultへのRBACは適合するAVMがないためraw Bicepを維持する
+  - AVMはバージョンを固定し、標準リソースはAVM、未対応部分と必要なglueだけraw Bicepとする
+- 完了条件:
+  - 3サービスのruff・pytest、Bicepコンパイル、Web UIのDocker buildがPRで成功する
+  - Web UIのremote build contextへ秘密情報や不要ファイルが含まれない
+  - AVM対応済みの標準リソースに独自実装が残らず、raw Bicepを残す理由が明確になっている
+  - 延期した評価CI化は、手動評価の運用結果を踏まえて別途判断できる状態になっている
+- Issue: なし
+
+## 次のセッション
+
+D1〜D7の設計方針はすべて決定済み。D2・D3は検証済み。以降は項目ごとに別セッションで実装・検証し、状態を
+`実装中` → `検証済み` へ更新する。
+
+次は **D6. Web UIのデータ契約** を実装する。
+
+開始時の依頼例:
+
+> `docs/reviews/pr-557-review-backlog.md` の D1 の決定に従って実装・検証し、結果を台帳へ記録して。
