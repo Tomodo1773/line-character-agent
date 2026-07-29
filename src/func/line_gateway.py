@@ -71,5 +71,7 @@ def _build_payload(event: MessageEvent) -> dict:
         "user_id": event.source.user_id,
         "reply_token": event.reply_token,
         "text": event.message.text,
+        "webhook_event_id": event.webhook_event_id,
+        "timestamp": event.timestamp,
         "trace_context": trace_context,
     }

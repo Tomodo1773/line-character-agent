@@ -25,9 +25,21 @@ ERROR_REPLY = "予期しないエラーが発生しちゃった。少し時間�
 def line_worker(message: func.QueueMessage) -> None:
     logger.info("line_worker が呼び出されました")
     payload = json.loads(message.get_body().decode("utf-8"))
+    logger.info(
+        "LINE イベントを処理します: webhook_event_id=%s timestamp=%s",
+        payload["webhook_event_id"],
+        payload["timestamp"],
+    )
 
     # Gateway が本文に載せた traceparent を親にして、LINE 受信からの1本のトレースに繋げる。
-    with tracer.start_as_current_span("line_worker", context=extract(payload["trace_context"])):
+    with tracer.start_as_current_span(
+        "line_worker",
+        context=extract(payload["trace_context"]),
+        attributes={
+            "line.webhook_event_id": payload["webhook_event_id"],
+            "line.event_timestamp": payload["timestamp"],
+        },
+    ):
         line_client.show_loading_animation(payload["user_id"])
         try:
             reply = _generate_reply(payload["user_id"], payload["text"])

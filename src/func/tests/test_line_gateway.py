@@ -79,6 +79,8 @@ def test_enqueues_text_message_with_trace_context():
     assert payload["user_id"] == DIARY_USER_ID
     assert payload["reply_token"] == "reply-token"
     assert payload["text"] == "こんにちは"
+    assert payload["webhook_event_id"] == "01"
+    assert payload["timestamp"] == 1700000000000
     # Storage Queue は trace context を運ばないため、本文に載せて Worker へ渡す。
     assert "trace_context" in payload
 

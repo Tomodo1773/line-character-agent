@@ -68,7 +68,8 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         version: runtimeVersion
       }
       scaleAndConcurrency: {
-        maximumInstanceCount: 40
+        // 個人専用エージェントの会話を単一Workerで順番に処理する。
+        maximumInstanceCount: 1
         instanceMemoryMB: 512
       }
     }

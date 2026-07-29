@@ -50,7 +50,16 @@ def stubs(monkeypatch: pytest.MonkeyPatch):
 
 def _run(text: str) -> None:
     line_worker.line_worker(
-        FakeQueueMessage({"user_id": "U123", "reply_token": "reply-token", "text": text, "trace_context": {}})
+        FakeQueueMessage(
+            {
+                "user_id": "U123",
+                "reply_token": "reply-token",
+                "text": text,
+                "webhook_event_id": "event-01",
+                "timestamp": 1700000000000,
+                "trace_context": {},
+            }
+        )
     )
 
 
@@ -91,3 +100,16 @@ def test_replies_error_message_when_the_agent_fails(stubs, monkeypatch: pytest.M
     _run("こんにちは")
 
     assert stubs.replies == [("U123", "reply-token", line_worker.ERROR_REPLY)]
+
+
+def test_tracks_line_event_metadata(stubs, monkeypatch: pytest.MonkeyPatch):
+    info_calls = []
+    monkeypatch.setattr(line_worker.logger, "info", lambda *args: info_calls.append(args))
+
+    _run("こんにちは")
+
+    assert (
+        "LINE イベントを処理します: webhook_event_id=%s timestamp=%s",
+        "event-01",
+        1700000000000,
+    ) in info_calls
