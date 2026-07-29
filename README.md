@@ -155,18 +155,18 @@ Foundry ホステッドエージェント本体です。日記ツールとスキ
 
 ```bash
 cd src/agent
-sfw uv sync                  # 依存関係インストール
+sfw uv sync --locked         # lockfileを検証して依存関係をインストール
 azd ai agent run             # ローカル起動（ポート 8088）
-uv run pytest                # テスト実行
-uv run ruff check            # リント
-uv run ruff format           # フォーマット
+uv run --locked pytest       # テスト実行
+uv run --locked ruff check   # リント
+uv run --locked ruff format  # フォーマット
 ```
 
 #### Function Service（`src/func/`）
 
 ```bash
 cd src/func
-sfw uv sync                  # 依存関係インストール
+sfw uv sync --locked         # lockfileを検証して依存関係をインストール
 # Azure Functions Core Tools でローカル実行
 ```
 
@@ -176,13 +176,13 @@ sfw uv sync                  # 依存関係インストール
 
 ```bash
 cd src/webui
-sfw uv sync                  # 依存関係インストール
+sfw uv sync --locked         # lockfileを検証して依存関係をインストール
 cp .env.sample .env          # 環境変数を設定（ADMIN_USER / ADMIN_PASSWORD など）
 az login                     # Cosmos DB へは自分の権限で接続する
-uv run uvicorn diary_admin.main:app --reload --env-file .env --port 8000
-uv run pytest                # テスト実行
-uv run ruff check .          # リント
-uv run ruff format .         # フォーマット
+uv run --locked uvicorn diary_admin.main:app --reload --env-file .env --port 8000
+uv run --locked pytest       # テスト実行
+uv run --locked ruff check . # リント
+uv run --locked ruff format . # フォーマット
 ```
 
 <http://localhost:8000> を開くと Basic 認証を求められます。`.env` に設定した `ADMIN_USER` / `ADMIN_PASSWORD` で入ってください。

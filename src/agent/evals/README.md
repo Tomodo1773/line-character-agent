@@ -23,7 +23,7 @@
 
 ## 準備
 
-追加の依存はない（`sfw uv sync` で入る `agent-framework-foundry` に評価機能が含まれる）。必要なのは次の3つ。
+追加の依存はない（`sfw uv sync --locked` で入る `agent-framework-foundry` に評価機能が含まれる）。必要なのは次の3つ。
 
 1. **Foundry プロジェクト**と、評価したいモデルのデプロイ（例: `Kimi-K2.6`、`DeepSeek-V4-Pro`）
 2. **ジャッジ用のモデルデプロイ**。組み込み評価器とキャラクター採点の両方が使う。評価される側と別系統のモデル

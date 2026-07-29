@@ -31,16 +31,16 @@
 
 ## ビルド・テスト・開発コマンド
 
-サプライチェーン攻撃対策として、依存関係取得は Socket Firewall Free 経由で行う。各サービスで `sfw uv sync` 後に以下を実行。環境変数は各 `.env.sample` を参照。
+サプライチェーン攻撃対策として、依存関係取得は Socket Firewall Free 経由で行う。各サービスで `sfw uv sync --locked` 後に以下を実行。環境変数は各 `.env.sample` を参照。
 
 | サービス | 起動 | テスト |
 |----------|------|--------|
-| Agent | `cd src/agent && azd ai agent run`（ポート 8088） | `uv run pytest` |
-| Func | Azure Functions Core Tools を使用 | `uv run pytest` |
+| Agent | `cd src/agent && azd ai agent run`（ポート 8088） | `uv run --locked pytest` |
+| Func | Azure Functions Core Tools を使用 | `uv run --locked pytest` |
 
 ### Python 実行時の注意
 
-常に `uv run` を前置する。例: `uv run pytest` / `uv run python scripts/foo.py`。避ける: `python -m pytest`。理由: ロックに基づく一時環境で依存差異を吸収し再現性を確保するため。
+常に `uv run --locked` を前置する。例: `uv run --locked pytest` / `uv run --locked python scripts/foo.py`。避ける: `python -m pytest`。理由: lockfile の整合性を検証し、依存差異を吸収して再現性を確保するため。
 
 ## ログ
 
@@ -61,8 +61,8 @@
 
 ```bash
 # 各サービスディレクトリで実行
-uv run ruff check --fix .  # Lint（自動修正）
-uv run ruff format .       # Format
+uv run --locked ruff check --fix .  # Lint（自動修正）
+uv run --locked ruff format .       # Format
 ```
 
 CI やレビューで ruff エラーがあると merge できないため、commit 前に必ず確認する。
@@ -72,7 +72,7 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 - フレームワーク: pytest（必要に応じて pytest-asyncio）。
 - 置き場/命名: `src/*/tests/`、ファイルは `test_*.py`、関数は `test_*`。
 - 外部依存: 必須環境変数が無い場合は `pytest.skip` を使用。
-- 実行: 各サービスディレクトリで `uv run pytest`。小さく独立したユニットテストを重視。
+- 実行: 各サービスディレクトリで `uv run --locked pytest`。小さく独立したユニットテストを重視。
 
 ## コミット・PR ガイドライン
 

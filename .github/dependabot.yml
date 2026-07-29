@@ -6,7 +6,7 @@ updates:
     schedule:
       interval: weekly
     cooldown:
-      default-days: 7
+      default-days: 3
       semver-major-days: 14
       semver-minor-days: 7
       semver-patch-days: 3
@@ -30,7 +30,7 @@ updates:
     schedule:
       interval: weekly
     cooldown:
-      default-days: 7
+      default-days: 3
       semver-major-days: 14
       semver-minor-days: 7
       semver-patch-days: 3
@@ -48,6 +48,30 @@ updates:
     commit-message:
       prefix: "deps(func)"
       prefix-development: "deps(func)"
+  - package-ecosystem: "uv"
+    directory: "/src/webui"
+    open-pull-requests-limit: 2
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    labels:
+      - "dependencies"
+    groups:
+      webui-version:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      webui-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps(webui)"
+      prefix-development: "deps(webui)"
   # GitHub Actionsの更新設定
   - package-ecosystem: "github-actions"
     directory: "/"

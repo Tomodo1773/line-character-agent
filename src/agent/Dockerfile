@@ -2,7 +2,7 @@
 # ARM マシンでビルドする場合は `docker build --platform linux/amd64 .` を使う。
 FROM --platform=linux/amd64 python:3.11-slim-bookworm
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.33 /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
-RUN sfw uv sync --frozen --no-dev --no-install-project
+RUN sfw uv sync --locked --no-dev --no-install-project
 
 COPY main.py ./
 COPY character_agent ./character_agent

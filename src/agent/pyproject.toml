@@ -11,12 +11,13 @@ dependencies = [
     "azure-ai-projects>=2.3.0",
     "azure-cosmos>=4.6.0,<5",
     "azure-identity>=1.25.3",
-    "openai>=2.49.0",
+    "openai>=2.25.0,<3",
 ]
 
 [tool.uv]
+required-version = "==0.11.33"
 package = false
-exclude-newer = "7 days"
+exclude-newer = "3 days"
 prerelease = "allow"
 
 [dependency-groups]
