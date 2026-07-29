@@ -41,6 +41,7 @@ class Settings:
     foundry_project_endpoint: str
     model_deployment_name: str
     embedding_deployment_name: str
+    toolbox_name: str
     cosmos_db_account_url: str
     diary_user_id: str
 
@@ -59,6 +60,10 @@ def get_settings() -> Settings:
         foundry_project_endpoint=_required("FOUNDRY_PROJECT_ENDPOINT"),
         model_deployment_name=_required("AZURE_AI_MODEL_DEPLOYMENT_NAME"),
         embedding_deployment_name=_required("AZURE_AI_EMBEDDING_DEPLOYMENT_NAME"),
+        # Web 検索を公開している Foundry Toolbox の名前。ホステッドエージェントはエージェント定義への
+        # 直接のツール追加をサポートしないため、Foundry 側のツールは Toolbox の MCP エンドポイント
+        # 経由で使う（ADR-0001 §2）。Toolbox 自体は azure.yaml の同名サービスが作る。
+        toolbox_name=_required("AZURE_AI_TOOLBOX_NAME"),
         cosmos_db_account_url=_required("COSMOS_DB_ACCOUNT_URL"),
         # 日記とプロフィールの持ち主（LINE ユーザ ID）。
         # ホステッドエージェントに渡る `x-agent-user-id` は Entra の呼び出し元から導出される値で、

@@ -1,8 +1,11 @@
-"""Foundry プロジェクト経由でモデルを呼び出すクライアント。
+"""Foundry プロジェクト経由で埋め込みを作るクライアント。
 
 エンドポイントとトークンの取り回しは `AIProjectClient.get_openai_client` に任せる
 （`{project_endpoint}/openai/v1` に Entra 認証で接続する）。ADR-0001 §6 のとおり
 `OPENAI_API_KEY` は使わない。
+
+ここに置くのはベクトル索引のための埋め込み生成だけとする。文章を作る生成 LLM の呼び出しは
+メインエージェント自身の役割で、ツールの内側からは行わない（`tools.py` の冒頭を参照）。
 """
 
 from functools import lru_cache
@@ -27,18 +30,3 @@ def embed(text: str) -> list[float]:
     logger.info("embed が呼び出されました")
     response = _openai_client().embeddings.create(model=get_settings().embedding_deployment_name, input=text)
     return response.data[0].embedding
-
-
-def complete(instructions: str, text: str) -> str:
-    """モデルに1往復だけ問い合わせ、応答テキストを返す。
-
-    会話ではなく単発の変換処理に使うため、履歴は保存しない（`store=False`）。
-    """
-    logger.info("complete が呼び出されました")
-    response = _openai_client().responses.create(
-        model=get_settings().model_deployment_name,
-        instructions=instructions,
-        input=text,
-        store=False,
-    )
-    return response.output_text

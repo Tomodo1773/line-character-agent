@@ -15,8 +15,13 @@ fi
 git config --global devcontainers-theme.hide-status 1
 git config --global codespaces-theme.hide-status 1
 
+# 全サービスを Python 3.13 で揃える（Foundry Direct code deploy と Azure Functions
+# Flex Consumption の双方が安定して使えるバージョン）。
+uv python install 3.13
+
 (cd src/agent && uv sync) || true
 (cd src/func && uv sync) || true
+(cd src/webui && uv sync) || true
 uv tool install pre-commit
 pre-commit install
 

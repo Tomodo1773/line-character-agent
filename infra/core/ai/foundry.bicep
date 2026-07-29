@@ -40,46 +40,47 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing
   name: applicationInsightsName
 }
 
-resource account 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
-  name: accountName
-  location: location
-  tags: tags
-  kind: 'AIServices'
-  sku: {
-    name: 'S0'
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
+// アカウントとモデルデプロイは AVM を使う。バージョンは固定し、更新は明示的に行う。
+// AVM はデプロイを直列に作るため、Foundry が同時書き込みを拒む問題は起きない。
+module accountModule 'br/public:avm/res/cognitive-services/account:0.17.0' = {
+  name: 'foundry-account'
+  params: {
+    name: accountName
+    location: location
+    tags: tags
+    kind: 'AIServices'
+    sku: 'S0'
+    managedIdentities: {
+      systemAssigned: true
+    }
     // Required to host Foundry projects under this account.
     allowProjectManagement: true
     customSubDomainName: accountName
     // ADR-0001: model calls authenticate with Entra ID, so API keys stay disabled.
     disableLocalAuth: true
     publicNetworkAccess: 'Enabled'
-  }
-}
-
-// A Foundry account rejects concurrent deployment writes, so create them one at a time.
-@batchSize(1)
-resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = [
-  for deployment in modelDeployments: {
-    parent: account
-    name: deployment.name
-    sku: {
-      name: deployment.skuName
-      capacity: deployment.capacity
-    }
-    properties: {
+    deployments: map(modelDeployments, deployment => {
+      name: deployment.name
+      sku: {
+        name: deployment.skuName
+        capacity: deployment.capacity
+      }
       model: {
         format: deployment.format
         name: deployment.modelName
         version: deployment.version
       }
-    }
+    })
   }
-]
+}
+
+// Project と Connection は AVM が未対応なので raw Bicep を維持する。
+resource account 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = {
+  name: accountName
+  dependsOn: [
+    accountModule
+  ]
+}
 
 resource project 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = {
   parent: account

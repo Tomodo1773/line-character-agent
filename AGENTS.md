@@ -50,7 +50,7 @@
 
 ## コーディング規約と命名
 
-- Python 3.11、インデント4スペース、行長127（ruff 設定)。
+- Python 3.13、インデント4スペース、行長127（ruff 設定)。
 - 命名: ファイル/関数/変数は `snake_case`、クラスは `PascalCase`。
 - import 順: 標準 → サードパーティ → ローカル。原則として絶対インポート。
 - 整形/Lint: ruff を使用（`pre-commit` 対応）。push 前に `pre-commit run -a`。

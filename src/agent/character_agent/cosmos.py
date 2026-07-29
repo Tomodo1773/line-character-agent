@@ -4,8 +4,14 @@
 
 | 対象 | データベース / コンテナ | パーティションキー |
 |------|------------------------|--------------------|
-| 日記本文・埋め込みベクトル | `diary` / `entries` | `/userId` |
-| プロフィール・ダイジェスト・会話 ID | `main` / `users` | ドキュメント ID（= LINE ユーザ ID） |
+| 日記本文・埋め込みベクトル・日次要約 | `diary` / `entries` | `/userId` |
+| プロフィール・月次/年次ダイジェスト・会話 ID | `main` / `users` | ドキュメント ID（= LINE ユーザ ID） |
+
+日次要約は日記ドキュメントの `summary` に本文と一緒に持たせる。本文・埋め込み・日次要約が
+1 回の書き込みで揃うため、日記とダイジェストの二段書き込みが途中で失敗することがない。
+
+`users` ドキュメントは Function（`conversation_id`）と Agent（`digest`）の両方が書くため、
+ドキュメント全体の read-modify-upsert は行わず、担当フィールドだけを PATCH する。
 
 接続はマネージド ID（`DefaultAzureCredential`）で、アカウントキーは使わない。
 データプレーンのロールしか持たないため、データベースやコンテナの作成は行わない。
@@ -17,7 +23,7 @@ from functools import lru_cache
 from typing import Any
 
 from azure.cosmos import ContainerProxy, CosmosClient
-from azure.cosmos.exceptions import CosmosResourceNotFoundError
+from azure.cosmos.exceptions import CosmosResourceExistsError, CosmosResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 
 from character_agent.config import create_logger, get_settings
@@ -57,9 +63,25 @@ def read_user() -> dict[str, Any] | None:
         return None
 
 
-def save_user(user: dict[str, Any]) -> None:
-    """ユーザドキュメントを保存する。conversation_id など他のフィールドは呼び出し元が保持する。"""
-    _container(USERS_DATABASE, USERS_CONTAINER).upsert_item(user)
+def save_digest(digest: dict[str, Any]) -> None:
+    """ユーザドキュメントの `digest` だけを差し替える。
+
+    ドキュメント全体を読み直して書き戻すと、その間に Function が書いた `conversation_id` を
+    巻き戻してしまう。担当フィールドだけを PATCH することで、書き込み同士が衝突しない。
+    ドキュメントがまだ無い初回だけ作成する。
+    """
+    user_id = _user_id()
+    container = _container(USERS_DATABASE, USERS_CONTAINER)
+    operations = [{"op": "set", "path": "/digest", "value": digest}]
+    try:
+        container.patch_item(item=user_id, partition_key=user_id, patch_operations=operations)
+    except CosmosResourceNotFoundError:
+        logger.info("ユーザドキュメントを新規作成します: user_id=%s", user_id)
+        try:
+            container.create_item({"id": user_id, "userid": user_id, "digest": digest})
+        except CosmosResourceExistsError:
+            # 他の書き込みが先に作成していた場合は PATCH でやり直す。
+            container.patch_item(item=user_id, partition_key=user_id, patch_operations=operations)
 
 
 # ---------------------------------------------------------------------------
@@ -89,23 +111,26 @@ def find_entry(date: datetime.date) -> dict[str, Any] | None:
     return items[0] if items else None
 
 
-def create_entry(date: datetime.date, content: str, content_vector: list[float]) -> None:
-    """日記を新規作成する。"""
+def create_entry(date: datetime.date, content: str, content_vector: list[float], summary: str) -> None:
+    """日記を新規作成する。本文・埋め込みベクトル・日次要約を 1 回の書き込みで揃える。"""
     logger.info("create_entry が呼び出されました: date=%s", date)
     entry = {
         "id": str(uuid.uuid4()),
         "userId": _user_id(),
         "content": content,
         "contentVector": content_vector,
+        "summary": summary,
         **_date_fields(date),
     }
     _container(DIARY_DATABASE, DIARY_CONTAINER).create_item(entry)
 
 
-def update_entry(entry: dict[str, Any], content: str, content_vector: list[float]) -> None:
-    """日記の本文と埋め込みベクトルを差し替える。"""
+def update_entry(entry: dict[str, Any], content: str, content_vector: list[float], summary: str) -> None:
+    """日記の本文・埋め込みベクトル・日次要約を差し替える。"""
     logger.info("update_entry が呼び出されました: id=%s", entry["id"])
-    _container(DIARY_DATABASE, DIARY_CONTAINER).upsert_item({**entry, "content": content, "contentVector": content_vector})
+    _container(DIARY_DATABASE, DIARY_CONTAINER).upsert_item(
+        {**entry, "content": content, "contentVector": content_vector, "summary": summary}
+    )
 
 
 def move_entry(entry: dict[str, Any], new_date: datetime.date) -> None:
@@ -118,6 +143,32 @@ def delete_entry(entry: dict[str, Any]) -> None:
     """日記を削除する。"""
     logger.info("delete_entry が呼び出されました: id=%s", entry["id"])
     _container(DIARY_DATABASE, DIARY_CONTAINER).delete_item(item=entry["id"], partition_key=entry["userId"])
+
+
+def list_summaries(top_k: int, end_date: str | None = None) -> list[dict[str, Any]]:
+    """日次要約を新しい順に `top_k` 件まで読み、日付の古い順に並べて返す。
+
+    直近の出来事の提示にも月次要約の集約にも、日記本文ではなく日次要約だけを使う。
+    `summary` を持たない古いドキュメントは読み飛ばす。
+    """
+    logger.info("list_summaries が呼び出されました: top_k=%d, end_date=%s", top_k, end_date)
+    user_id = _user_id()
+    conditions = ["c.userId = @userId", "IS_DEFINED(c.summary)"]
+    parameters: list[dict[str, Any]] = [{"name": "@userId", "value": user_id}]
+    if end_date:
+        conditions.append("c.date <= @endDate")
+        parameters.append({"name": "@endDate", "value": end_date})
+
+    query = f"""
+        SELECT TOP {int(top_k)} c.date, c.summary
+        FROM c
+        WHERE {" AND ".join(conditions)}
+        ORDER BY c.date DESC
+    """
+    items = list(
+        _container(DIARY_DATABASE, DIARY_CONTAINER).query_items(query=query, parameters=parameters, partition_key=user_id)
+    )
+    return sorted(items, key=lambda item: item.get("date", ""))
 
 
 def search_entries(

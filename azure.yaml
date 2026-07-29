@@ -11,6 +11,31 @@ services:
     dist: .azure/dist
     language: python
     host: function
+    hooks:
+      # azd はサービスディレクトリをそのままパッケージするため、テスト・仮想環境・ローカルの
+      # `.env` を含めない配布ディレクトリをここで作る。CI 側の composite action ではなく
+      # azure.yaml を正本にして、ローカルと CI で同じ内容がデプロイされるようにする。
+      # Functions の remote build は requirements.txt を読むので、Agent と同じく uv.lock から
+      # hash 付きで書き出す。配布ディレクトリの中だけに置き、リポジトリへは残さない。
+      prepackage:
+        shell: sh
+        run: |
+          set -eu
+          rm -rf .azure/dist
+          mkdir -p .azure/dist
+          rsync -a --delete \
+            --exclude '.azure' \
+            --exclude '.git' \
+            --exclude '.venv' \
+            --exclude '.vscode' \
+            --exclude '.env' \
+            --exclude '__pycache__' \
+            --exclude '.pytest_cache' \
+            --exclude '.ruff_cache' \
+            --exclude 'tests' \
+            ./ .azure/dist/
+          uv export --locked --no-dev --no-emit-project \
+            --format requirements.txt -o .azure/dist/requirements.txt
 
   # Foundry のアカウント・プロジェクト・モデルデプロイは infra/main.bicep が作る。
   # ここは既にあるプロジェクトへ接続するだけに留め、deployments は宣言しない。
@@ -18,27 +43,66 @@ services:
     host: azure.ai.project
     endpoint: ${FOUNDRY_PROJECT_ENDPOINT}
 
+  # Web 検索（ADR-0001 §2）。ホステッドエージェントはエージェント定義への Foundry 側ツールの
+  # 直接追加をサポートしないため、Toolbox に登録して MCP エンドポイント経由で使う。
+  # Toolbox は ARM のリソースではないので Bicep では作れない。ここで宣言して azd に作らせ、
+  # ポータルでの手作業を挟まない。サービス名がそのまま Toolbox 名になり、Agent の
+  # AZURE_AI_TOOLBOX_NAME と一致させる必要がある。
+  # web_search は Grounding with Bing Search を使う組み込みツールで、接続（connection）は要らない。
+  # 問い合わせが Microsoft のデータ保護契約の範囲外へ出ること、Bing API の従量課金がかかることは
+  # ADR-0001 の判断どおり受け入れる。日記の本文を検索クエリに載せない前提で使う。
+  web-search-tools:
+    host: azure.ai.toolbox
+    uses:
+      - ai-project
+    description: キャラクターエージェントが最新情報を調べるための Web 検索
+    tools:
+      - type: web_search
+        description: 最新の出来事や事実を公開 Web から調べる。モデルの知識で確かめようがないときに使う。
+
   agent:
     host: azure.ai.agent
     kind: hosted
     name: character-agent
     description: LINE キャラクターエージェント本体（Microsoft Agent Framework / Responses プロトコル）
     project: ./src/agent
-    language: docker
-    docker:
-      platform: linux/amd64
+    # `uses` が provision の順序を決める。Toolbox は Agent より先に用意しておく必要がある。
+    # Agent 側の `toolboxes` フィールドは Agent サービスに直接書く Toolbox 定義用なので、
+    # 独立した azure.ai.toolbox サービスを参照するここでは使わない。
     uses:
       - ai-project
+      - web-search-tools
     protocols:
       - protocol: responses
         version: 2.0.0
+    # Direct code deploy。ソースを ZIP で上げ、Foundry 側が requirements.txt から依存を
+    # 解決する（remote build）。コンテナイメージを作らないので ACR も Dockerfile も要らない。
+    # remote build だけは Foundry 管理のビルド環境で走るため sfw 必須ルールの例外とし、
+    # ローカルと CI での依存取得は従来どおり sfw 経由とする。
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+      dependencyResolution: remote_build
+    hooks:
+      # requirements.txt は uv.lock からの派生物なのでコミットしない。hash 付きで書き出し、
+      # remote build でも lockfile と同じ版が入るようにする。`--locked` なので lockfile が
+      # 古いままなら、ここでデプロイが止まる。
+      prepackage:
+        shell: sh
+        run: |
+          set -eu
+          uv export --locked --no-dev --no-emit-project \
+            --format requirements.txt -o requirements.txt
     # FOUNDRY_PROJECT_ENDPOINT と APPLICATIONINSIGHTS_CONNECTION_STRING は
     # プラットフォームが自動注入するため、ここでは宣言しない。
-    # DIARY_USER_ID は日記とプロフィールの持ち主の LINE ユーザ ID。インフラの出力ではないため
-    # `azd env set DIARY_USER_ID <LINE ユーザ ID>` で設定する。
+    # 残りは infra/main.bicep の output を azd 環境から受け取る。provision を省略した
+    # 実行では `azd env refresh` で復元してからデプロイする。
     env:
       AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
       AZURE_AI_EMBEDDING_DEPLOYMENT_NAME: ${AZURE_AI_EMBEDDING_DEPLOYMENT_NAME}
+      # 接続先の Toolbox 名。Azure から導出する値ではなく上の web-search-tools サービスの
+      # 名前そのものなので、Bicep の output や GitHub Variables を経由させずここで揃える。
+      AZURE_AI_TOOLBOX_NAME: web-search-tools
       COSMOS_DB_ACCOUNT_URL: ${COSMOS_DB_ACCOUNT_URL}
       DIARY_USER_ID: ${DIARY_USER_ID}
     startupCommand: python main.py
@@ -46,11 +110,42 @@ services:
       resources:
         cpu: '0.5'
         memory: 1Gi
+
+  # 毎月1日のダイジェスト集約（旧 Timer Function の自動再編にあたる）。前月の日次要約を
+  # 月次へ、年が変わったときは月次を年次へまとめる。Routine も ARM のリソースではないので
+  # Bicep では作れず、ここで宣言して azd に作らせる。サービス名がそのまま Routine 名になる。
+  # 集約の規則はここには書かない。エージェントに digest-rollup スキルを読ませ、手順は
+  # src/agent/character_agent/skills/digest-rollup/SKILL.md を正本とする。
+  digest-rollup:
+    host: azure.ai.routine
+    # Routine は呼び出し先のエージェントを名前で指すため、そのエージェントに `uses` で依存する。
+    uses:
+      - ai-project
+      - agent
+    description: 毎月1日に前月の日次要約を月次ダイジェストへ集約する（年が変わったときは年次も更新する）
+    enabled: true
+    triggers:
+      monthly-first-day:
+        type: schedule
+        # 毎月1日 04:00（日本時間）。LINE からの利用がまず無い時間帯に寄せる。
+        cron_expression: '0 4 1 * *'
+        time_zone: Asia/Tokyo
+    action:
+      type: invoke_agent_responses_api
+      # services.agent.name と一致させる。
+      agent_name: character-agent
+      input: |
+        ダイジェストをまとめ直す時間よ。load_skill で digest-rollup スキルを読んで、その手順どおりに
+        前月の日次要約を月次ダイジェストへ集約して。前月が12月なら、その年の月次を年次へもまとめて。
+        終わったら何をしたかを1-2文で報告して。
+
 pipeline:
+  # Azure から導出できない入力だけを GitHub Variables へ置く。Functions のアプリ設定や
+  # Foundry のエンドポイントは Bicep が直接設定・出力するので、ここへは重複させない。
+  # AZURE_AI_AGENT_PRINCIPAL_ID も Bicep の output になったので `azd env refresh` で戻る。
   variables:
     - AZURE_COSMOSDB_NAME
     - AZURE_COSMOSDB_RG
     - AZURE_KEYVAULT_NAME
     - AZURE_KEYVAULT_RG
-    - AZURE_AI_AGENT_PRINCIPAL_ID
     - DIARY_USER_ID

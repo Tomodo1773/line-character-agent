@@ -9,6 +9,7 @@ def environment(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://example.services.ai.azure.com/api/projects/dummy")
     monkeypatch.setenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "dummy-deployment")
     monkeypatch.setenv("AZURE_AI_EMBEDDING_DEPLOYMENT_NAME", "dummy-embedding")
+    monkeypatch.setenv("AZURE_AI_TOOLBOX_NAME", "dummy-toolbox")
     monkeypatch.setenv("COSMOS_DB_ACCOUNT_URL", "https://example.documents.azure.com:443/")
     monkeypatch.setenv("DIARY_USER_ID", "U-test")
     get_settings.cache_clear()

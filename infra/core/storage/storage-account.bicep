@@ -1,5 +1,7 @@
 metadata description = 'Creates a storage account with the blob containers and queues the app needs.'
 
+// 標準リソースなので AVM を使う。バージョンは固定し、更新は明示的に行う。
+
 param name string
 param location string = resourceGroup().location
 param tags object = {}
@@ -10,15 +12,14 @@ param containers string[] = []
 @description('Queue names.')
 param queues string[] = []
 
-resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: name
-  location: location
-  tags: tags
-  kind: 'StorageV2'
-  sku: {
-    name: 'Standard_LRS'
-  }
-  properties: {
+module storage 'br/public:avm/res/storage/storage-account:0.33.0' = {
+  name: 'storage-account'
+  params: {
+    name: name
+    location: location
+    tags: tags
+    kind: 'StorageV2'
+    skuName: 'Standard_LRS'
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     // Every caller (Functions host, Timer backup) authenticates with a managed identity.
@@ -27,29 +28,19 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
       bypass: 'AzureServices'
       defaultAction: 'Allow'
     }
-  }
-
-  resource blobServices 'blobServices' = {
-    name: 'default'
-
-    resource container 'containers' = [
-      for containerName in containers: {
+    blobServices: {
+      containers: map(containers, containerName => {
         name: containerName
-      }
-    ]
-  }
-
-  resource queueServices 'queueServices' = {
-    name: 'default'
-
-    resource queue 'queues' = [
-      for queueName in queues: {
+      })
+    }
+    queueServices: {
+      queues: map(queues, queueName => {
         name: queueName
-      }
-    ]
+      })
+    }
   }
 }
 
-output name string = storage.name
-output blobEndpoint string = storage.properties.primaryEndpoints.blob
-output queueEndpoint string = storage.properties.primaryEndpoints.queue
+output name string = storage.outputs.name
+output blobEndpoint string = storage.outputs.serviceEndpoints.blob
+output queueEndpoint string = storage.outputs.serviceEndpoints.queue

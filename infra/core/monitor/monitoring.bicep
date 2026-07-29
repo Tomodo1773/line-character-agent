@@ -1,32 +1,34 @@
 metadata description = 'Creates the Application Insights component and the Log Analytics workspace behind it.'
 
+// 標準リソースなので AVM を使う。バージョンは固定し、更新は明示的に行う。
+
 param logAnalyticsName string
 param applicationInsightsName string
 param location string = resourceGroup().location
 param tags object = {}
 
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: logAnalyticsName
-  location: location
-  tags: tags
-  properties: {
-    retentionInDays: 30
-    sku: {
-      name: 'PerGB2018'
-    }
+module logAnalytics 'br/public:avm/res/operational-insights/workspace:0.16.0' = {
+  name: 'log-analytics'
+  params: {
+    name: logAnalyticsName
+    location: location
+    tags: tags
+    dataRetention: 30
+    skuName: 'PerGB2018'
   }
 }
 
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: applicationInsightsName
-  location: location
-  tags: tags
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalytics.id
+module applicationInsights 'br/public:avm/res/insights/component:0.8.0' = {
+  name: 'application-insights'
+  params: {
+    name: applicationInsightsName
+    location: location
+    tags: tags
+    kind: 'web'
+    applicationType: 'web'
+    workspaceResourceId: logAnalytics.outputs.resourceId
   }
 }
 
-output applicationInsightsName string = applicationInsights.name
-output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
+output applicationInsightsName string = applicationInsights.outputs.name
+output applicationInsightsConnectionString string = applicationInsights.outputs.connectionString

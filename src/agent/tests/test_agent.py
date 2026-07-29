@@ -7,9 +7,10 @@ import asyncio
 import re
 
 import pytest
-from agent_framework import FileSkillsSource, SkillsProvider, SkillsSourceContext
+from agent_framework import FileSkillsSource, MCPStreamableHTTPTool, SkillsProvider, SkillsSourceContext
+from azure.identity import DefaultAzureCredential
 
-from character_agent.agent import AGENT_NAME, SKILLS_DIR, create_agent
+from character_agent.agent import AGENT_NAME, SKILLS_DIR, TOOLBOX_SCOPE, create_agent, toolbox_headers
 from character_agent.config import get_settings
 from character_agent.prompts import CHARACTER_PROMPT
 from character_agent.tools import get_current_datetime
@@ -43,8 +44,33 @@ def test_agent_registers_every_tool(agent):
         "diary_update",
         "diary_delete",
         "diary_rename",
-        "digest_regenerate",
+        "digest_read",
+        "digest_save",
     ]
+
+
+def test_agent_reaches_web_search_through_the_toolbox(agent):
+    """Web 検索は Toolbox の MCP エンドポイント越しに使う（ADR-0001 §2）。"""
+    (toolbox,) = agent.mcp_tools
+
+    assert isinstance(toolbox, MCPStreamableHTTPTool)
+    assert toolbox.url == (
+        "https://example.services.ai.azure.com/api/projects/dummy/toolboxes/dummy-toolbox/mcp?api-version=v1"
+    )
+
+
+def test_toolbox_requests_carry_an_entra_token(monkeypatch: pytest.MonkeyPatch):
+    """Toolbox へのリクエストには毎回 Entra のトークンを載せる（キーは使わない）。"""
+    scopes = []
+    monkeypatch.setattr(
+        "character_agent.agent.get_bearer_token_provider",
+        lambda credential, scope: scopes.append(scope) or (lambda: "token-1"),
+    )
+
+    headers = toolbox_headers(DefaultAzureCredential())
+
+    assert headers({}) == {"Authorization": "Bearer token-1"}
+    assert scopes == [TOOLBOX_SCOPE]
 
 
 def test_agent_registers_the_skills_provider(agent):
@@ -56,7 +82,7 @@ def test_every_skill_is_discoverable(agent):
 
     skills = asyncio.run(source.get_skills(SkillsSourceContext(agent=agent)))
 
-    assert sorted(skill.frontmatter.name for skill in skills) == ["diary-maintenance", "diary-writing"]
+    assert sorted(skill.frontmatter.name for skill in skills) == ["diary-maintenance", "diary-writing", "digest-rollup"]
 
 
 def test_create_agent_requires_settings(monkeypatch: pytest.MonkeyPatch):

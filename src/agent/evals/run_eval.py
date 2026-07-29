@@ -41,7 +41,7 @@ logger = create_logger(__name__)
 FOUNDRY_EVALUATORS = [FoundryEvals.INTENT_RESOLUTION, FoundryEvals.TOOL_CALL_ACCURACY, FoundryEvals.TASK_ADHERENCE]
 
 # 呼ばれると日記が変わってしまうツール。期待していないケースで呼んでいたら失敗とする。
-WRITE_TOOLS = {"diary_create", "diary_update", "diary_delete", "diary_rename", "digest_regenerate"}
+WRITE_TOOLS = {"diary_create", "diary_update", "diary_delete", "diary_rename", "digest_save"}
 
 
 @evaluator(name="no_unexpected_write")
@@ -136,6 +136,8 @@ def _prepare_environment() -> None:
     """評価では使わない設定にダミー値を入れる。
 
     Cosmos DB と埋め込みは `fake_backend` が差し替えるため接続しないが、設定は起動時に一括検証される。
+    `AZURE_AI_TOOLBOX_NAME` はここに含めない。Web 検索のケースでは本物の Toolbox へ繋ぐため、
+    未設定なら `get_settings()` が落ちて気づけるほうがよい。
     """
     os.environ.setdefault("COSMOS_DB_ACCOUNT_URL", "https://eval.invalid/")
     os.environ.setdefault("DIARY_USER_ID", EVAL_USER_ID)

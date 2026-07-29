@@ -1,6 +1,6 @@
 # 評価セット
 
-想定発話10件に対して、**ツール呼び出しの正確さ**と**キャラクター応答**を採点する。目的は合否判定ではなく、
+想定発話11件に対して、**ツール呼び出しの正確さ**と**キャラクター応答**を採点する。目的は合否判定ではなく、
 **既定モデルと代替候補を同じ物差しで比べ、モデル入れ替えの判断材料にすること**（ADR-0001 §5・モデル選定）。
 
 ## 何を測るか
@@ -8,7 +8,7 @@
 | 採点 | 実行場所 | 内容 |
 |------|----------|------|
 | Foundry Evaluations | Foundry（クラウド） | 組み込みのエージェント評価器 `intent_resolution` / `tool_call_accuracy` / `task_adherence` をジャッジモデルで実行する。結果は Foundry ポータルにも残る |
-| ローカル照合 | ローカル | `dataset.jsonl` に書いた期待ツールと実際の呼び出しを突き合わせる。LLM を使わないのでぶれない。あわせて、期待していない書き込み系ツール（`diary_create` / `diary_update` / `diary_delete` / `diary_rename` / `digest_regenerate`）を呼んでいないかを見る |
+| ローカル照合 | ローカル | `dataset.jsonl` に書いた期待ツールと実際の呼び出しを突き合わせる。LLM を使わないのでぶれない。あわせて、期待していない書き込み系ツール（`diary_create` / `diary_update` / `diary_delete` / `diary_rename` / `digest_save`）を呼んでいないかを見る |
 | キャラクター応答 | ジャッジモデル | システムプロンプトを判定基準として渡し、口調・日本語の自然さ・応答としての成立を 1-5 で採点する |
 
 ## ファイル
@@ -30,6 +30,9 @@
    （例: `gpt-4.1-mini` などの推論品質が安定したモデル）を選ぶ。自己採点になるとモデル比較の意味が薄れるため、
    **比較の間はジャッジを固定する**。構造化出力（JSON Schema）に対応したモデルであること
 3. **Entra 認証**。ローカルは `az login`、CI は `azd auth login`（OIDC）。`DefaultAzureCredential` がどちらも拾う
+4. **Web 検索の Toolbox**。`web-search-latest` のケースが実際に Toolbox の MCP エンドポイントへ繋ぐため、
+   `azd provision` 済みのプロジェクトが要る（README の「Foundry Toolbox と Routine」を参照）。
+   Web 検索は Bing API の従量課金がかかる
 
 ### 環境変数
 
@@ -37,10 +40,11 @@
 |------|------|
 | `FOUNDRY_PROJECT_ENDPOINT` | Foundry プロジェクトのエンドポイント（`.env.sample` と同じ値） |
 | `AZURE_AI_MODEL_DEPLOYMENT_NAME` | 評価するモデル。`--model` で上書きできる |
+| `AZURE_AI_TOOLBOX_NAME` | Web 検索を公開している Toolbox の名前（`web-search-tools`） |
 | `EVAL_JUDGE_DEPLOYMENT_NAME` | ジャッジモデル。`--judge-model` で上書きできる |
 
 `COSMOS_DB_ACCOUNT_URL` と `AZURE_AI_EMBEDDING_DEPLOYMENT_NAME` は評価では使わない（下記「Cosmos DB に繋がない理由」）
-ため、未設定でよい。
+ため、未設定でよい。`AZURE_AI_TOOLBOX_NAME` はダミー値で埋めない。Web 検索は本物へ繋ぐので、未設定なら起動時に落ちる。
 
 ## 実行
 
@@ -66,17 +70,17 @@ LLM ジャッジの点数は実行ごとに揺れるため、**1点差程度は�
 実行の最後にまとめが出る。
 
 ```
-=== character-agent eval (Kimi-K2.6) / 10 ケース ===
+=== character-agent eval (Kimi-K2.6) / 11 ケース ===
 
 [ローカル照合]
-  tool_call_args_match: 8/10 合格
-  no_unexpected_write: 10/10 合格
+  tool_call_args_match: 9/11 合格
+  no_unexpected_write: 11/11 合格
   × diary-rename: tool_call_args_match — Tool call args match: 0/1 ...
 
 [Foundry Evaluations] status=completed
-  intent_resolution: 9/10 合格
-  tool_call_accuracy: 8/10 合格
-  task_adherence: 9/10 合格
+  intent_resolution: 10/11 合格
+  tool_call_accuracy: 9/11 合格
+  task_adherence: 10/11 合格
   レポート: https://ai.azure.com/...
 
 [キャラクター応答] 平均 4.10 / 5.00（3 点未満 1 件）
@@ -114,11 +118,16 @@ LLM ジャッジの点数は実行ごとに揺れるため、**1点差程度は�
 固定データにすることで、モデルを入れ替えてもツールが返す内容が変わらず、**差分をモデルに帰属できる**という
 効果もある。Cosmos DB そのものの動作は `tests/test_cosmos.py` の担当。
 
+**Foundry Toolbox の Web 検索だけは差し替えない。** 日記ツールと違って呼んでも壊れるものが無く、見たいのが
+「最新情報を求められたときに Toolbox 経由の Web 検索を選べるか」そのものだからである。返ってくる検索結果は
+実行日によって変わるが、ローカル照合はツールを呼んだかどうかしか見ないので、比較の物差しは揺れない。
+
 ## CI
 
 `.github/workflows/eval_agent.yml`（`Eval AGENT`）を手動実行（workflow_dispatch）する。Foundry への接続が要るため
 PR では動かさない。実行時に評価するモデルとジャッジモデルを指定する。リポジトリ変数
 `FOUNDRY_PROJECT_ENDPOINT` / `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` が必要で、欠けていれば起動時に失敗する。
+Toolbox 名はワークフローに `web-search-tools` を直接書いている（`azure.yaml` のサービス名と同じ値のため）。
 
 ## 補足
 

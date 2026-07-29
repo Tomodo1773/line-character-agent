@@ -1,25 +1,33 @@
 """エージェントに登録するツール群（ADR-0001 §2）。
 
-日記の実体は Cosmos DB にあり、埋め込みと再編用のモデル呼び出しは Foundry プロジェクト経由で行う。
+日記の実体は Cosmos DB にあり、埋め込みの生成は Foundry プロジェクト経由で行う。
 日付の指定はすべて YYYY-MM-DD 形式に統一する。
+
+**ツールの中から生成 LLM や別のエージェントを呼び出さない。** 文章を作るのはスキルを読んだ
+メインエージェント自身の仕事で、ツールは読み取りと、検証つきの書き込みだけを担う。
+ベクトル索引に要る埋め込み生成（`foundry.embed`）だけは機械的な処理として例外とする。
 """
 
 import datetime
 import json
-from typing import Annotated, Any, Callable
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from agent_framework import tool
 
 from character_agent import cosmos, digest, foundry
-from character_agent.config import create_logger, get_settings
-from character_agent.prompts import DIGEST_REORGANIZE_PROMPT
+from character_agent.config import create_logger
 
 logger = create_logger(__name__)
 
 JAPAN = ZoneInfo("Asia/Tokyo")
 
 MAX_SEARCH_RESULTS = 20
+
+# `read_profile` で直近の出来事として見せる日次要約の件数。
+RECENT_SUMMARY_COUNT = 30
+# 1 か月分の日次要約を取るための件数。日記は 1 日 1 件なので、どの月でもこれで足りる。
+DIGEST_SOURCE_LIMIT = 31
 
 
 def _parse_date(value: str) -> datetime.date:
@@ -29,12 +37,30 @@ def _parse_date(value: str) -> datetime.date:
         raise ValueError(f"日付の形式が正しくありません: {value}（YYYY-MM-DD 形式で指定してください）") from error
 
 
-def _update_digest(change: Callable[[dict[str, Any]], dict[str, Any]]) -> None:
-    """ユーザドキュメントのダイジェストだけを書き換える。他のフィールドはそのまま残す。"""
-    user_id = get_settings().diary_user_id
-    user = cosmos.read_user() or {"id": user_id, "userid": user_id}
-    user["digest"] = change(digest.normalize(user.get("digest")))
-    cosmos.save_user(user)
+def _previous_month(today: datetime.date) -> str:
+    """前月を YYYY-MM で返す。当月はまだ揃っていないので集約対象にしない。"""
+    return (today.replace(day=1) - datetime.timedelta(days=1)).strftime("%Y-%m")
+
+
+def _month_range(month: str) -> tuple[str, str]:
+    """YYYY-MM から、その月の初日と末日を YYYY-MM-DD で返す。"""
+    try:
+        start = datetime.date.fromisoformat(f"{month}-01")
+    except ValueError as error:
+        raise ValueError(f"月の形式が正しくありません: {month}（YYYY-MM 形式で指定してください）") from error
+    # 28日に4日足すと必ず翌月に入る。その月の1日へ戻して1日引けば末日になる。
+    end = (start.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+    return start.isoformat(), end.isoformat()
+
+
+def _reject_taken_date(target: datetime.date) -> str | None:
+    """その日付に既に日記があれば拒否理由を返す。無ければ None。
+
+    1 日 1 件を保つための唯一のガード。新規登録と日付の付け替えの両方から呼ぶ。
+    """
+    if not cosmos.find_entry(target):
+        return None
+    return f"{target.isoformat()} には既に日記があるため登録・付け替えできません。内容を変えるなら diary_update を使ってください。"
 
 
 @tool(approval_mode="never_require", description="現在の日本時間（日付・時刻・曜日）を取得する。")
@@ -49,11 +75,12 @@ def get_current_datetime() -> Annotated[str, "yyyy-mm-dd hh:mm:ss (曜日) 形�
 
 @tool(approval_mode="never_require", description="ユーザのプロフィールと直近の出来事ダイジェストを読む。")
 def read_profile() -> str:
-    """Cosmos DB の `users` ドキュメントからプロフィールとダイジェストを読む。"""
+    """プロフィールと月次・年次ダイジェストを `users` から、直近の日次要約を日記から読む。"""
     logger.info("read_profile が呼び出されました")
     user = cosmos.read_user() or {}
     profile = user.get("profile") or "（プロフィールは未登録）"
-    return f"## プロフィール\n{profile}\n\n## 直近の出来事\n{digest.render(digest.normalize(user.get('digest')))}"
+    rendered = digest.render(digest.normalize(user.get("digest")), cosmos.list_summaries(RECENT_SUMMARY_COUNT))
+    return f"## プロフィール\n{profile}\n\n## 直近の出来事\n{rendered}"
 
 
 @tool(
@@ -97,16 +124,16 @@ def diary_search(
 def diary_create(
     date: Annotated[str, "日記の対象日 (YYYY-MM-DD)"],
     content: Annotated[str, "日記の本文。ユーザが送ってきた文章をそのまま渡す"],
-    summary: Annotated[str, "その日を表す2-5語の要約。ダイジェストに記録する"],
+    summary: Annotated[str, "その日を表す2-5語の要約。日記と一緒に保存し、月次ダイジェストの材料になる"],
 ) -> str:
-    """日記を新規作成し、ダイジェストにその日の記録を追加する。"""
+    """日記を新規作成する。本文・埋め込み・日次要約は同じドキュメントへ 1 回で書く。"""
     logger.info("diary_create が呼び出されました: date=%s", date)
     target = _parse_date(date)
-    if cosmos.find_entry(target):
-        return f"{date} の日記は既に登録されています。更新するなら diary_update を使ってください。"
+    taken = _reject_taken_date(target)
+    if taken:
+        return taken
 
-    cosmos.create_entry(target, content, foundry.embed(content))
-    _update_digest(lambda current: digest.upsert_daily(current, date, summary))
+    cosmos.create_entry(target, content, foundry.embed(content), summary)
     return f"{date} の日記を登録しました。"
 
 
@@ -117,23 +144,22 @@ def diary_create(
 def diary_update(
     date: Annotated[str, "更新する日記の対象日 (YYYY-MM-DD)"],
     content: Annotated[str, "更新後の日記の全文"],
-    summary: Annotated[str, "その日を表す2-5語の要約。ダイジェストに記録する"],
+    summary: Annotated[str, "その日を表す2-5語の要約。日記と一緒に保存し、月次ダイジェストの材料になる"],
 ) -> str:
-    """日記の本文を差し替え、埋め込みベクトルとダイジェストを更新する。"""
+    """日記の本文・埋め込みベクトル・日次要約を同じドキュメントで差し替える。"""
     logger.info("diary_update が呼び出されました: date=%s", date)
     target = _parse_date(date)
     entry = cosmos.find_entry(target)
     if not entry:
         return f"{date} の日記は見つかりませんでした。新規作成するなら diary_create を使ってください。"
 
-    cosmos.update_entry(entry, content, foundry.embed(content))
-    _update_digest(lambda current: digest.upsert_daily(current, date, summary))
+    cosmos.update_entry(entry, content, foundry.embed(content), summary)
     return f"{date} の日記を更新しました。"
 
 
 @tool(approval_mode="never_require", description="指定した日付の日記を削除する。")
 def diary_delete(date: Annotated[str, "削除する日記の対象日 (YYYY-MM-DD)"]) -> str:
-    """日記とダイジェストの記録を削除する。"""
+    """日記を削除する。日次要約も同じドキュメントにあるので一緒に消える。"""
     logger.info("diary_delete が呼び出されました: date=%s", date)
     target = _parse_date(date)
     entry = cosmos.find_entry(target)
@@ -141,7 +167,6 @@ def diary_delete(date: Annotated[str, "削除する日記の対象日 (YYYY-MM-D
         return f"{date} の日記は見つかりませんでした。"
 
     cosmos.delete_entry(entry)
-    _update_digest(lambda current: digest.remove_daily(current, date))
     return f"{date} の日記を削除しました。"
 
 
@@ -160,34 +185,62 @@ def diary_rename(
     entry = cosmos.find_entry(target)
     if not entry:
         return f"{date} の日記は見つかりませんでした。"
-    if cosmos.find_entry(new_target):
-        return f"{new_date} には既に日記があるため付け替えできません。"
+    taken = _reject_taken_date(new_target)
+    if taken:
+        return taken
 
     cosmos.move_entry(entry, new_target)
-    _update_digest(lambda current: digest.move_daily(current, date, new_date))
     return f"{date} の日記を {new_date} に付け替えました。"
 
 
 @tool(
     approval_mode="never_require",
-    description="ダイジェストの日ごとの記録を月ごと・年ごとにまとめ直す。",
+    description="ダイジェストをまとめ直すための材料（対象月の日次要約と、今の月次・年次ダイジェスト）を読む。",
 )
-def digest_regenerate() -> str:
-    """ダイジェストを再編する（旧 digest_reorganizer の役割）。"""
-    logger.info("digest_regenerate が呼び出されました")
-    today = datetime.datetime.now(JAPAN).date().isoformat()
-    user_id = get_settings().diary_user_id
-    user = cosmos.read_user() or {"id": user_id, "userid": user_id}
-    current = digest.normalize(user.get("digest"))
+def digest_read(
+    month: Annotated[str | None, "集約する対象月 (YYYY-MM)。省略すると前月"] = None,
+) -> str:
+    """集約の材料を読むだけのツール。要約そのものはここでは作らない。
 
-    answer = foundry.complete(
-        DIGEST_REORGANIZE_PROMPT,
-        f"日本時間での今日の日付は {today} です。次のダイジェストを再編してください。\n"
-        f"{json.dumps(current, ensure_ascii=False)}",
+    材料は日記ドキュメントの `summary`（日次要約）と `users.digest`（月次・年次）だけで、
+    日記本文は読み直さない。まとめ方は `digest-rollup` スキルに書いてある。
+    """
+    logger.info("digest_read が呼び出されました: month=%s", month)
+    today = datetime.datetime.now(JAPAN).date()
+    target = month or _previous_month(today)
+    start, end = _month_range(target)
+    # 末日までを新しい順に 1 か月分ぶん取り、初日より前へはみ出した分を落とす。
+    summaries = [item for item in cosmos.list_summaries(DIGEST_SOURCE_LIMIT, end_date=end) if item.get("date", "") >= start]
+    current = digest.normalize((cosmos.read_user() or {}).get("digest"))
+    return json.dumps(
+        {"today": today.isoformat(), "targetMonth": target, "dailySummaries": summaries, "digest": current},
+        ensure_ascii=False,
     )
-    user["digest"] = {**digest.parse(answer), "lastUpdated": today}
-    cosmos.save_user(user)
-    return "ダイジェストを再編しました。"
+
+
+@tool(
+    approval_mode="never_require",
+    description="まとめ直した月次・年次ダイジェストを保存する。要約の文面は自分で組み立てて渡す。",
+)
+def digest_save(
+    digest_json: Annotated[
+        str,
+        '{"monthly": [{"month": "YYYY-MM", "summary": "...", "highlights": ["..."]}], '
+        '"yearly": [{"year": "YYYY", "summary": "...", "highlights": ["..."]}]} 形式の JSON 全文',
+    ],
+) -> str:
+    """受け取ったダイジェストを検証して Cosmos DB へ書く。
+
+    このツールがするのは構造の検証と保存だけで、内容の生成には関わらない。
+    形が崩れていれば例外の文言がそのままモデルへ返り、直して呼び直せる。
+    """
+    logger.info("digest_save が呼び出されました")
+    parsed = digest.parse(digest_json)
+    digest.validate(parsed)
+
+    today = datetime.datetime.now(JAPAN).date()
+    cosmos.save_digest({**parsed, "lastUpdated": today.isoformat()})
+    return f"ダイジェストを保存しました（月次 {len(parsed['monthly'])} 件・年次 {len(parsed['yearly'])} 件）。"
 
 
 TOOLS = [
@@ -198,5 +251,6 @@ TOOLS = [
     diary_update,
     diary_delete,
     diary_rename,
-    digest_regenerate,
+    digest_read,
+    digest_save,
 ]

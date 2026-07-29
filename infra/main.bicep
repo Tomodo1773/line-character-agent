@@ -57,7 +57,7 @@ param embeddingModelVersion string = '1'
 param embeddingModelSkuName string = 'Standard'
 param embeddingModelCapacity int = 30
 
-@description('Principal ID of the hosted agent Entra agent identity. Empty until the agent is deployed in Phase 3; set it afterwards to grant the agent access to Cosmos DB.')
+@description('Principal ID of the hosted agent Entra agent identity. Empty until the agent is first deployed; `scripts/bootstrap-azure.sh` reads it and re-provisions so the agent can reach Cosmos DB. Echoed back as an output so `azd env refresh` restores it in CI.')
 param agentPrincipalId string = ''
 
 @description('Name of the hosted agent the LINE worker calls. Must match `services.agent.name` in azure.yaml.')
@@ -194,6 +194,19 @@ module cosmosDataAccess 'core/db/cosmos-data-access.bicep' = {
   }
 }
 
+// Worker が Hosted Agent の Responses エンドポイントを叩くための権限。
+// エージェントを作る・変えるための権限は要らないので、最小権限の Foundry Agent Consumer を
+// Foundry プロジェクトのスコープで付ける。
+module foundryAgentAccess 'core/security/foundry-agent-consumer.bicep' = {
+  name: 'foundry-agent-access'
+  scope: rg
+  params: {
+    foundryAccountName: foundry.outputs.accountName
+    foundryProjectName: foundry.outputs.projectName
+    principalId: functions.outputs.identityPrincipalId
+  }
+}
+
 module keyVaultAccess 'core/security/keyvault-secrets-user.bicep' = {
   name: 'keyvault-access'
   scope: resourceGroup(keyVaultResourceGroupName)
@@ -213,6 +226,10 @@ output FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = chatDeploymentName
 output AZURE_AI_EMBEDDING_DEPLOYMENT_NAME string = embeddingDeploymentName
 output HOSTED_AGENT_NAME string = agentName
+
+// 入力をそのまま返す。CI は provision を省くことがあるため、`azd env refresh` でこの値を
+// 取り戻せるようにしておかないと、次の provision で Cosmos のロール割り当てが消えてしまう。
+output AZURE_AI_AGENT_PRINCIPAL_ID string = agentPrincipalId
 
 output LINE_WEBHOOK_URL string = '${functions.outputs.uri}/api/line/callback'
 

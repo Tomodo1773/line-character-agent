@@ -19,7 +19,7 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
 ### D1. デプロイ可能な最小構成
 
 - 優先度: P1
-- 状態: 方針決定
+- 状態: 検証済み
 - 論点:
   - CIへ必須の azd 変数が渡っていない
   - Hosted Agent用ACRと出力がない
@@ -49,6 +49,30 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
   - Hosted Agentへ渡すAzureリソース値だけBicep outputからazure.yamlへ橋渡しし、同じ実行でprovisionを省略した場合はazd env refreshで復元する
   - GitHub VariablesにはOIDC・azd環境識別子・DIARY_USER_IDなどAzureから導出できない入力だけを置く
 - 完了条件: クリーン環境で provision → Agent → Func の順にデプロイしてLINEから応答を確認し、Agentのみの変更も再provisionなしで継続デプロイできる
+- 検証結果（2026-07-29）:
+  - Bicep: `az bicep build --file infra/main.bicep --stdout`（成功）
+  - Agent: `sfw uv sync --locked`、`uv run --locked ruff check .`、`ruff format --check .`、`pytest`（Python 3.13.12 で39件成功、既存のExperimentalWarning 1件）
+  - Func: 同上（21件成功）
+  - Web UI: 同上（6件成功、既存のStarletteDeprecationWarning 1件）
+  - `azure.yaml` を azd の JSON スキーマで検証（エラーなし）。全ワークフローYAMLもパーサで構文確認
+  - `scripts/bootstrap-azure.sh` は `bash -n` で構文確認（shellcheck は未インストールのため未実施）
+  - 3サービスの `uv.lock` を Python 3.13 で再生成した結果、パッケージの追加・削除・版の変化はゼロ（agent 110・func 86・webui 45 のまま）。差分は `requires-python` と環境マーカー・wheel 選択のみで、`required-version` と `exclude-newer` による再現性の仕組みは維持している
+  - 5つの論点の解消先:
+    - CIへ必須のazd変数 → `.github/workflows/deploy.yml` のジョブ `env` に集約し、`azd env refresh` で Bicep output を復元
+    - Hosted Agent用ACRと出力 → Direct code deploy へ変更して ACR 自体を不要にした（`azure.yaml` の `codeConfiguration`、`src/agent/Dockerfile` 削除）
+    - main workflowがAgentをデプロイしない → 単一ワークフローの条件付き `azd deploy agent` を追加
+    - FunctionsにHosted Agent呼び出し権限がない → `infra/core/security/foundry-agent-consumer.bicep` で Foundry Agent Consumer をプロジェクトスコープ付与
+    - Agent identityへのCosmos権限付与が手動二段階 → `scripts/bootstrap-azure.sh` に集約し、`AZURE_AI_AGENT_PRINCIPAL_ID` を Bicep output にして CI でも `azd env refresh` で復元されるようにした
+- 論点外だが同時に直したもの:
+  - Func も remote build が `requirements.txt` を読むため、`azure.yaml` の prepackage hook で `.azure/dist/` の中にだけ書き出すようにした。これがないと `azd deploy func` が依存を入れられず、「デプロイ可能な最小構成」が成立しない
+  - 同じ hook で配布ディレクトリからローカルの `.env` を除外した（従来の composite action は除外していなかった）
+- 実機確認が必要な残項目（ローカルでは検証不能）:
+  - クリーン環境での `scripts/bootstrap-azure.sh` 通し実行と、LINE からの応答確認（完了条件そのもの）
+  - Foundry プロジェクトからエージェント ID を読む API バージョンとプロパティ名。プレビュー段階で公開スペックに未掲載のため、スクリプトは探索的に拾い、失敗時は手動指定へ誘導する作りにしてある
+  - `azd deploy agent` の remote build が Python 3.13 の `requirements.txt` で通ること
+  - Azure Functions Flex Consumption を `runtime.version: 3.13` へ上げた既存アプリの更新が通ること
+  - `azd` が `requiredVersions.extensions` から `azure.ai.agents` 拡張を CI で自動導入すること
+  - Foundry Agent Consumer ロールの割り当てが実際に Responses 呼び出しを通すこと
 - Issue: なし
 
 ### D2. 単一ユーザーか複数ユーザーか
@@ -120,7 +144,7 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
 ### D4. 日記・conversation・digestの整合性
 
 - 優先度: P1
-- 状態: 方針決定
+- 状態: 検証済み
 - 論点:
   - 同日の日記を重複作成できる
   - usersドキュメント全体のread-modify-upsertで更新を失う
@@ -144,12 +168,24 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
   - 日記本文・埋め込み・日次要約が同じ日記ドキュメントで更新される
   - FunctionとAgentがusersドキュメントの担当フィールドだけをPATCHする
   - LINEとWeb UIのどちらからも同日の日記を重複作成できない
+- 検証結果（2026-07-29）:
+  - Agent: `sfw uv run --locked ruff check .`、`ruff format .`、`pytest`（39件成功、既存のExperimentalWarning 1件）
+  - Func: 同上（21件成功）
+  - 日記ドキュメントへ `summary`（日次要約）を追加し、`create_entry` / `update_entry` が本文・埋め込み・日次要約を1回の書き込みで更新する
+  - `save_user()` の全体upsertを廃止し、Agentは `save_digest()` で `/digest` を、Functionは `save_conversation_id()` で `/conversation_id` を `patch_item` する。ドキュメント不在時だけ作成し、作成が競合したらPATCHへフォールバックする
+  - 同日重複の拒否を `tools._reject_taken_date()` の1実装へ集約し、`diary_create` と `diary_rename` の両方から呼ぶ
+  - `cosmos.list_summaries()` を追加し、月次要約の生成元を日記本文ではなく `summary` にした。`IS_DEFINED(c.summary)` で移行前ドキュメントを除外する
+  - `users.digest` のスキーマから `daily` を外した（version 2.0 → 3.0）。`normalize` は旧 `daily` を読み捨てる
+  - Web UIはD6で読み取り専用ビューアになり日記の作成経路が存在しないため、「Web UIでも同日重複を拒否する」は構造的に達成済み
+- 残課題:
+  - 既存の日記ドキュメントには `summary` が無く、旧 `users.digest.daily` を読み捨てるため、移行前データの日次要約は失われる。日記本文からの `summary` バックフィルは移行計画のPhase 7（日記データの帳尻合わせ）で扱う
+  - `digest_regenerate` は `users.digest.daily` 廃止に伴う最小限の追随に留めてあり、`foundry.complete()` の呼び出しが残っている。スキル化・Routine化・ツール内LLM呼び出しの廃止はD5で行う
 - Issue: なし
 
 ### D5. 既存機能の継承範囲
 
 - 優先度: P1/P2
-- 状態: 方針決定
+- 状態: 検証済み
 - 論点:
   - ADRと旧アプリにあるWeb検索が未実装
   - 旧Timerの自動digest再編が手動ツールへ変わった
@@ -175,6 +211,40 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
   - 毎月1日のRoutineが前月の日次要約を月次へ集約し、年境界では年次も更新する
   - ダイジェスト集約でツール内部から生成LLMを呼ばず、スキルを読んだメインAgentが要約を作る
   - 残す機能と廃止する機能がADR・README・実装で一致する
+- 検証結果（2026-07-29）:
+  - Agent: `uv run --locked ruff check .`、`ruff format --check .`、`pytest`（56件成功、既存のExperimentalWarning 1件。39件から増加）
+  - Func: 同上（21件成功）、Web UI: 同上（6件成功、既存のStarletteDeprecationWarning 1件）
+  - Bicep: `az bicep build --file infra/main.bicep --stdout`（成功）
+  - `azure.yaml` を azd の JSON スキーマで検証（エラーなし）。`$schema` から辿れる拡張のサブスキーマ
+    （`azure.ai.agent` / `azure.ai.toolbox` / `azure.ai.routine`）まで解決した状態で通している
+  - Web検索: `azure.yaml` に `web-search-tools`（`host: azure.ai.toolbox`、`tools: [{type: web_search}]`）を追加し、
+    Agent は `AZURE_AI_TOOLBOX_NAME` から `{project endpoint}/toolboxes/{名前}/mcp?api-version=v1` を組み立てて
+    `MCPStreamableHTTPTool` で接続する。認証は `header_provider` で Entra トークン（`https://ai.azure.com/.default`）
+  - digest再編: `digest_regenerate` を `digest_read`（材料の読み取り）と `digest_save`（構造検証とCosmos更新）へ分割し、
+    `foundry.complete()` と `DIGEST_REORGANIZE_PROMPT` を削除した。集約規則は `skills/digest-rollup/SKILL.md` へ移した
+  - Routine: `azure.yaml` に `digest-rollup`（`host: azure.ai.routine`、`cron_expression: 0 4 1 * *`、
+    `time_zone: Asia/Tokyo`、`action.type: invoke_agent_responses_api`）を追加し、`uses` で Agent に依存させた
+  - 評価: `web-search-latest` ケースを追加し、`digest-regenerate` ケースを `digest-rollup` へ差し替えた（10件→11件）。
+    Web検索は `fake_backend` で差し替えず本物のToolboxへ繋ぐ。評価の実行自体はD7の決定どおり手動のまま
+  - CI: `azure.yaml` の変更を `azd provision` の条件へ追加した（Toolbox・RoutineはBicepではなくazd側で作られるため）
+- 公式ドキュメントと azd のスキーマが食い違っていた点（スキーマ側を採用）:
+  - Learn の azure.yaml リファレンスは「Agentサービスの `toolboxes` にToolboxサービス名を並べる」と書くが、
+    azd のスキーマでは `toolboxes` はAgentサービス内にToolbox定義そのものを書く配列（`name` + `tools` が必須）。
+    独立した `azure.ai.toolbox` サービスを参照する今回は `uses` だけにした
+  - Routine の azd CLI マニフェスト例は `cron` だが、`azure.yaml` のスキーマと REST/SDK は `cron_expression`。
+    スキーマ側に合わせた
+- 実機確認が必要な残項目（ローカルでは検証不能）:
+  - `azd provision` が `azure.ai.toolbox` / `azure.ai.routine` サービスを実際に作ること。特に `infra:` を持つ
+    （Bicepを使う）プロジェクトでこの2つが扱われるかは、公開ドキュメントで確認できなかった
+  - ToolboxのMCPエンドポイントが公開するWeb検索ツールの**ツール名**。`web_search` と仮定して評価データセットと
+    テストを書いているが、実物の名前は確認できていない。違っていれば `character_agent.agent.WEB_SEARCH_TOOL_NAME`
+    の1箇所を直す
+  - バージョンを含めない consumer エンドポイント（`.../toolboxes/{名前}/mcp?api-version=v1`）が既定バージョンへ
+    解決されること
+  - Routine のスケジュールトリガの `type` 値。how-to の表は `"schedule"` だが、azure.yaml スキーマの説明文は
+    variant の例として `recurring` を挙げている。`schedule` を採用した
+  - 初回構築で1回目の `azd provision` がRoutine（呼び出し先Agentが未作成）で止まらないこと
+  - Grounding with Bing Search の課金と、Agentのモデルが `web_search` を選ぶかどうか（評価の手動実行で確認する）
 - Issue: なし
 
 ### D6. Web UIのデータ契約
@@ -216,7 +286,7 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
 ### D7. 品質ゲート・AVM・サプライチェーン
 
 - 優先度: P2/P3
-- 状態: 方針決定
+- 状態: 検証済み
 - 論点:
   - Web UI、Bicep、Docker、実デプロイ契約がPR CIの対象外
   - 評価が本文破壊や誤ったツール実行タイミングを検出できない
@@ -250,22 +320,53 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
   - Web UIのremote build contextへ秘密情報や不要ファイルが含まれない
   - AVM対応済みの標準リソースに独自実装が残らず、raw Bicepを残す理由が明確になっている
   - 延期した評価CI化は、手動評価の運用結果を踏まえて別途判断できる状態になっている
+- 検証結果（2026-07-29）:
+  - Agent: `sfw uv run --locked ruff check .`、`pytest`（56件成功、既存のExperimentalWarning 1件）
+  - Func: `pytest`（21件成功）
+  - Web UI: `sfw uv run --locked ruff check .`、`pytest`（6件成功、既存のStarletteDeprecationWarning 1件）
+  - Bicep: `az bicep build --file infra/main.bicep --stdout`（AVM置き換え後も成功）
+  - Docker: `docker build --platform linux/amd64`（成功。sfw の SHA-256 検証を含む）
+  - ビルドコンテキストは `.dockerignore` により 1.02kB。`.dockerignore` が無ければ103MB（`.venv` が102MB）
+  - イメージ内に `.env` 系とテストが含まれないことを `docker run` で確認（`/app` は `.venv`・`diary_admin`・`pyproject.toml`・`uv.lock` のみ）
+  - 全ワークフローYAMLをパーサで構文確認
+  - 5つの論点の解消先:
+    - PR CIの対象外 → `.github/workflows/test.yml` を新設し、3サービスのruff・pytest、Bicepコンパイル、Web UIのDocker buildをPRで実行する。旧 `test_agent.yml` と `test_func.yml` は統合して削除した
+    - 評価が検出できない → 決定どおりCIの必須ゲートにはせず手動のまま（`eval_agent.yml`）。README に昇格判断を保留している旨を記載
+    - `sfw` を可変のlatest URLから実行 → `src/webui/Dockerfile` でバージョン1.15.0とSHA-256を `ARG` で固定し、`sha256sum -c` で検証してから実行する
+    - `.dockerignore` が無い → `src/webui/.dockerignore` を追加し、`.env` 系・`.venv`・テスト・キャッシュを除外
+    - AVMを使っていない → 下記のとおり置き換え
+  - 固定したAVMのバージョン:
+    - `avm/res/operational-insights/workspace:0.16.0`
+    - `avm/res/insights/component:0.8.0`
+    - `avm/res/storage/storage-account:0.33.0`
+    - `avm/res/web/serverfarm:0.7.0`
+    - `avm/res/web/site:0.24.0`
+    - `avm/res/cognitive-services/account:0.17.0`
+    - `avm/res/document-db/database-account/sql-role-assignment:0.2.1`
+  - raw Bicepを残した理由:
+    - FoundryのProjectとConnection → `avm/res/cognitive-services/account` が未対応
+    - 既存Key VaultへのRBAC → 適合するAVMが無い
+    - Functionsからストレージへのロール付与 → ストレージ側のAVMへ渡すとサイトとの間で循環参照になる繋ぎのため
+  - 先行成果が維持されていることを、コンパイル済みARMテンプレートに対して個別に確認:
+    - D3の `maximumInstanceCount: 1` が残っている
+    - D1のFoundry Agent Consumer（`eed3b665-ab3a-47b6-8f48-c9382fb1dad6`）の付与が残っている
+    - D1のFunctionsランタイムがpython、`runtimeVersion` の既定値が3.13
+    - D1の `AZURE_AI_AGENT_PRINCIPAL_ID` のoutputとCosmosのロール割り当てが残っている
+    - D1のアプリ設定がBicep内の `appsettings` として組まれている（`AzureWebJobsStorage__accountName`・`LINE_CHANNEL_SECRET`・`PYTHON_APPLICATIONINSIGHTS_ENABLE_TELEMETRY`）
+    - D5のToolboxとRoutineはBicepに混入しておらず、`azure.yaml` 側の責務のまま
+  - Cosmosのロール割り当ては、AVM子モジュールへ従来と同じ `guid(account.id, principalId, roleId)` を `name` として渡し、置き換えで権限が一度落ちないようにした
+  - Functionsのストレージへのロール割り当て名は、モジュール出力が使えないため `resourceId('Microsoft.Web/sites', name)` から導出した。値は従来の `functionApp.id` と同じ
+- 実機確認が必要な残項目（ローカルでは検証不能）:
+  - AVM置き換え後の `azd provision` が既存リソースを差分更新で通ること（特にFunctionsアプリとStorageの設定差分）
+  - GitHub Actions 上での `test.yml` の初回実行（ローカルではYAML構文と各コマンド単体までしか確認できない）
 - Issue: なし
 
 ## 次のセッション
 
-D1〜D7の設計方針はすべて決定済み。D2・D3・D6は検証済み。以降は項目ごとに別セッションで実装・検証し、状態を
-`実装中` → `検証済み` へ更新する。
+D1〜D7の設計方針・実装・検証がすべて完了した。
 
-残りは **D4 → D1 → D5 → D7** の順を推奨する（未承認の提案。番号順ではない理由は次のとおり）。
+残っているのは、各項目の「実機確認が必要な残項目」だけとなる。特にD1の完了条件（クリーン環境で
+`scripts/bootstrap-azure.sh` を通し、LINEからの応答を確認）と、D5のWeb検索・Routineの動作確認は
+実際のAzure環境が要るため、人間が実行して結果をここへ追記する。
 
-- D4が日記ドキュメントの `summary` フィールド構造を確定させ、D5の月次ロールアップがそこに乗る
-- D1がDirect code deploy・`azure.yaml`・Python 3.13を確定させ、D5のRoutine宣言とD7のCI・Dockerfile削除がそこに乗る
-- D5はD4のデータ構造とD1の `azure.yaml` の両方が前提
-- D7はD1のPython 3.13統一とAgent Dockerfile削除が前提
-
-次は **D4. 日記・conversation・digestの整合性** を実装する。
-
-開始時の依頼例:
-
-> `docs/reviews/pr-557-review-backlog.md` の D1 の決定に従って実装・検証し、結果を台帳へ記録して。
+PR内で扱う作業は終わったため、次はPRの仕上げ（実機確認と、その結果に応じた修正）へ移る。
