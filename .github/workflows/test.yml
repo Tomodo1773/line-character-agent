@@ -1,0 +1,140 @@
+name: Test (PR)
+
+# PR の必須ゲート。Agent・Func・Web UI の3サービスと、Bicep のコンパイル、
+# Web UI の Docker ビルドをまとめて扱う。
+# Foundry Evaluations と実デプロイは、外部環境・料金・結果の安定性を把握するまで
+# 手動実行のままとし、ここでは走らせない（eval_agent.yml / deploy.yml）。
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "infra/**"
+      - "azure.yaml"
+      - ".github/workflows/test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      agent: ${{ steps.filter.outputs.agent }}
+      func: ${{ steps.filter.outputs.func }}
+      webui: ${{ steps.filter.outputs.webui }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 変更検知
+        id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        with:
+          filters: |
+            agent:
+              - 'src/agent/**'
+              - '.github/workflows/test.yml'
+            func:
+              - 'src/func/**'
+              - '.github/workflows/test.yml'
+            webui:
+              - 'src/webui/**'
+              - '.github/workflows/test.yml'
+            infra:
+              - 'infra/**'
+              - 'azure.yaml'
+              - '.github/workflows/test.yml'
+
+  python:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: agent
+            changed: ${{ needs.changes.outputs.agent }}
+          - service: func
+            changed: ${{ needs.changes.outputs.func }}
+          - service: webui
+            changed: ${{ needs.changes.outputs.webui }}
+    name: python (${{ matrix.service }})
+    steps:
+      - uses: actions/checkout@v7.0.1
+        if: matrix.changed == 'true'
+        with:
+          persist-credentials: false
+
+      - name: Python のセットアップ
+        if: matrix.changed == 'true'
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: uv のセットアップ
+        if: matrix.changed == 'true'
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.33"
+
+      - name: Socket Firewall のセットアップ
+        if: matrix.changed == 'true'
+        uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall
+
+      - name: 依存のインストール
+        if: matrix.changed == 'true'
+        run: sfw uv sync --locked
+        working-directory: src/${{ matrix.service }}
+
+      - name: Ruff check
+        if: matrix.changed == 'true'
+        run: uv run --locked ruff check .
+        working-directory: src/${{ matrix.service }}
+
+      - name: Ruff format check
+        if: matrix.changed == 'true'
+        run: uv run --locked ruff format --check .
+        working-directory: src/${{ matrix.service }}
+
+      - name: テスト
+        if: matrix.changed == 'true'
+        run: uv run --locked pytest -s
+        working-directory: src/${{ matrix.service }}
+
+  bicep:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Bicep をコンパイル
+        # 構文・型・参照エラーと、固定バージョンの AVM モジュールが解決できることを見る。
+        # Azure への接続は不要で、モジュールの取得だけを行う。
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.webui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Web UI の Docker ビルド
+        # Azure Container Apps は linux/amd64 のみ受け付ける。
+        # .dockerignore が効いてビルドコンテキストに .env や .venv が入らないことも
+        # あわせて確認される（入ると Socket Firewall 固定の検証より前に肥大化する）。
+        run: docker build --platform linux/amd64 -t diary-webui:ci .
+        working-directory: src/webui

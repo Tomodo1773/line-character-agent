@@ -41,11 +41,22 @@ flowchart LR
     HA -->|モデルを明示指定| M[Foundry Models<br/>オープンウェイトモデル]
     HA -->|MCP| TB[Foundry Toolbox<br/>Web Search]
     HA -->|Managed Identity| COS[(Cosmos DB<br/>users / diary)]
+    RT[Foundry Routine<br/>毎月1日] -->|Responses protocol| HA
     BK[Timer Function] --> COS
     BK --> BLOB[(Blob Storage<br/>Markdown バックアップ)]
     UI[日記 Web UI<br/>ACA Express] --> COS
     GW & W & HA -->|OpenTelemetry| OBS[Foundry Observability<br/>Application Insights]
 ```
+
+#### 利用者モデル
+
+今回の構成は、環境変数 `DIARY_USER_ID` で指定した所有者1人だけが利用する**個人専用**とする。
+LINE Gateway は所有者以外のイベントをキューへ投入せず、Agent と Web UI は所有者の
+Cosmos DB パーティションだけを参照する。ユーザー別のパーティション構造は、将来の拡張余地として維持する。
+
+複数ユーザー対応は別の設計変更として扱う。Agent への利用者ID伝搬だけでは認可にならないため、
+Web UI の認証済みアカウントと LINE アカウントを連携し、その対応関係からサーバー側で LINE user ID を決定する。
+リクエストで指定された user ID は認可判断に使わない。
 
 ### 1. 実行基盤: ゲートウェイとエージェントの分離
 
@@ -61,11 +72,13 @@ LINE の webhook 受信とエージェント実行を、**キューを挟んで�
 
 ### 2. エージェント: Microsoft Agent Framework によるシングルエージェント
 
-- エージェント本体は **Microsoft Agent Framework (MAF) 1.0** で実装し、コンテナとして Foundry ホステッドエージェントにデプロイする。
+- エージェント本体は **Microsoft Agent Framework (MAF) 1.0** で実装し、Foundry ホステッドエージェントへデプロイする。配布方式はコンテナイメージではなく **Direct code deploy**（ソースを ZIP で上げ、Foundry 側が `requirements.txt` から remote build する）とし、コンテナレジストリを持たない。
 - 日記登録ワークフローのような固定グラフは持たない。**単一のエージェントがツールとスキルを使って再帰的に判断する**構成とする。「今から昨日の日記を書く」と宣言してから本文を送る、といった対話は、スキルに手順を記述してエージェントに判断させる。
 - スキルは MAF の Agent Skills 機能を用いる。ディレクトリから `SKILL.md` を発見し、システムプロンプトに一覧を広告したうえで、`load_skill` / `read_skill_resource` / `run_skill_script` により必要時に読み込む（progressive disclosure）。現行の deepagents のスキル構成をほぼそのまま移植できる。
-- ツールは日記操作の一式に整理する: `diary_create` / `diary_update` / `diary_delete` / `diary_rename` / `diary_search`（ベクトル検索）/ `digest_regenerate` / `read_profile`。
-- Web 検索は Foundry Toolbox の Web Search を MCP 経由で利用する。ホステッドエージェントはエージェント定義への直接のツール追加をサポートしないため、Foundry 側のツールは Toolbox の MCP エンドポイント経由で接続する。
+- ツールは日記操作の一式に整理する: `diary_create` / `diary_update` / `diary_delete` / `diary_rename` / `diary_search`（ベクトル検索）/ `digest_read` / `digest_save` / `read_profile`。
+- **ツールの内側から生成 LLM や別のエージェントを呼び出さない。** 文章を作るのはスキルを読んだメインエージェントの仕事で、ツールは読み取りと、検証つきの書き込みに徹する。ダイジェスト集約もこの形に従い、`digest_read` が材料（日次要約と現在の月次・年次）を読み、`digest_save` が構造を検証して Cosmos DB へ書く。ベクトル索引に必要な埋め込み生成だけは機械的処理として例外とする。
+- Web 検索は Foundry Toolbox の Web Search を MCP 経由で利用する。ホステッドエージェントはエージェント定義への直接のツール追加をサポートしないため、Foundry 側のツールは Toolbox の MCP エンドポイント経由で接続する。Toolbox は ARM のリソースではないため Bicep では作れず、`azure.yaml` の `azure.ai.toolbox` サービスとして宣言して azd に作らせる。
+- ダイジェストの集約は手動専用にせず、**毎月1日に Foundry Routine がメインエージェントを Responses API で呼ぶ**。旧構成の Timer Function による自動 digest 再編を引き継ぐ位置づけで、Routine も `azure.yaml` の `azure.ai.routine` サービスとして宣言する。集約の規則は `digest-rollup` スキルに置き、Routine はそのスキルを読ませる指示だけを渡す。
 
 #### モデル選定
 
@@ -123,15 +136,17 @@ Foundry Agent Service の **Standard セットアップ（BYO Thread Storage）�
 
 ### 7. 日記 Web UI
 
-日記の閲覧・リネーム・削除を行う小規模な管理 UI を用意し、**Azure Container Apps Express** にデプロイする。本体（LINE 経路）から独立しており停止しても影響がないため、プレビュー段階のサービスを試す場として適切と判断する。Express は現時点でシークレット管理が未対応のため、権限を絞った接続情報の利用と、UI 自体への簡易認証を必須とする。
+日記の一覧・月別絞り込み・本文表示だけを行う小規模な**読み取り専用ビューア**を用意し、**Azure Container Apps Express** にデプロイする。日記の作成・更新・日付変更・削除は LINE Agent に一本化し、UI からの変更経路は設けない。UI に渡す資格情報も日記コンテナのクエリ・読み取りだけに絞り、書き込み権限を持たせない。本体（LINE 経路）から独立しており停止しても影響がないため、プレビュー段階のサービスを試す場として適切と判断する。Express は現時点でシークレット管理が未対応のため、権限を絞った接続情報の利用と、UI 自体への簡易認証を必須とする。
 
 ### 8. IaC の方針
 
 | 対象 | 管理方法 |
 |------|----------|
 | Foundry アカウント / プロジェクト / モデルデプロイ、Cosmos DB、Functions、Storage、Key Vault、Application Insights | Bicep |
-| ホステッドエージェントのビルドとデプロイ | `azd` の AI agent 拡張（`azure.yaml`） |
+| ホステッドエージェントのビルドとデプロイ、Foundry Toolbox、Foundry Routine | `azd` の AI agent 拡張（`azure.yaml`）。いずれも ARM のリソースではなく Foundry プロジェクト配下のオブジェクトのため Bicep では作れない。ポータルでの手作業には依存させない |
 | 日記 Web UI（ACA Express） | IaC 対象外。手順を README に記載 |
+
+Bicep では、標準的なリソースは **Azure Verified Modules をバージョン固定で使う**。raw Bicep を残すのは、AVM が未対応の Foundry の Project と Connection、適合するモジュールが無い既存 Key Vault への RBAC、そして AVM 同士では循環参照になる Functions からストレージへのロール付与の3つに限る。
 
 App Service および同 Free プランは削除する。
 
@@ -143,6 +158,7 @@ App Service および同 Free プランは削除する。
 | LangGraph PostgreSQL チェックポインターと外部 Postgres | Responses プロトコルの履歴管理へ移行 |
 | Google Drive 連携一式（`google_auth.py` / `crypto.py` / `google_drive*.py` / `drive_folder.py` / OAuth コールバック / `oauth_states` コンテナ） | Cosmos DB へ一本化 |
 | 日記登録ワークフロー（`agent/diary_workflow/`） | シングルエージェント + スキルへ統合 |
+| digest 再編用のツール内モデル呼び出し（旧 `digest_reorganizer` / `foundry.complete()`） | 要約を作るのはスキルを読んだメインエージェントの仕事とし、ツールは読み書きに徹する |
 | 音声文字起こし（`utils/transcript.py`、音声メッセージハンドラ） | スマートフォン側へ移譲。音声受信時は案内を返すのみ |
 | Drive から Cosmos DB への同期 Function | 同期元が消滅 |
 | LangSmith 連携（`@traceable`、`LANGSMITH_API_KEY`） | Foundry Observability へ移行 |
@@ -153,7 +169,7 @@ App Service および同 Free プランは削除する。
 | 選択肢 | 不採用の理由 |
 |--------|-------------|
 | **Foundry Agent Service の Standard セットアップ（BYO Thread Storage）** | 会話履歴を自前の Cosmos DB に保持できるが、`enterprise_memory` データベースに専用コンテナを3つ作成し、それぞれ 1000 RU/s・合計 3000 RU/s を要求する。Cosmos DB 無料枠（1000 RU/s）では成立せず、データ主権要件を持たない個人アプリで採用する理由がない |
-| **ACA Express を LINE 経路の本線に置く** | パブリックプレビューであり、対応リージョンが West Central US / East Asia のみ（日本リージョンなし）、シークレット管理・Key Vault 連携・課金体系が未整備。管理 UI の置き場としてのみ採用する |
+| **ACA Express を LINE 経路の本線に置く** | パブリックプレビューであり、対応リージョンが West Central US / East Asia のみ（日本リージョンなし）、シークレット管理・Key Vault 連携・課金体系が未整備。読み取り専用ビューアの置き場としてのみ採用する |
 | **LangGraph / deepagents の継続利用** | 技術的には成立し、ホステッドエージェントもフレームワーク非依存である。ただし Azure のキャッチアップという目的に対して MAF の方が適合する。今回必要なのはシングルエージェント + ツール + スキルのみであり、deepagents のプランニングやサブエージェントは過剰装備だった |
 | **Model Router によるモデルの自動選択** | 入力に応じてプラットフォームがモデルを選ぶため、同じ入力に対する応答の再現性が下がり、キャラクター応答の評価と調整がしにくくなる。コスト最適化の効果より、どのモデルで動いているかを自分で決められることを優先する。またオープンウェイトモデルを使う場合、単価が十分に低くルーティングによる節約の意義が小さい |
 | **Foundry 経由で OpenAI などのプロプライエタリモデルを使う** | 動作はするが、それ自体は既存構成と変わらず学習上の新規性がない。Azure がホストするオープンウェイトモデルを選ぶことで、モデル選定・評価まで含めて Azure 上で完結させる |
@@ -187,7 +203,7 @@ App Service および同 Free プランは削除する。
 
 ### リスクと許容範囲
 
-- **ホステッドエージェントは新しいサービスであり仕様変更の可能性がある**。ただしフレームワーク非依存であるため、最悪の場合は同一コンテナを標準の Container Apps に載せ替えられる。その場合は会話履歴の管理のみ自前実装が必要になる。
+- **ホステッドエージェントは新しいサービスであり仕様変更の可能性がある**。ただしフレームワーク非依存であるため、最悪の場合は同じソースをコンテナ化して標準の Container Apps に載せ替えられる。その場合は会話履歴の管理のみ自前実装が必要になる。
 - **会話セッションは30日間の非アクティブで削除される**。永続すべきデータをサンドボックスの `$HOME` に置かず、Cosmos DB に保持する設計を守ることで影響を受けない。
 - **オープンウェイトモデルの日本語品質は未検証である**。キャラクター応答の自然さが最大の懸念点となる。代替候補（`DeepSeek-V4-Pro`、`GLM-5.2`）への切り替えは容易であり、判断材料を Foundry Evaluations で用意することを前提とする。品質がどうしても要件に届かない場合に限り、プロプライエタリモデルへの回帰を検討する。
 - **オープンウェイトモデルの提供形態は変動が速い**。従量課金の提供終了やモデルの入れ替わりが数か月単位で起きるため、既定モデルは固定資産ではなく差し替え前提の設定値として扱う。モデル名をコードに散在させず、環境変数1か所で切り替えられる状態を維持する。

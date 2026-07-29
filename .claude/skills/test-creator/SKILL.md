@@ -20,7 +20,7 @@ description: テストコードを作成する際に使用します。ユニッ�
 
 ### サービス単位の注意点
 
-- リポジトリは `src/api`, `src/func` の2サービス構成。テストは対象サービスのディレクトリで実行する（例: `cd src/api && uv run pytest`）
+- リポジトリは `src/agent`, `src/func` の2サービス構成。テストは対象サービスのディレクトリで実行する（例: `cd src/agent && uv run pytest`）
 - 各サービスで必要に応じてフィクスチャを追加する（現状は `monkeypatch` 等の標準的なものを使用）
 
 ### 外部APIの扱い
@@ -56,7 +56,7 @@ description: テストコードを作成する際に使用します。ユニッ�
 ## Instructions
 
 1. **方針確認**
-   - 上の「テストの実装方針」を読み、対象サービス（`src/api` / `src/func`）に合わせて進める
+   - 上の「テストの実装方針」を読み、対象サービス（`src/agent` / `src/func`）に合わせて進める
    - **純粋なロジック部分のみをテスト対象とする**
    - DB依存部分はテストしない
 
@@ -73,7 +73,7 @@ description: テストコードを作成する際に使用します。ユニッ�
    - 対象サービスディレクトリで依存を固定してからテストを実行する:
 
 ```bash
-cd src/api       # または src/func
+cd src/agent     # または src/func
 uv sync --frozen
 uv run pytest -q
 ```

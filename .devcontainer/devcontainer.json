@@ -86,8 +86,7 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [
-		8000, // API (src/api)
-		5432, // Postgres
+		8088, // Agent (src/agent)
 		7072 // FUNC Functions (HTTP endpoint)
 	]
 

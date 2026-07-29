@@ -1,0 +1,17 @@
+# Azure Container Apps の remote build へ送るコンテキストを、実行に要るものだけに絞る。
+# 特に .env は資格情報を含むため、絶対にビルドコンテキストへ入れない。
+.env
+.env.*
+
+.venv/
+__pycache__/
+*.py[cod]
+
+tests/
+pytest.ini
+.pytest_cache/
+.ruff_cache/
+
+Dockerfile
+.dockerignore
+README.md

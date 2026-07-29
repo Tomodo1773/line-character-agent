@@ -7,7 +7,7 @@ description: |
 
   - <example>
     Context: ユーザーが新しい機能を実装した後、テストを実行したい場合
-    user: "chatbot/agent.pyに新しい会話機能を追加しました。テストを実行してください"
+    user: "character_agent/agent.pyに新しい会話機能を追加しました。テストを実行してください"
     assistant: "test-runnerエージェントを使ってテストを実行します"
     <commentary>
     コード変更後のテスト実行が必要なため、test-runnerエージェントを起動して
@@ -46,7 +46,7 @@ model: sonnet
 
 ## テスト実行手順
 
-1. 実行対象のサービスを確認する（`src/api` / `src/func`）。
+1. 実行対象のサービスを確認する（`src/agent` / `src/func`）。
 2. 対象ディレクトリで `uv sync --frozen` を実行して依存を固定する
 3. 対象ディレクトリで `uv run pytest` を実行する
 4. テストの実行が完了するまで待機します
@@ -82,7 +82,7 @@ model: sonnet
 
 【失敗したテスト】
 
-1. テストファイル: src/api/tests/test_agent.py
+1. テストファイル: src/agent/tests/test_agent.py
   テストケース: test_conversation_flow
   エラー内容:
 ```

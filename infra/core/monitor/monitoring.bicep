@@ -1,31 +1,34 @@
+metadata description = 'Creates the Application Insights component and the Log Analytics workspace behind it.'
+
+// 標準リソースなので AVM を使う。バージョンは固定し、更新は明示的に行う。
+
 param logAnalyticsName string
 param applicationInsightsName string
-param applicationInsightsDashboardName string
 param location string = resourceGroup().location
 param tags object = {}
 
-module logAnalytics 'loganalytics.bicep' = {
-  name: 'loganalytics'
+module logAnalytics 'br/public:avm/res/operational-insights/workspace:0.16.0' = {
+  name: 'log-analytics'
   params: {
     name: logAnalyticsName
     location: location
     tags: tags
+    dataRetention: 30
+    skuName: 'PerGB2018'
   }
 }
 
-module applicationInsights 'applicationinsights.bicep' = {
-  name: 'applicationinsights'
+module applicationInsights 'br/public:avm/res/insights/component:0.8.0' = {
+  name: 'application-insights'
   params: {
     name: applicationInsightsName
     location: location
     tags: tags
-    dashboardName: applicationInsightsDashboardName
-    logAnalyticsWorkspaceId: logAnalytics.outputs.id
+    kind: 'web'
+    applicationType: 'web'
+    workspaceResourceId: logAnalytics.outputs.resourceId
   }
 }
 
-output applicationInsightsConnectionString string = applicationInsights.outputs.connectionString
-output applicationInsightsInstrumentationKey string = applicationInsights.outputs.instrumentationKey
 output applicationInsightsName string = applicationInsights.outputs.name
-output logAnalyticsWorkspaceId string = logAnalytics.outputs.id
-output logAnalyticsWorkspaceName string = logAnalytics.outputs.name
+output applicationInsightsConnectionString string = applicationInsights.outputs.connectionString

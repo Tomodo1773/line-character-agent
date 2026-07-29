@@ -25,44 +25,44 @@
 
 ## プロジェクト構成とモジュール
 
-- `src/api/` FastAPI アプリ（LINE webhook、エージェント）。テストは `src/api/tests/`。
-- `src/func/` Azure Functions（日記アップロード/RAG）。テストは `src/func/tests/`。
+- `src/agent/` Foundry ホステッドエージェント（Microsoft Agent Framework、Responses プロトコル）。ツールは `character_agent/tools.py`、スキルは `character_agent/skills/`。テストは `src/agent/tests/`。
+- `src/func/` Azure Functions。LINE Gateway（HTTPトリガー）と Worker（Queueトリガー）。テストは `src/func/tests/`。
 - `infra/` Bicep、`images/` 図版、`tools/` 開発ユーティリティ。
 
 ## ビルド・テスト・開発コマンド
 
-サプライチェーン攻撃対策として、依存関係取得は Socket Firewall Free 経由で行う。各サービスで `sfw uv sync` 後に以下を実行。環境変数は各 `.env.sample` を参照。
+サプライチェーン攻撃対策として、依存関係取得は Socket Firewall Free 経由で行う。各サービスで `sfw uv sync --locked` 後に以下を実行。環境変数は各 `.env.sample` を参照。
 
 | サービス | 起動 | テスト |
 |----------|------|--------|
-| API | `cd src/api && uv run fastapi dev chatbot/main.py --host 0.0.0.0 --port 8000` | `uv run pytest` |
-| Func | Azure Functions Core Tools を使用 | `uv run pytest` |
+| Agent | `cd src/agent && azd ai agent run`（ポート 8088） | `uv run --locked pytest` |
+| Func | Azure Functions Core Tools を使用 | `uv run --locked pytest` |
 
 ### Python 実行時の注意
 
-常に `uv run` を前置する。例: `uv run pytest` / `uv run python scripts/foo.py`。避ける: `python -m pytest`。理由: ロックに基づく一時環境で依存差異を吸収し再現性を確保するため。
+常に `uv run --locked` を前置する。例: `uv run --locked pytest` / `uv run --locked python scripts/foo.py`。避ける: `python -m pytest`。理由: lockfile の整合性を検証し、依存差異を吸収して再現性を確保するため。
 
 ## ログ
 
 - `print()` をログ目的で使わない。必ず `logging` モジュール（`logger.info` / `logger.error` 等）を使う。
 - ツールや関数が実行されたことが分かるよう、処理の入口で `logger.info` を出す。
-- ロガー初期化は `create_logger(__name__)`（`utils/config.py`）を使う。`logging.getLogger` を直接使わない。
+- ロガー初期化は `create_logger(__name__)`（Agent は `character_agent/config.py`、Func は `logger.py`）を使う。`logging.getLogger` を直接使わない。
 
 ## コーディング規約と命名
 
-- Python 3.11、インデント4スペース、行長127（ruff 設定)。
+- Python 3.13、インデント4スペース、行長127（ruff 設定)。
 - 命名: ファイル/関数/変数は `snake_case`、クラスは `PascalCase`。
 - import 順: 標準 → サードパーティ → ローカル。原則として絶対インポート。
 - 整形/Lint: ruff を使用（`pre-commit` 対応）。push 前に `pre-commit run -a`。
 
 ### Format/Lint
 
-全サービス（api, func）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
+全サービス（agent, func）で ruff によるformat/lintが利用可能。**コード修正後は必ず実行すること。**
 
 ```bash
 # 各サービスディレクトリで実行
-uv run ruff check --fix .  # Lint（自動修正）
-uv run ruff format .       # Format
+uv run --locked ruff check --fix .  # Lint（自動修正）
+uv run --locked ruff format .       # Format
 ```
 
 CI やレビューで ruff エラーがあると merge できないため、commit 前に必ず確認する。
@@ -72,11 +72,11 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 - フレームワーク: pytest（必要に応じて pytest-asyncio）。
 - 置き場/命名: `src/*/tests/`、ファイルは `test_*.py`、関数は `test_*`。
 - 外部依存: 必須環境変数が無い場合は `pytest.skip` を使用。
-- 実行: 各サービスディレクトリで `uv run pytest`。小さく独立したユニットテストを重視。
+- 実行: 各サービスディレクトリで `uv run --locked pytest`。小さく独立したユニットテストを重視。
 
 ## コミット・PR ガイドライン
 
-- コミット: Conventional Commits（例: `feat(api): add diary route`、`fix(func): handle 404`）。
+- コミット: Conventional Commits（例: `feat(agent): add diary tools`、`fix(func): handle 404`）。
 - PR: 簡潔なタイトル、変更概要、関連 Issue（例: `Closes #123`）、テスト証跡（ログ/コマンド等）、必要に応じてドキュメント更新。ruff/テスト/pre-commit を通過させること。
 
 ## セキュリティと構成
@@ -87,9 +87,9 @@ CI やレビューで ruff エラーがあると merge できないため、comm
 
 ## 環境変数追加時の注意
 
-- 追加時は「設定モジュール定義」→「`.env.sample` 追記」→「`infra/main.bicep` の該当サービス `appSettings` へキー追加」→「PR に用途記載」の4ステップ。
+- 追加時は「設定モジュール定義」→「`.env.sample` 追記」→「配布先へキー追加（Func は `infra/main.bicep` の `appSettings`、Agent は `azure.yaml` の `services.agent.env`）」→「PR に用途記載」の4ステップ。
 - Key Vault シークレットは事前登録の上 `@Microsoft.KeyVault(SecretUri=...)` 形式で main.bicep に書く。Cosmos/Storage の接続情報は各 service module が自動 union するため重複定義しない。
-- ランタイム側で散発的に `os.environ.get` を書かず集中ファイル（API は `utils/config.py`）で一括検証する方針。Functions は今後統合予定。
-- main.bicep への追加漏れは本番起動時クラッシュ (503) に直結するので PR レビューで `main.bicep` と `.env.sample` の両方を必ず確認する。
+- ランタイム側で散発的に `os.environ.get` を書かず集中ファイル（Agent は `character_agent/config.py`、Func は `config.py`）で一括検証する方針。
+- 追加漏れは本番起動時クラッシュに直結するので PR レビューで `main.bicep` / `azure.yaml` と `.env.sample` の両方を必ず確認する。
 
 例: 新しい OAuth シークレット追加なら Key Vault 登録 → main.bicep appSettings に参照式 → config 定義 → `.env.sample` 追記 → PR に "env: XXX 追加"。

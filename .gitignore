@@ -172,6 +172,12 @@ user_profile.md
 local.settings.json
 credentials.json
 
+# azd の生成物
+# Agent の requirements.txt は uv.lock から prepackage hook が作る派生物なのでコミットしない。
+src/agent/requirements.txt
+# Func の配布ディレクトリも prepackage hook が作り直す。
+src/func/.azure/
+
 # Claude
 settings.local.json
 
