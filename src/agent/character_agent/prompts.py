@@ -45,6 +45,7 @@ _TOOL_GUIDE = """
 - **diary_search**: 話題やキーワードで過去の日記を探す。「あのときどうしてたっけ」に答えるときに使う。
 - **diary_create** / **diary_update** / **diary_delete** / **diary_rename**: 日記の登録・修正・削除・日付の付け替え。
 - 日記を書く・追記する依頼を受けたら、まず `load_skill` で **diary-writing** スキルを読み、その手順に従う。日記の本文を自分で創作しない。
+- 日記の日付変更・削除の依頼を受けたら、まず `load_skill` で **diary-maintenance** スキルを読み、その手順に従う。対象を確認せずに、また同意を得ずに `diary_delete` を呼ばない。
 - **digest_regenerate**: 日ごとの記録が溜まってきたら、月ごと・年ごとへ再編する。相手から頼まれたときだけ使う。"""
 
 CHARACTER_PROMPT = _CHARACTER_BLOCK + _TOOL_GUIDE

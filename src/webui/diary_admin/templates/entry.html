@@ -2,15 +2,4 @@
 <h2>{{ entry.date }}</h2>
 
 <div class="content">{{ entry.content }}</div>
-
-<h3>日付を変更</h3>
-<form method="post" action="/entries/{{ entry.id }}/date">
-  <input type="date" name="date" value="{{ entry.date }}" required />
-  <button type="submit">変更する</button>
-</form>
-
-<h3>削除</h3>
-<form method="post" action="/entries/{{ entry.id }}/delete" onsubmit="return confirm('{{ entry.date }} の日記を削除します。よろしいですか？')">
-  <button type="submit">削除する</button>
-</form>
 {% endblock %}

@@ -1,7 +1,5 @@
 """Basic 認証とルーティングだけを確認する。Cosmos DB は差し替える。"""
 
-import datetime
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -40,28 +38,3 @@ def test_detail_shows_content(client: TestClient):
 
 def test_detail_returns_404_for_unknown_entry(client: TestClient):
     assert client.get("/entries/unknown", auth=CREDENTIALS).status_code == 404
-
-
-def test_change_date_updates_entry_and_redirects(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    calls: list[tuple[dict, datetime.date]] = []
-    monkeypatch.setattr(cosmos, "change_date", lambda entry, new_date: calls.append((entry, new_date)))
-
-    response = client.post(f"/entries/{ENTRY['id']}/date", data={"date": "2026-07-26"}, follow_redirects=False)
-
-    assert response.status_code == 401  # 認証なしでは更新できない
-    response = client.post(
-        f"/entries/{ENTRY['id']}/date", data={"date": "2026-07-26"}, auth=CREDENTIALS, follow_redirects=False
-    )
-    assert response.status_code == 303
-    assert calls == [(ENTRY, datetime.date(2026, 7, 26))]
-
-
-def test_delete_removes_entry_and_redirects(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    deleted: list[dict] = []
-    monkeypatch.setattr(cosmos, "delete_entry", deleted.append)
-
-    response = client.post(f"/entries/{ENTRY['id']}/delete", auth=CREDENTIALS, follow_redirects=False)
-
-    assert response.status_code == 303
-    assert response.headers["location"] == "/"
-    assert deleted == [ENTRY]

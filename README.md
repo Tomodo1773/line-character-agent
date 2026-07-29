@@ -27,7 +27,7 @@ Cosmos DB のユーザー別パーティションは将来の拡張用に維持�
 - **バックエンド**
   - Foundry ホステッドエージェント（`src/agent`）
   - Azure Functions（`src/func`。LINE ゲートウェイ／ワーカー）
-  - 日記管理 Web UI（`src/webui`。Azure Container Apps Express）
+  - 日記閲覧 Web UI（`src/webui`。Azure Container Apps Express。読み取り専用）
 
 - **データベース・ストレージ**
   - Azure Cosmos DB（日記エントリのベクトル検索、ユーザー情報）
@@ -182,7 +182,7 @@ sfw uv sync --locked         # lockfileを検証して依存関係をインス�
 
 #### Web UI Service（`src/webui/`）
 
-日記の閲覧・日付変更・削除ができる管理画面です。作成と本文の編集は LINE 経由が本線のため持ちません。
+日記の一覧・月別絞り込み・本文表示ができる読み取り専用のビューアです。日記の作成・更新・日付変更・削除は LINE Agent に一本化しているため、この UI からの変更手段は持ちません。
 
 ```bash
 cd src/webui
@@ -211,7 +211,7 @@ uv run --locked ruff format . # フォーマット
 
 ### 1. 権限を絞ったサービスプリンシパルを用意する
 
-マネージド ID が使えないため資格情報を環境変数で渡すことになります。アカウントキーは日記以外にも届いてしまうので使わず、**日記コンテナだけに絞ったカスタムロール**を割り当てたサービスプリンシパルを使います。UI は日記の作成をしないので、作成・upsert の権限も渡しません（漏れても新規書き込みはできない状態にする）。
+マネージド ID が使えないため資格情報を環境変数で渡すことになります。アカウントキーは日記以外にも届いてしまうので使わず、**日記コンテナだけに絞ったカスタムロール**を割り当てたサービスプリンシパルを使います。UI は一覧・月別絞り込み・本文表示だけの読み取り専用ビューアなので、クエリと読み取りの権限しか渡しません（資格情報が漏れても日記は一切書き換えられない状態にする）。日記の作成・更新・日付変更・削除は LINE Agent 経由でのみ行います。
 
 ```bash
 # UI 専用のサービスプリンシパルを作る（--role を指定しないので Azure ロールは付かない）
@@ -231,9 +231,7 @@ az ad sp create-for-rbac --name diary-webui
       "DataActions": [
         "Microsoft.DocumentDB/databaseAccounts/readMetadata",
         "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/executeQuery",
-        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/read",
-        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/replace",
-        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/delete"
+        "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/read"
       ]
     }
   ]
@@ -319,7 +317,7 @@ line-character-agent/
 │   │   ├── character_agent/  # エージェント定義・ツール・スキル
 │   │   └── tests/        # テストコード
 │   ├── func/             # Azure Functions（LINE ゲートウェイ／ワーカー）
-│   └── webui/            # 日記管理 Web UI（FastAPI + Jinja2、ACA Express）
+│   └── webui/            # 日記閲覧 Web UI（FastAPI + Jinja2、ACA Express。読み取り専用）
 │       ├── diary_admin/  # アプリ本体・テンプレート
 │       └── tests/        # テストコード
 ├── docs/                 # ADR・移行計画

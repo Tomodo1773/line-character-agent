@@ -51,12 +51,12 @@ def test_agent_registers_the_skills_provider(agent):
     assert any(isinstance(provider, SkillsProvider) for provider in agent.context_providers)
 
 
-def test_diary_writing_skill_is_discoverable(agent):
+def test_every_skill_is_discoverable(agent):
     source = FileSkillsSource(str(SKILLS_DIR))
 
     skills = asyncio.run(source.get_skills(SkillsSourceContext(agent=agent)))
 
-    assert [skill.frontmatter.name for skill in skills] == ["diary-writing"]
+    assert sorted(skill.frontmatter.name for skill in skills) == ["diary-maintenance", "diary-writing"]
 
 
 def test_create_agent_requires_settings(monkeypatch: pytest.MonkeyPatch):

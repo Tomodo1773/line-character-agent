@@ -1,8 +1,7 @@
-"""日記コンテナ（`diary` / `entries`、パーティションキー `/userId`）へのアクセス。
+"""日記コンテナ（`diary` / `entries`、パーティションキー `/userId`）の読み取り。
 
-この UI が行うのは **閲覧・日付変更・削除だけ**で、作成と本文の編集は LINE 経由が本線となる。
-本文が変わらない以上 `contentVector` を作り直す必要がないため、埋め込みモデルには一切依存しない。
-日付変更は `date` 系フィールドだけを差し替え、`contentVector` はそのまま残す。
+この UI が行うのは一覧・月別絞り込み・本文表示だけで、日記の変更は LINE Agent に一本化する。
+読み取り専用のため、埋め込みモデルや Cosmos DB の書き込み権限には依存しない。
 
 接続は `DefaultAzureCredential` を使う。ホスト先の Azure Container Apps Express は
 プレビュー段階でマネージド ID とシークレット管理の双方が未対応のため、日記コンテナだけに
@@ -10,7 +9,6 @@
 ローカルでは `az login` したユーザの権限がそのまま使われる。
 """
 
-import datetime
 from functools import lru_cache
 from typing import Any
 
@@ -71,25 +69,3 @@ def read_entry(entry_id: str) -> dict[str, Any] | None:
     except CosmosResourceNotFoundError:
         logger.info("日記が見つかりませんでした: id=%s", log_safe(entry_id))
         return None
-
-
-def change_date(entry: dict[str, Any], new_date: datetime.date) -> None:
-    """日記の日付を付け替える。本文は変わらないので `contentVector` はそのまま残す。
-
-    upsert ではなく replace を使うのは、この UI の資格情報に作成権限を持たせないため。
-    """
-    logger.info("change_date が呼び出されました: id=%s, new_date=%s", log_safe(entry["id"]), log_safe(new_date))
-    date_fields = {
-        "date": new_date.isoformat(),
-        "year": new_date.year,
-        "month": new_date.month,
-        "day": new_date.day,
-        "dayOfWeek": new_date.weekday(),
-    }
-    _container().replace_item(item=entry["id"], body={**entry, **date_fields})
-
-
-def delete_entry(entry: dict[str, Any]) -> None:
-    """日記を削除する。"""
-    logger.info("delete_entry が呼び出されました: id=%s", log_safe(entry["id"]))
-    _container().delete_item(item=entry["id"], partition_key=entry["userId"])

@@ -180,7 +180,7 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
 ### D6. Web UIのデータ契約
 
 - 優先度: P1/P2
-- 状態: 方針決定
+- 状態: 検証済み
 - 論点:
   - Cosmosカスタムロールに `readChangeFeed` がなく一覧が403になる
   - 日付変更・削除がdigestへ反映されない
@@ -200,6 +200,17 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
   - Web UIからCosmos DBへの書き込み経路が存在しない
   - 読み取り専用の最小権限で一覧・絞り込み・本文表示が動く
   - 日記の変更経路がLINE Agentへ一本化されている
+- 検証結果（2026-07-29）:
+  - Func: `sfw uv run --locked ruff check .`、`ruff format --check .`、`pytest`（16件成功）
+  - Agent: 同上（34件成功、既存のExperimentalWarning 1件）
+  - Web UI: 同上（6件成功、既存のStarletteDeprecationWarning 1件。日付変更・削除のテスト2件を削除したため8件から減少）
+  - Web UIから `change_date` と `delete_entry`、日付変更・削除フォーム、POSTルートを削除し、`src/webui` 配下のアプリコードとテンプレートに書き込み経路が残らないことを確認
+  - READMEのカスタムロールの `dataActions` を `readMetadata`・`executeQuery`・`items/read` だけに絞り、`items/replace` と `items/delete` を外した
+  - 日付変更・削除の手順を `src/agent/character_agent/skills/diary-maintenance/SKILL.md` へ置き、対象の特定と削除前のユーザー確認を必須にした
+  - `prompts.py` の `_TOOL_GUIDE` へ diary-maintenance の誘導行を追加し、`diary-writing/SKILL.md` の `diary_delete`・`diary_rename` 直接呼び出しの記述を差し替えた
+  - README・ADR-0001 §7の記述を読み取り専用ビューアへ揃えた
+- 残課題:
+  - `src/webui/pyproject.toml` の `python-multipart` はPOSTフォーム解析専用で、フォーム削除により未使用になった。除去には `uv.lock` の再生成が必要で `exclude-newer` の設定に影響しうるため、本PRでは触っていない
 - Issue: なし
 
 ### D7. 品質ゲート・AVM・サプライチェーン
@@ -243,10 +254,17 @@ PR #557 のレビュー指摘を、一度に修正せず論点ごとに判断・
 
 ## 次のセッション
 
-D1〜D7の設計方針はすべて決定済み。D2・D3は検証済み。以降は項目ごとに別セッションで実装・検証し、状態を
+D1〜D7の設計方針はすべて決定済み。D2・D3・D6は検証済み。以降は項目ごとに別セッションで実装・検証し、状態を
 `実装中` → `検証済み` へ更新する。
 
-次は **D6. Web UIのデータ契約** を実装する。
+残りは **D4 → D1 → D5 → D7** の順を推奨する（未承認の提案。番号順ではない理由は次のとおり）。
+
+- D4が日記ドキュメントの `summary` フィールド構造を確定させ、D5の月次ロールアップがそこに乗る
+- D1がDirect code deploy・`azure.yaml`・Python 3.13を確定させ、D5のRoutine宣言とD7のCI・Dockerfile削除がそこに乗る
+- D5はD4のデータ構造とD1の `azure.yaml` の両方が前提
+- D7はD1のPython 3.13統一とAgent Dockerfile削除が前提
+
+次は **D4. 日記・conversation・digestの整合性** を実装する。
 
 開始時の依頼例:
 

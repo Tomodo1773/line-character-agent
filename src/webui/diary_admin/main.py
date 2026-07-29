@@ -1,18 +1,16 @@
-"""日記の管理 UI（ADR-0001 §7）。
+"""日記の読み取り専用 UI（ADR-0001 §7）。
 
-閲覧・日付変更・削除だけを提供する。作成と本文の編集は LINE 経由が本線なので持たない。
+一覧・月別絞り込み・本文表示だけを提供する。日記の変更は LINE Agent に一本化する。
 ホスト先の Azure Container Apps Express はシークレット管理も Easy Auth も未対応のため、
 UI 自体の保護は環境変数の資格情報による Basic 認証で行い、全ルートに一律で適用する。
 """
 
-import datetime
 import secrets
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi import Path as PathParam
-from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
@@ -37,7 +35,7 @@ def require_admin(credentials: Annotated[HTTPBasicCredentials, Depends(HTTPBasic
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "認証に失敗しました", headers={"WWW-Authenticate": "Basic"})
 
 
-app = FastAPI(title="日記管理", dependencies=[Depends(require_admin)])
+app = FastAPI(title="日記ビューア", dependencies=[Depends(require_admin)])
 
 
 def _find_entry(entry_id: str) -> dict[str, Any]:
@@ -57,20 +55,6 @@ def index(request: Request, month: Month = None):
 
 @app.get("/entries/{entry_id}")
 def detail(request: Request, entry_id: EntryId):
-    """日記の本文表示と、日付変更・削除の操作。"""
+    """日記の本文を表示する。"""
     logger.info("detail が呼び出されました: id=%s", log_safe(entry_id))
     return templates.TemplateResponse(request, "entry.html", {"entry": _find_entry(entry_id)})
-
-
-@app.post("/entries/{entry_id}/date")
-def change_date(entry_id: EntryId, date: Annotated[datetime.date, Form()]):
-    """日記の日付を変更する。変更後は並び順が変わった一覧へ戻す（ユーザ入力を URL に含めない）。"""
-    cosmos.change_date(_find_entry(entry_id), date)
-    return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@app.post("/entries/{entry_id}/delete")
-def delete(entry_id: EntryId):
-    """日記を削除する。"""
-    cosmos.delete_entry(_find_entry(entry_id))
-    return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)

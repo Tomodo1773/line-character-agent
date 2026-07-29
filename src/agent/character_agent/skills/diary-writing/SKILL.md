@@ -81,5 +81,4 @@ allowed-tools: get_current_datetime diary_search diary_create diary_update
 日記を書く依頼ではなく、既存の日記への操作を頼まれたときは、このスキルの手順ではなく該当するツールを直接使う。
 
 - 本文の修正 → `diary_search` で全文を取得し、直した全文を `diary_update` に渡す
-- 削除 → `diary_delete`
-- 日付の間違い → `diary_rename`
+- 削除・日付の間違い → `diary-maintenance` スキルを読み、その手順に従う。対象の確認と削除前の同意が必須なので、`diary_delete` や `diary_rename` をここから直接呼ばない
