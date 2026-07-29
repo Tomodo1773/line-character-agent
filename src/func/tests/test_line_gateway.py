@@ -8,7 +8,7 @@ import json
 import azure.functions as func
 import pytest
 
-from tests.conftest import CHANNEL_SECRET
+from tests.conftest import CHANNEL_SECRET, DIARY_USER_ID
 
 TEXT_MESSAGE = {"type": "text", "id": "1", "text": "こんにちは", "quoteToken": "q1"}
 AUDIO_MESSAGE = {"type": "audio", "id": "1", "duration": 1000, "contentProvider": {"type": "line"}}
@@ -38,7 +38,7 @@ def _request(body: str, signature: str) -> func.HttpRequest:
     )
 
 
-def _webhook_body(message: dict) -> str:
+def _webhook_body(message: dict, user_id: str = DIARY_USER_ID) -> str:
     return json.dumps(
         {
             "destination": "Ubot",
@@ -48,7 +48,7 @@ def _webhook_body(message: dict) -> str:
                     "mode": "active",
                     "timestamp": 1700000000000,
                     "replyToken": "reply-token",
-                    "source": {"type": "user", "userId": "U123"},
+                    "source": {"type": "user", "userId": user_id},
                     "webhookEventId": "01",
                     "deliveryContext": {"isRedelivery": False},
                     "message": message,
@@ -76,7 +76,7 @@ def test_enqueues_text_message_with_trace_context():
 
     assert response.status_code == 200
     payload = json.loads(queue.messages[0])
-    assert payload["user_id"] == "U123"
+    assert payload["user_id"] == DIARY_USER_ID
     assert payload["reply_token"] == "reply-token"
     assert payload["text"] == "こんにちは"
     # Storage Queue は trace context を運ばないため、本文に載せて Worker へ渡す。
@@ -96,4 +96,21 @@ def test_replies_guidance_for_non_text_message(monkeypatch: pytest.MonkeyPatch):
 
     assert response.status_code == 200
     assert queue.messages is None
-    assert replies == [("U123", "reply-token", line_gateway.NON_TEXT_GUIDANCE)]
+    assert replies == [(DIARY_USER_ID, "reply-token", line_gateway.NON_TEXT_GUIDANCE)]
+
+
+@pytest.mark.parametrize("message", [TEXT_MESSAGE, AUDIO_MESSAGE])
+def test_ignores_messages_from_unauthorized_user(message: dict, monkeypatch: pytest.MonkeyPatch):
+    import line_client
+    import line_gateway
+
+    replies = []
+    monkeypatch.setattr(line_client, "reply_or_push", lambda *args: replies.append(args))
+
+    body = _webhook_body(message, user_id="U-other")
+    queue = FakeQueue()
+    response = line_gateway.line_gateway(_request(body, _sign(body)), queue)
+
+    assert response.status_code == 200
+    assert queue.messages is None
+    assert replies == []

@@ -47,6 +47,16 @@ flowchart LR
     GW & W & HA -->|OpenTelemetry| OBS[Foundry Observability<br/>Application Insights]
 ```
 
+#### 利用者モデル
+
+今回の構成は、環境変数 `DIARY_USER_ID` で指定した所有者1人だけが利用する**個人専用**とする。
+LINE Gateway は所有者以外のイベントをキューへ投入せず、Agent と Web UI は所有者の
+Cosmos DB パーティションだけを参照する。ユーザー別のパーティション構造は、将来の拡張余地として維持する。
+
+複数ユーザー対応は別の設計変更として扱う。Agent への利用者ID伝搬だけでは認可にならないため、
+Web UI の認証済みアカウントと LINE アカウントを連携し、その対応関係からサーバー側で LINE user ID を決定する。
+リクエストで指定された user ID は認可判断に使わない。
+
 ### 1. 実行基盤: ゲートウェイとエージェントの分離
 
 LINE の webhook 受信とエージェント実行を、**キューを挟んで完全に非同期化**する。

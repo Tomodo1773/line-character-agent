@@ -45,6 +45,6 @@ def get_settings() -> Settings:
         hosted_agent_name=_required("HOSTED_AGENT_NAME"),
         storage_account_name=_required("STORAGE_ACCOUNT_NAME"),
         diary_backup_container_name=_required("DIARY_BACKUP_CONTAINER_NAME"),
-        # 日記の持ち主（LINE ユーザ ID）。バックアップ失敗時の通知先に使う。
+        # 日記の持ち主（LINE ユーザ ID）。Gateway の許可ユーザとバックアップ失敗時の通知先に使う。
         diary_user_id=_required("DIARY_USER_ID"),
     )

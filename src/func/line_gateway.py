@@ -12,6 +12,7 @@ from linebot.v3.webhooks import Event, MessageEvent, TextMessageContent
 from opentelemetry.propagate import inject
 
 import line_client
+from config import get_settings
 from logger import create_logger
 
 logger = create_logger(__name__)
@@ -43,12 +44,16 @@ def line_gateway(req: func.HttpRequest, queue: func.Out[list[str]]) -> func.Http
 def _to_queue_payloads(events: list[Event]) -> list[dict]:
     """Worker に渡すテキストメッセージだけを取り出す。
 
+    個人用エージェントのため、`DIARY_USER_ID` と一致する送信者だけを処理する。
     テキスト以外のメッセージには、reply token が新しいこの場で案内を返す。
     """
     payloads = []
+    authorized_user_id = get_settings().diary_user_id
     for event in events:
         if not isinstance(event, MessageEvent):
             logger.info("処理対象外のイベントのため無視します: %s", type(event).__name__)
+        elif event.source.user_id != authorized_user_id:
+            logger.warning("許可されていない LINE ユーザからのイベントを無視します")
         elif isinstance(event.message, TextMessageContent):
             payloads.append(_build_payload(event))
         else:
